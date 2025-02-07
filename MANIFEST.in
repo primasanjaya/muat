@@ -1,0 +1,4 @@
+include LICENSE
+include README.md
+recursive-include muat/pkg_shell *.sh
+recursive-include muat/pkg_data * 
