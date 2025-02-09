@@ -1,9 +1,14 @@
+[project]
+name = "muat"  # replace with your actual project name
+version = "0.1.0"  # replace with your version
+requires-python = ">=3.8"
+
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project.scripts]
+muat = "muat.core:main"
 
 [tool.setuptools]
 packages = ["muat"]
-
-[tool.setuptools.entry_points.console_scripts]
-muat = "muat.core:main"
