@@ -6,6 +6,47 @@ import tempfile
 import subprocess
 import pdb
 
+def mutation_type_ratio(snv, mnv, indel, sv_mei, neg,pd_motif):
+
+    if snv + mnv + indel + sv_mei + neg != 1:
+        raise ValueError("The sum of mutation types must be 1")
+
+    if snv < 0 or mnv < 0 or indel < 0 or sv_mei < 0 or neg < 0:
+        raise ValueError("Mutation types must be non-negative")
+
+    vocabsize = 0
+    vocabNisi = len(pd_motif.loc[pd_motif['mut_type']=='SNV'])
+    vocabSNV = len(pd_motif.loc[pd_motif['mut_type']=='MNV'])
+    vocabindel = len(pd_motif.loc[pd_motif['mut_type']=='indel']) 
+    vocabSVMEI = len(pd_motif.loc[pd_motif['mut_type'].isin(['MEI','SV'])])
+    vocabNormal = len(pd_motif.loc[pd_motif['mut_type']=='Normal'])
+
+    if snv>0:
+        vocabsize = vocabNisi
+    if mnv>0:
+        vocabsize = vocabNisi + vocabSNV
+    if indel>0:
+        vocabsize = vocabNisi + vocabSNV + vocabindel         
+    if sv_mei>0:
+        vocabsize = vocabNisi + vocabSNV + vocabindel + vocabSVMEI   
+    if neg>0:
+        vocabsize = vocabNisi + vocabSNV + vocabindel + vocabSVMEI + vocabNormal
+    
+    return {
+        'snv': snv,
+        'mnv': mnv,
+        'indel': indel,
+        'sv_mei': sv_mei,
+        'neg': neg
+    }, vocabsize
+
+def model_input(motif=True,pos=True,ges=True):
+    return {
+        'motif': motif,
+        'pos': pos,
+        'ges': ges
+    }
+
 # translation table to map each character to a nucleotide or N
 valid_dna = ''.join([chr(x) if chr(x) in 'ACGTN' else 'N' for x in range(256)])
 

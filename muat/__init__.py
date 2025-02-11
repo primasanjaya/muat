@@ -23,6 +23,7 @@ from . import download
 from . import preprocessing
 from . import reader
 from . import util
+from . import trainer
 
 # List all public functions/classes that should be available
 __all__ = [

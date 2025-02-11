@@ -4,7 +4,8 @@ import os
 import numpy as np
 import pdb
 import traceback
-
+from tqdm import tqdm
+import json
 
 def get_motif_pos_ges(fn,genome_ref,tmp_dir,verbose=True):
     """
@@ -66,15 +67,84 @@ def preprocessing_vcf(vcf_file,genome_reference_path,tmp_dir,info_column=None,ve
         fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
         get_motif_pos_ges(fn,genome_ref,tmp_dir,verbose=verbose)
 
-    
+def load_dict(dict_path):
+    with open(dict_path, 'r') as f:
+        dict_data = json.load(f)
+    return dict_data['dict_motif'], dict_data['dict_pos'], dict_data['dict_ges']
 
 
+def create_dictionary(prep_path,pos_bin_size=1000000,save_dict_path=None):
+    '''
+    Create a dictionary of preprocessed vcf file and histology abbreviation
+    Args:
+        prep_path: str or list of str, path(s) to preprocessed vcf file(s)
+    '''   # Convert single file path to list for consistent handling
+    if isinstance(prep_path, str):
+        prep_path = [prep_path]
+
+    dict_motif = set()
+    dict_pos = set()    
+    dict_ges = set()
+
+    for path in tqdm(prep_path, desc="Generating token", unit="file"):
+        #load tsv.gz file
+        df = pd.read_csv(path, sep='\t',compression='gzip',low_memory=False)
+        #get aliquot_id
+        motif = set(df['seq'].to_list())
+        ps = (df['pos'] / pos_bin_size).apply(np.floor).astype(int).astype(str)
+
+        chrom = df['chrom'].astype(str)
+        chrompos = chrom + '_' + ps
+        df['chrompos'] = chrompos
+        chrompos = df['chrompos'].unique()
+        df['ges'] = df['genic'].astype(str) + '_' + df['exonic'].astype(str) + '_' + df['strand'].astype(str)
+        ges = df['ges'].unique()
+
+        df.to_csv(path, sep='\t',compression='gzip',index=False)
+
+        dict_motif.update(motif)
+        dict_pos.update(chrompos)
+        dict_ges.update(ges)
+
+    # Save all dictionaries as a single JSON file
+    combined_dict = {
+        'dict_motif': dict_motif,
+        'dict_pos': dict_pos,
+        'dict_ges': dict_ges
+    }
+
+    # Example of converting a set to a list before serialization
+    if 'dict_motif' in combined_dict:
+        combined_dict['dict_motif'] = list(combined_dict['dict_motif'])  # Convert set to list
+    if 'dict_pos' in combined_dict:
+        combined_dict['dict_pos'] = list(combined_dict['dict_pos'])  # Convert set to list
+    if 'dict_ges' in combined_dict:
+        combined_dict['dict_ges'] = list(combined_dict['dict_ges'])  # Convert set to list
+
+    if save_dict_path is not None:
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(save_dict_path), exist_ok=True)
         
+        with open(save_dict_path, 'w') as f:
+            json.dump(combined_dict, f)
+    
+    return dict_motif, dict_pos, dict_ges
 
+def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,pos_bin_size=1000000):
+    '''
+    Tokenizing the motif, pos, and ges
+    '''
+    for path in tqdm(all_preprocessed_vcf, desc="Tokenizing", unit="file"):
+        df = pd.read_csv(path, sep='\t',compression='gzip',low_memory=False)
 
+        ps = (df['pos'] / pos_bin_size).apply(np.floor).astype(int).astype(str)
+        chrom = df['chrom'].astype(str)
+        chrompos = chrom + '_' + ps
+        df['chrompos'] = chrompos        
+        df['ges'] = df['genic'].astype(str) + '_' + df['exonic'].astype(str) + '_' + df['strand'].astype(str)
+ 
+        df = df.merge(dict_motif, left_on='seq', right_on='seq', how='left')
+        df = df.merge(dict_pos, left_on='chrompos', right_on='chrompos', how='left')
+        df = df.merge(dict_ges, left_on='ges', right_on='ges', how='left')
 
-
-
-
-
-
+        df.to_csv(path, sep='\t',compression='gzip',index=False)

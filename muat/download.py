@@ -35,6 +35,10 @@ def download_icgc_object_storage(data_path, bucket_name="icgc25k-open", endpoint
 
     if files_to_download is None:
         files_to_download = [obj["Key"] for obj in response["Contents"]]
+
+    #tsv = [x for x in files_to_download if '.tsv' in x]
+    #tsv = [x for x in files_to_download if 'histology' in x]
+    #pdb.set_trace()
     # Download specified files
     for file_key in files_to_download:
         local_file_path = data_path / file_key

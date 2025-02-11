@@ -27,6 +27,7 @@ requirements:
     - htslib
     - natsort
     - boto3
+    - tqdm
 
 test:
   imports:
