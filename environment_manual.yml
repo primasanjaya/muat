@@ -1,4 +1,4 @@
-name: muat-env
+name: muat-test
 channels:
   - anaconda
   - defaults
@@ -14,5 +14,5 @@ dependencies:
   - boto3
   - openpyxl
   - scikit-learn
-  - torch
-prefix: /opt/anaconda3/envs/muat-env
+  - pytorch
+prefix: /opt/anaconda3/envs/muat-test

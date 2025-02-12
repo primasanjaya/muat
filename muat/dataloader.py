@@ -95,6 +95,8 @@ class MuAtDataloader(Dataset):
 
         pd_row = pd.read_csv(instances['prep_path'],sep='\t',compression='gzip',low_memory=False)
 
+        sample_path = instances['prep_path']
+
         if 'idx_class' in instances.index.to_list():
             idx_class = np.array(self.data_split_tsv.iloc[idx]['idx_class'])
             idx_class = torch.tensor(idx_class, dtype=torch.long)
@@ -161,7 +163,7 @@ class MuAtDataloader(Dataset):
 
         datanumeric = torch.stack(datanumeric)
         
-        return datanumeric, idx_class
+        return datanumeric, idx_class, sample_path
 
 
 if __name__ == '__main__':
