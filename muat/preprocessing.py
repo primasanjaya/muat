@@ -7,6 +7,20 @@ import traceback
 from tqdm import tqdm
 import json
 
+def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_motif,dict_pos,dict_ges):
+    '''
+    Preprocess vcf file and tokenize the motif, pos, and ges
+    '''
+
+    preprocessing_vcf(vcf_file,genome_reference_path,tmp_dir)
+    
+
+
+    get_motif_pos_ges(vcf_file,genome_reference_path,tmp_dir)
+    create_dictionary(tmp_dir,dict_motif,dict_pos,dict_ges)
+    tokenizing(dict_motif,dict_pos,dict_ges,tmp_dir)
+    
+
 def get_motif_pos_ges(fn,genome_ref,tmp_dir,verbose=True):
     """
     Preprocess to get the motif from the vcf file
