@@ -6,6 +6,21 @@ import tempfile
 import subprocess
 import pdb
 
+def multifiles_handler(file):
+    if isinstance(file, str):
+        file = [file]
+    return file
+
+def load_token_dict(checkpoint):
+    dict_motif = checkpoint['motif_dict']
+    dict_pos = checkpoint['pos_dict']
+    dict_ges = checkpoint['ges_dict']
+    return dict_motif, dict_pos, dict_ges
+
+def load_target_handler(checkpoint):
+    target_handler = checkpoint['target_handler']
+    return target_handler
+
 def mutation_type_ratio(snv, mnv, indel, sv_mei, neg,pd_motif):
 
     if snv + mnv + indel + sv_mei + neg != 1:
@@ -113,6 +128,10 @@ def open_stream(fn):
         sample_name = os.path.basename(fn).split('.')[0]
     assert(('.maf' in fn and '.vcf' in fn) == False)  # filenames should specify input type unambiguously
     return f, sample_name
+
+def get_sample_name(fn):
+    sample_name = os.path.basename(fn).split('.')[0]
+    return sample_name
 
 def gunzip_file(gz_filename):
     filename = os.path.splitext(gz_filename)[0]  # Remove .gz extension

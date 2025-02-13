@@ -12,13 +12,18 @@ import pickle
 import random
 from sklearn.utils import shuffle
 
+class DataloaderConfig:
+
+    def __init__(self, **kwargs):
+        for k,v in kwargs.items():
+            setattr(self, k, v)
 
 class MuAtDataloader(Dataset):
-    def __init__(self, data_split_tsv, model_input, mutation_type, mutation_sampling_size,same_sampling=False):
+    def __init__(self, data_split_tsv,config,same_sampling=False):
         self.data_split_tsv = data_split_tsv
-        self.model_input = model_input
-        self.mutation_type = mutation_type
-        self.mutation_sampling_size = mutation_sampling_size
+        self.model_input = config.model_input
+        self.mutation_type = config.mutation_type
+        self.mutation_sampling_size = config.mutation_sampling_size
         self.same_sampling = same_sampling
 
     def __len__(self):

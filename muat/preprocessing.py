@@ -6,19 +6,19 @@ import pdb
 import traceback
 from tqdm import tqdm
 import json
-
+import glob
 def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_motif,dict_pos,dict_ges):
     '''
     Preprocess vcf file and tokenize the motif, pos, and ges
     '''
 
     preprocessing_vcf(vcf_file,genome_reference_path,tmp_dir)
-    
-
-
-    get_motif_pos_ges(vcf_file,genome_reference_path,tmp_dir)
-    create_dictionary(tmp_dir,dict_motif,dict_pos,dict_ges)
-    tokenizing(dict_motif,dict_pos,dict_ges,tmp_dir)
+    #pdb.set_trace()
+    all_preprocessed_vcf = []
+    for x in vcf_file:
+        if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
+            all_preprocessed_vcf.append(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf)
     
 
 def get_motif_pos_ges(fn,genome_ref,tmp_dir,verbose=True):
@@ -67,19 +67,14 @@ def preprocessing_vcf(vcf_file,genome_reference_path,tmp_dir,info_column=None,ve
 
     genome_ref = read_reference(genome_reference_path,verbose=verbose)   
 
-    # Convert single file path to list for consistent handling
-    if isinstance(vcf_file, str):
-        vcf_file = [vcf_file]
-    
-    fns = vcf_file
-    is_getmotif = 0
-    is_getpos = 0
-    is_getges = 0
+    fns = multifiles_handler(vcf_file)
 
     for i,fn in enumerate(fns):
         digits = int(np.ceil(np.log10(len(fns))))
         fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
         get_motif_pos_ges(fn,genome_ref,tmp_dir,verbose=verbose)
+
+    return 1
 
 def load_dict(dict_path):
     with open(dict_path, 'r') as f:
@@ -149,16 +144,18 @@ def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,pos_bin_size=
     Tokenizing the motif, pos, and ges
     '''
     for path in tqdm(all_preprocessed_vcf, desc="Tokenizing", unit="file"):
-        df = pd.read_csv(path, sep='\t',compression='gzip',low_memory=False)
 
-        ps = (df['pos'] / pos_bin_size).apply(np.floor).astype(int).astype(str)
-        chrom = df['chrom'].astype(str)
-        chrompos = chrom + '_' + ps
-        df['chrompos'] = chrompos        
-        df['ges'] = df['genic'].astype(str) + '_' + df['exonic'].astype(str) + '_' + df['strand'].astype(str)
- 
-        df = df.merge(dict_motif, left_on='seq', right_on='seq', how='left')
-        df = df.merge(dict_pos, left_on='chrompos', right_on='chrompos', how='left')
-        df = df.merge(dict_ges, left_on='ges', right_on='ges', how='left')
+        if os.path.exists(path):
+            df = pd.read_csv(path, sep='\t',compression='gzip',low_memory=False)
 
-        df.to_csv(path, sep='\t',compression='gzip',index=False)
+            ps = (df['pos'] / pos_bin_size).apply(np.floor).astype(int).astype(str)
+            chrom = df['chrom'].astype(str)
+            chrompos = chrom + '_' + ps
+            df['chrompos'] = chrompos        
+            df['ges'] = df['genic'].astype(str) + '_' + df['exonic'].astype(str) + '_' + df['strand'].astype(str)
+    
+            df = df.merge(dict_motif, left_on='seq', right_on='seq', how='left')
+            df = df.merge(dict_pos, left_on='chrompos', right_on='chrompos', how='left')
+            df = df.merge(dict_ges, left_on='ges', right_on='ges', how='left')
+
+            df.to_csv(path, sep='\t',compression='gzip',index=False)
