@@ -91,13 +91,14 @@ class Trainer:
                     #And optimizes its weights here
                     optimizer.step()
                     running_loss += loss.item()
-
+                    #pdb.set_trace()
                     train_acc = train_corr / len(self.train_dataset)
 
                     if batch_idx % 3 == 0:
-                        print("Epoch {} - Training loss: {:.4f} - Training Acc: {:.2f}".format(e, running_loss/len(self.train_dataset),  train_acc))
+                        print("Epoch {} - Mini-batch Training loss: {:.4f} - Training Acc: {:.2f}".format(e, running_loss/(batch_idx+1),  train_acc))
+            print("Epoch {} - Full-batch Training loss: {:.4f} - Training Acc: {:.2f}".format(e, running_loss/(batch_idx+1),  train_acc))
 
-            #val
+            #validation
             test_loss = 0
             correct = 0
 
@@ -106,7 +107,6 @@ class Trainer:
             f = open(self.complete_save_dir + self.logit_filename, 'w+')  # open file in write mode
 
             header_class = config.target_handler.classes_.tolist()
-            header_class.append('target')
             header_class.append('target_name')
             header_class.append('sample')
             write_header = "\t".join(header_class)
@@ -147,9 +147,7 @@ class Trainer:
                     f.close()
                 #pdb.set_trace()
 
-            test_loss /= batch_idx_val
-            #pdb.set_trace()
-
+            test_loss /= (batch_idx_val+1)
             local_acc = correct / len(self.test_dataset)
             print('Validation set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
                 test_loss, correct, len(self.test_dataset), 100. * local_acc))

@@ -63,9 +63,9 @@ genome_reference_path=genome_reference_path+"hg19.fa.gz",tmp_dir=muat_dir + '/da
 
 #tokenizing moitf position and ges using dict_motif, dict_pos, dict_ges
 '''
-dict_motif = pd.read_csv(muat_dir + '/extfile/dictMutation.tsv',sep='\t')
-dict_pos = pd.read_csv(muat_dir + '/extfile/dictChpos.tsv',sep='\t')
-dict_ges = pd.read_csv(muat_dir + '/extfile/dictGES.tsv',sep='\t')
+dict_motif = pd.read_csv(muat_dir + '/muat/extfile/dictMutation.tsv',sep='\t')
+dict_pos = pd.read_csv(muat_dir + '/muat/extfile/dictChpos.tsv',sep='\t')
+dict_ges = pd.read_csv(muat_dir + '/muat/extfile/dictGES.tsv',sep='\t')
 
 #get all preprocessed vcf
 all_preprocessed_vcf = glob.glob(muat_dir + '/data/preprocessed/*gc.genic.exonic.cs.tsv.gz')
@@ -109,41 +109,35 @@ train_split, test_split = train_test_split(pd_preprocessed_vcf, test_size=0.2, r
 
 #hyperparameter setup
 
-mutation_sampling_size = 1000
-mutation_type,motif_size = mutation_type_ratio(snv=0.5,mnv=0.5,indel=0,sv_mei=0,neg=0,pd_motif=dict_motif) #proportion of mutation type
-model_input = model_input(motif=True,pos=True,ges=True) #model input
+mutation_sampling_size = 5000
+model_use = model_input(motif=True,pos=True,ges=False) #model input
+mutation_type, motif_size = mutation_type_ratio(snv=0.5, mnv=0.5, indel=0, sv_mei=0, neg=0, pd_motif=dict_motif)
 
-train_dataloader_config = DataloaderConfig(model_input=model_input,mutation_type=mutation_type,mutation_sampling_size=mutation_sampling_size)
-test_dataloader_config = DataloaderConfig(model_input=model_input,mutation_type=mutation_type,mutation_sampling_size=mutation_sampling_size)
-
+train_dataloader_config = DataloaderConfig(model_input=model_use,mutation_type=mutation_type,mutation_sampling_size=mutation_sampling_size)
+test_dataloader_config = DataloaderConfig(model_input=model_use,mutation_type=mutation_type,mutation_sampling_size=mutation_sampling_size)
 train_dataloader = MuAtDataloader(train_split,train_dataloader_config)
 test_dataloader = MuAtDataloader(test_split,test_dataloader_config)
-
 #pdb.set_trace()
 
-n_layer = 2
+n_layer = 1
 n_emb = 128
 n_head = 1
 n_class = len(le.classes_)
-
-# Ensure these values are set correctly
-mutation_type, motif_size = mutation_type_ratio(snv=0.5, mnv=0.5, indel=0, sv_mei=0, neg=0, pd_motif=dict_motif)
-
 # Check the values before creating the model
 model_config = ModelConfig(
-    motif_size=motif_size,
+    motif_size=motif_size+1,#plus one for padding
     num_class=n_class,
     mutation_sampling_size=mutation_sampling_size,
-    position_size=len(dict_pos),
-    ges_size=len(dict_ges),
+    position_size=len(dict_pos)+1,#plus one for padding
+    ges_size=len(dict_ges)+1,#plus one for padding
     n_embd=n_emb,
     n_layer=n_layer,
     n_head=n_head
 )
 
-model = MuAtMotif(model_config)
+model = MuAtMotifPositionF(model_config)
 
-n_epochs = 2
+n_epochs = 50
 batch_size = 2
 learning_rate = 0.001
 

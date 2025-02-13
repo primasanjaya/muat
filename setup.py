@@ -12,6 +12,7 @@ setup(
     package_data={
         'muat': [
             'pkg_data/*',
+            'extfile/*',            
             'pkg_shell/*.sh',  # Make sure shell scripts are included as package data
         ],
     },

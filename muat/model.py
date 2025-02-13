@@ -60,7 +60,7 @@ class MuAtMotif(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None):
+    def forward(self, x, targets=None, vis=None,get_features=False):
 
         motif = x[:, 0, :]
 
@@ -78,6 +78,9 @@ class MuAtMotif(nn.Module):
         x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
 
         logits = self.toprobs(x)
+
+        if get_features:
+            return Error('get_features is not implemented for MuAtMotif')
 
         # if we are given some desired targets also calculate the loss
         loss = None
@@ -110,7 +113,7 @@ class MuAtMotifF(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None):
+    def forward(self, x, targets=None, vis=None,get_features=False):
 
         motif = x[:, 0, :]
 
@@ -126,7 +129,7 @@ class MuAtMotifF(nn.Module):
 
         feature = self.tofeature(x)
 
-        if vis:
+        if get_features:
             return feature
         else:
             logits = self.toprobs(feature)
@@ -161,7 +164,7 @@ class MuAtMotifPosition(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None):
+    def forward(self, x, targets=None, vis=None,get_features=False):
 
         triplettoken = x[:, 0, :]
         # pdb.set_trace()
@@ -179,6 +182,9 @@ class MuAtMotifPosition(nn.Module):
         x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
 
         logits = self.toprobs(x)
+
+        if get_features:
+            return Error('get_features is not implemented for MuAtMotifPosition')
 
         # if we are given some desired targets also calculate the loss
         loss = None
@@ -216,7 +222,7 @@ class MuAtMotifPositionF(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None, visatt=None):
+    def forward(self, x, targets=None, vis=None, visatt=None,get_features=False):
 
         triplettoken = x[:, 0, :]
         # pdb.set_trace()
@@ -255,7 +261,7 @@ class MuAtMotifPositionF(nn.Module):
 
         feature = self.tofeature(x)
 
-        if vis:
+        if get_features:
             return feature
         else:
             logits = self.toprobs(feature)
@@ -347,7 +353,7 @@ class MuAtMotifPositionGESF(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None):
+    def forward(self, x, targets=None, vis=None,get_features=False):
 
         triplettoken = x[:, 0, :]
         postoken = x[:, 1, :]
@@ -368,7 +374,7 @@ class MuAtMotifPositionGESF(nn.Module):
 
         feature = self.tofeature(x)
 
-        if vis:
+        if get_features:
             return feature
         else:
             logits = self.toprobs(feature)
