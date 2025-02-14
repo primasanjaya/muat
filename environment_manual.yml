@@ -15,4 +15,5 @@ dependencies:
   - openpyxl
   - scikit-learn
   - pytorch
+  - pyliftover
 prefix: /opt/anaconda3/envs/muat-test

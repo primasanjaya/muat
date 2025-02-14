@@ -7,11 +7,59 @@ import traceback
 from tqdm import tqdm
 import json
 import glob
+
+
+def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,dict_motif,dict_pos,dict_ges):
+    '''
+    Preprocess vcf file with GRCh38 and tokenize the motif, pos, and ges
+    '''
+    vcf_file = multifiles_handler(vcf_file)
+    preprocessing_vcf38(vcf_file,genome_reference_38_path,genome_reference_19_path,tmp_dir)
+
+    all_preprocessed_vcf = []
+
+    for x in vcf_file:
+        if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
+            all_preprocessed_vcf.append(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+    #pdb.set_trace()
+    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf)
+    #pdb.set_trace()
+
+def preprocessing_vcf38(vcf_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,verbose=True):
+    '''
+    Preprocess vcf file with GRCh38
+    '''
+
+    # Check if reference files exist
+    if not os.path.exists(genome_reference_19_path):
+        raise FileNotFoundError(
+            "Reference files not found. Please download from:\n"
+            "- GRCh37/hg19: https://ftp.sanger.ac.uk/pub/project/PanCancer/genomehg19.fa.gz\n"
+            f"and place them in: genome_reference_19_path"
+        )
+
+    if not os.path.exists(genome_reference_38_path):
+        raise FileNotFoundError(
+            "Reference files not found. Please download from:\n"
+            "- GRCh38/hg38: http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa\n"
+            f"and place them in: genome_reference_38_path"
+        )
+
+    genome_ref38 = read_reference(genome_reference_38_path, verbose=verbose)
+    genome_ref19 = read_reference(genome_reference_19_path, verbose=verbose)
+
+    fns = multifiles_handler(vcf_file)
+
+    for i, fn in enumerate(fns):
+        digits = int(np.ceil(np.log10(len(fns))))
+        fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
+        get_motif_pos_ges(fn, genome_ref19, tmp_dir, genome_ref38=genome_ref38, liftover=True, verbose=verbose)
+
 def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_motif,dict_pos,dict_ges):
     '''
     Preprocess vcf file and tokenize the motif, pos, and ges
     '''
-
+    vcf_file = multifiles_handler(vcf_file)
     preprocessing_vcf(vcf_file,genome_reference_path,tmp_dir)
     #pdb.set_trace()
     all_preprocessed_vcf = []
@@ -21,24 +69,23 @@ def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_mot
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf)
     
 
-def get_motif_pos_ges(fn,genome_ref,tmp_dir,verbose=True):
+def get_motif_pos_ges(fn,genome_ref,tmp_dir,genome_ref38=None,liftover=False,verbose=True):
     """
     Preprocess to get the motif from the vcf file
     Args:
         fn: str, path to vcf file
         genome_ref: reference genome variable from read_reference
         tmp_dir: str, path to temporary directory for storing preprocessed files
+        liftover: bool, if True, liftover the vcf file from GRCh38 to GRCh37
     """
 
     try:
-
         # get motif
         f, sample_name = open_stream(fn)
         vr = get_reader(f)
         status('Writing mutation sequences...', verbose)
-        process_input(vr, sample_name, genome_ref,tmp_dir)
+        process_input(vr, sample_name, genome_ref,tmp_dir,genome_ref38=genome_ref38,liftover=liftover,verbose=verbose)
         f.close()
-
         return 1
     except Exception as e:
         print(f"Error: {e}")
