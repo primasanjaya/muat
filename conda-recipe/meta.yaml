@@ -10,7 +10,7 @@ build:
   noarch: python  # Ensure cross-platform compatibility
   script: "{{ PYTHON }} -m pip install . --no-deps --ignore-installed -vv"
   run_exports:
-    - numpy  # Ensures downstream compatibility
+    - {{ pin_subpackage(name, max_pin="x.x") }}  # Ensures downstream compatibility
 
 requirements:
   host:
