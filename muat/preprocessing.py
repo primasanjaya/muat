@@ -7,6 +7,46 @@ import traceback
 from tqdm import tqdm
 import json
 import glob
+import subprocess
+import pandas as pd
+
+def combine_chunk_persample(all_filtered_chunks,tmp_dir):
+    '''
+    combine all chunk per sample
+    tmp_dir : directory for the combined chunk per samples
+    '''
+
+    for chunk_file in all_filtered_chunks:
+        pd_file = pd.read_csv(chunk_file,sep='\t',low_memory=False)
+        sample_list = pd_file['sample'].unique()
+
+        #split samples per chunk
+        for sample in sample_list:
+            os.makedirs(tmp_dir + '/' + sample,exist_ok=True)
+            pd_samp_chunk = pd_file.loc[pd_file['sample']==sample]
+            pd_samp_chunk.to_csv(tmp_dir + '/' + sample + '/' + get_sample_name(chunk_file) + '.tsv',sep='\t',index=False)
+
+        #merge all chunk files per samples
+        for sample in sample_list:
+            all_chunk = glob.glob(tmp_dir + '/' + sample + '/' + get_sample_name(chunk_file) + '*.tsv')
+
+            pd_persample = pd.DataFrame()
+            for perchunk in all_chunk:
+                pd_read = pd.read_csv(perchunk,sep='\t',low_memory=False)
+                pd_persample.append(pd_read)
+
+            pd_persample.to_csv(tmp_dir + '/' + get_sample_name(sample) + '.tsv', sep='\t')
+
+
+def filtering_somagg_vcf(all_somagg_chunks,tmp_dir):
+    '''
+    all_somagg_chunks : list of all somAgg chunk vcf files
+    tmp_dir : directory after filtering somagg vcf
+    '''
+    for chunk_file in all_somagg_chunks:
+        chunk_output = tmp_dir + '/' + get_sample_name(chunk_file) + '.tsv'
+        filtering_syntax = "echo -e 'chrom\tpos\tref\talt\tsample' > {} && bcftools query -f ['%CHROM\t%POS\t%REF\t%ALT[\t%SAMPLE]\n'] -i 'FMT/FILTER=\"PASS\"' {} >> {}".format(chunk_output,chunk_file,chunk_output)
+        subprocess.run(filtering_syntax, shell=True)
 
 
 def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,dict_motif,dict_pos,dict_ges):

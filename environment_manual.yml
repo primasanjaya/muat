@@ -16,4 +16,5 @@ dependencies:
   - scikit-learn
   - pytorch
   - pyliftover
+  - bcftools
 prefix: /opt/anaconda3/envs/muat-test
