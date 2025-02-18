@@ -24,22 +24,20 @@ files_to_download = ['PCAWG/consensus_snv_indel/README.md',
         'PCAWG/data_releases/latest/pcawg_sample_sheet.2016-08-12.tsv',
         'PCAWG/clinical_and_histology/pcawg_specimen_histology_August2016_v9.xlsx']
 
-muat_dir = '/csc/epitkane/projects/github/muat'
-muat_dir = '/Users/primasan/Documents/work/muat'
-
+muat_dir = '/path/to/muat'
 #download data
-#download(data_path="./data/", files_to_download=files_to_download)
+download(data_path="./data/", files_to_download=files_to_download)
 # Specify the path to the .tgz file
-'''
+
 tgz_file_path = muat_dir + '/data/PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public.tgz'
 # Extract the .tgz file
 with tarfile.open(tgz_file_path, 'r:gz') as tar:
     tar.extractall(path=muat_dir + '/data/PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public/')  # Specify the directory to extract to
     print("Extraction complete.")
-'''
+
 #download reference genome
 genome_reference_path = muat_dir + '/data/genome_reference/'
-#download_reference(genome_reference_path=genome_reference_path)
+download_reference(genome_reference_path=genome_reference_path)
 
 #preprocess vcf
 '''
@@ -54,7 +52,7 @@ To process VCF files, you need to specify the following arguments:
 '''
 preprocessing_vcf(vcf_file=muat_dir + '/data/PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public/snv_mnv/0a9c9db0-c623-11e3-bf01-24c6515278c0.consensus.20160830.somatic.snv_mnv.vcf.gz',
 genome_reference_path=genome_reference_path+"hg19.fa.gz",tmp_dir=muat_dir + '/data/preprocessed/')
-
+'''
 
 #example for preprocessing multiple vcf files
 all_vcf = glob.glob(muat_dir + '/data/PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public/snv_mnv/*.vcf.gz')
@@ -62,7 +60,7 @@ preprocessing_vcf(vcf_file=all_vcf,
 genome_reference_path=genome_reference_path+"hg19.fa.gz",tmp_dir=muat_dir + '/data/preprocessed/')
 
 #tokenizing moitf position and ges using dict_motif, dict_pos, dict_ges
-'''
+
 dict_motif = pd.read_csv(muat_dir + '/muat/extfile/dictMutation.tsv',sep='\t')
 dict_pos = pd.read_csv(muat_dir + '/muat/extfile/dictChpos.tsv',sep='\t')
 dict_ges = pd.read_csv(muat_dir + '/muat/extfile/dictGES.tsv',sep='\t')
@@ -70,7 +68,7 @@ dict_ges = pd.read_csv(muat_dir + '/muat/extfile/dictGES.tsv',sep='\t')
 #get all preprocessed vcf
 all_preprocessed_vcf = glob.glob(muat_dir + '/data/preprocessed/*gc.genic.exonic.cs.tsv.gz')
 #tokenizing
-#tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,pos_bin_size=1000000)
+tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,pos_bin_size=1000000)
 
 #prepare training split
 
