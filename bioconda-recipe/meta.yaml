@@ -1,5 +1,5 @@
 {% set name = "muat" %}
-{% set version = "0.1.0" %}
+{% set version = "0.1.1" %}
 
 package:
   name: {{ name|lower }}
@@ -31,6 +31,11 @@ requirements:
     - htslib
     - natsort
     - boto3
+    - openpyxl
+    - scikit-learn
+    - pytorch
+    - pyliftover
+    - bcftools
 
 test:
   imports:
