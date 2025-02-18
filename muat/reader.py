@@ -38,7 +38,7 @@ accepted_pos_h19 = ['1',
 def get_reader(f, type_snvs=False,pass_only=True):
     if '.vcf' in f.name:
         vr = VCFReader(f=f, pass_only=pass_only, type_snvs=type_snvs)
-    if '.somagg.tsv.gz' in f.name:
+    elif '.somagg.tsv.gz' in f.name:
         vr = SomAggTSVReader(f=f, pass_only=pass_only, type_snvs=type_snvs)
     else:
         raise Exception('Unsupported file type: {}\n'.format(f.name))

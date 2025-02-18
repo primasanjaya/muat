@@ -17,4 +17,5 @@ dependencies:
   - pytorch
   - pyliftover
   - bcftools
+  - tqdm
 prefix: /opt/anaconda3/envs/muat-test
