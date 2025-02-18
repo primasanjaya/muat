@@ -38,6 +38,8 @@ accepted_pos_h19 = ['1',
 def get_reader(f, type_snvs=False,pass_only=True):
     if '.vcf' in f.name:
         vr = VCFReader(f=f, pass_only=pass_only, type_snvs=type_snvs)
+    if '.somagg.tsv.gz' in f.name:
+        vr = SomAggTSVReader(f=f, pass_only=pass_only, type_snvs=type_snvs)
     else:
         raise Exception('Unsupported file type: {}\n'.format(f.name))
     return vr
@@ -179,6 +181,8 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
                     warned_invalid_chrom = True
                 n_invalid_chrom += 1
                 continue
+
+        #pdb.set_trace()
 
         while len(next_buf) > 0 and (next_buf[0].chrom != variant.chrom or next_buf[0].pos < variant.pos - context):
             while len(prev_buf) > 0 and prev_buf[0].pos < next_buf[0].pos - context:
@@ -621,6 +625,95 @@ class VCFReader(VariantReader):
     @staticmethod
     def get_file_sort_cmd(infn, hdrfn, outfn):
         return "/bin/bash -c \"cat {} <(LC_ALL=C sort -t $'\\t' -k1,1 -k2n,2 {}) >{}\"".format(hdrfn, infn, outfn)
+
+class SomAggTSVReader(VariantReader):
+    FILTER_PASS = ['.', 'PASS']
+    SVCLASS_TO_SVTYPE = {'DEL' : Variant.SV_DEL, 'DUP' : Variant.SV_DUP,
+                         't2tINV' : Variant.SV_INV, 't2hINV' : Variant.SV_INV,
+                         'h2hINV' : Variant.SV_INV, 'h2tINV' : Variant.SV_INV,
+                         'INV' : Variant.SV_INV, 'TRA' : Variant.SV_BND,
+                         'L1': Variant.MEI_L1, 'Alu': Variant.MEI_ALU,
+                         'SVA': Variant.MEI_SVA, 'PG': Variant.MEI_PG}
+    SVTYPE_TO_SVCLASS = {Variant.SV_DEL : 'DEL', Variant.SV_DUP : 'DUP',
+                         Variant.SV_INV : 'INV', Variant.SV_BND : 'TRA',
+                         Variant.MEI_L1 : 'L1', Variant.MEI_ALU : 'Alu',
+                         Variant.MEI_SVA: 'SVA'}
+
+    def __init__(self, *args, **kwargs):
+        super(SomAggTSVReader, self).__init__(*args, **kwargs)
+        self.hdr = None
+
+    def __next__(self):
+        while True:
+            if self.eof:
+                raise StopIteration()
+            v = self.f.readline()
+            
+            if v.startswith('CHROM'):
+                self.hdr = v
+                continue
+            if v == '':
+                self.eof = True
+                return Variant(chrom=VariantReader.EOF, pos=0, ref='N', alt='N')
+            
+            v = v.rstrip('\n').split('\t')
+            chrom, pos, ref, alt, flt, info = v[0], int(v[1]), v[3], v[4], v[6], v[7]
+
+            self.update_pos(None, chrom, pos)
+            if self.pass_only and flt not in SomAggTSVReader.FILTER_PASS:
+                self.n_flt += 1
+                continue
+            if ref == alt and ref != '':
+                ref = alt = ''  # "T>T" -> "(null)>(null)"
+
+            if alt[0] in '[]' or alt[-1] in '[]':  # SV, e.g., ]18:27105494]T
+                info = dict([a for a in [c.split('=') for c in info.split(';')] if len(a) == 2])
+                svc = info.get('SVCLASS', None)
+                if svc is None:
+                    sys.stderr.write('Warning: missing SVCLASS: {}:{}\n'.format(chrom, pos))
+                    continue
+                alt = SomAggTSVReader.SVCLASS_TO_SVTYPE.get(svc, None)
+                if alt is None:
+                    sys.stderr.write('Warning: unknown SVCLASS: {}:{}:{}\n'.format(chrom, pos, svc))
+                    continue
+            else:
+                if is_valid_dna(ref) == False or is_valid_dna(alt) == False:
+                    sys.stderr.write('Warning: invalid nucleotide sequence: {}:{}: {}>{}\n'.format(chrom, pos, ref, alt))
+                    continue
+                # canonize indels by removing anchor bases
+                if len(ref) == 1 and len(alt) > 1:   # insertion
+                    ref, alt = '', alt[1:]
+                elif len(ref) > 1 and len(alt) == 1: # deletion
+                    ref, alt = ref[1:], ''
+                    pos += 1
+
+            self.n_acc += 1
+            # return None as sample id; vcf filename provides the sample id instead
+            return Variant(chrom=chrom, pos=pos, ref=ref, alt=alt,
+                           vtype=Variant.variant_type(ref, alt, self.type_snvs))
+
+    def get_file_header(self):
+        return '{}'.format(self.hdr.rstrip('\n'))
+
+    @staticmethod
+    def format(variant):
+        "Convert the input variant into a string accepted by this reader"
+        if variant.vtype in Variant.SV_TYPES or variant.vtype in Variant.MEI_TYPES:
+            info = 'SVCLASS={}'.format(SomAggTSVReader.SVTYPE_TO_SVCLASS[variant.vtype])
+        else:
+            info = ''
+        return '{}\t{}\t.\t{}\t{}\t.\t.\t{}\n'.format(variant.chrom, variant.pos, variant.ref, variant.alt, info)
+
+    @staticmethod
+    def get_file_suffix():
+        return 'vcf'
+
+    @staticmethod
+    def get_file_sort_cmd(infn, hdrfn, outfn):
+        return "/bin/bash -c \"cat {} <(LC_ALL=C sort -t $'\\t' -k1,1 -k2n,2 {}) >{}\"".format(hdrfn, infn, outfn)
+
+
+
 
 class MAFReader(VariantReader):
     col_chrom_names = ['chromosome', 'chrom', 'chr']

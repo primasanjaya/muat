@@ -171,6 +171,140 @@ class MuAtDataloader(Dataset):
         return datanumeric, idx_class, sample_path
 
 
+class MuAt2Dataloader(Dataset):
+    def __init__(self, data_split_tsv,config,same_sampling=False):
+        self.data_split_tsv = data_split_tsv
+        self.model_input = config.model_input
+        self.mutation_type = config.mutation_type
+        self.mutation_sampling_size = config.mutation_sampling_size
+        self.same_sampling = same_sampling
+
+    def __len__(self):
+        return len(self.data_split_tsv)
+    
+    def __getitem__(self, idx):
+        return self.get_data(idx)
+
+    def count_ratio(self,pd_row):
+        row_count_init = {'SNV':0,'MNV':0,'indel':0,'SV/MEI':0,'Neg':0}
+        count = pd_row.groupby('mut_type').size().to_dict()
+        for key,value in count.items():
+            row_count_init[key] = value
+            if key == 'SV':
+                row_count_init['SV/MEI'] += value
+            elif key == 'MEI':
+                row_count_init['SV/MEI'] += value
+
+        mut_ratio = np.array(list(self.mutation_type.values()))
+        avail_count = mut_ratio * self.mutation_sampling_size   
+        row_count = np.array(list(row_count_init.values()))
+            
+        diff = avail_count - row_count
+        pos = diff>0
+        avail_count1 = row_count * pos
+        diff = row_count > avail_count
+
+        avail_count2 = avail_count * diff
+        avail_count3 = avail_count1 + avail_count2
+        shadowavail_count3 = avail_count3
+        shadowavail_count3[0] = row_count[0]
+
+        if sum(shadowavail_count3) > self.mutation_sampling_size:
+            diff = self.mutation_sampling_size - sum(avail_count3) 
+            shadowavail_count3[0] = diff + avail_count3[0]
+            
+        avail_count2 = shadowavail_count3.astype(int)
+
+        if avail_count2[0]<0:
+
+            secondmax = avail_count2[np.argmax(avail_count2)]
+            avail_count2 = avail_count2 * 0.7
+
+            avail_count = avail_count2
+
+            diff = avail_count - row_count
+            pos = diff>0
+            avail_count1 = row_count * pos
+            diff = row_count > avail_count
+
+            avail_count2 = avail_count * diff
+            avail_count3 = avail_count1 + avail_count2
+            shadowavail_count3 = avail_count3
+            shadowavail_count3[0] = row_count[0]
+
+            if sum(shadowavail_count3) > self.mutation_sampling_size:
+                diff = self.mutation_sampling_size - sum(avail_count3) 
+                shadowavail_count3[0] = diff + avail_count3[0]
+                
+            avail_count2 = shadowavail_count3.astype(int)
+
+        avail_count = avail_count2
+
+        avail_count_dict = {}
+
+        for i,key in enumerate(row_count_init.keys()):
+            avail_count_dict[key] = avail_count[i]
+
+        return avail_count_dict
+
+    def get_data(self, idx):
+        instances = self.data_split_tsv.iloc[idx]
+        pd_row = pd.read_csv(instances['prep_path'], sep='\t', compression='gzip', low_memory=False)
+        sample_path = instances['prep_path']
+
+        # Get idx_class and idx_subclass if they exist
+        idx_class = None
+        if 'idx_class' in instances.index.to_list():
+            idx_class = torch.tensor(np.array(instances['idx_class']), dtype=torch.long)
+
+        idx_subclass = None
+        if 'idx_subclass' in instances.index.to_list():
+            idx_subclass = torch.tensor(np.array(instances['idx_subclass']), dtype=torch.long)
+
+        # Sampling logic
+        avail_count = self.count_ratio(pd_row)
+        pd_sampling = pd.DataFrame()
+        grab_col = []
+
+        if self.model_input['motif']:
+            grab_col.append('triplettoken')
+        if self.model_input['pos']:
+            grab_col.append('postoken')
+        if self.model_input['ges']:
+            grab_col.append('gestoken')
+
+        for key, value in avail_count.items():
+            if value > 0:
+                pd_samp = pd_row[pd_row['mut_type'] == key][grab_col].sample(n=value, replace=False)
+                pd_sampling = pd.concat([pd_sampling, pd_samp], ignore_index=True)
+
+        pd_sampling = pd_sampling.sample(frac=1)
+        np_triplettoken = pd_sampling.to_numpy()
+
+        is_padding = len(pd_sampling) < self.mutation_sampling_size
+        mins = self.mutation_sampling_size - len(np_triplettoken) if is_padding else 0
+
+        datanumeric = []
+        for col in pd_sampling.columns:
+            np_data = pd_sampling[col].to_numpy()
+            if is_padding:
+                np_data = np.pad(np_data, (0, mins), mode='constant', constant_values=0)
+            np_data = np.asarray(np_data[:self.mutation_sampling_size], dtype=int)
+            datanumeric.append(torch.tensor(np_data, dtype=torch.long))
+
+        datanumeric = torch.stack(datanumeric)
+
+        # Flexible data output
+        data_targets = {
+            "idx_class": idx_class,
+            "idx_subclass": idx_subclass
+        }
+
+        return datanumeric, data_targets, sample_path
+
+
+
+
 if __name__ == '__main__':
 
     #dataloader = PCAWG(dataset_name = 'PCAWG', data_dir='/csc/epitkane/projects/PCAWG/shuffled_samples/', mode='training',portion = [8,1,1], folds=10, curr_fold=1,load=True,load_token=True)
