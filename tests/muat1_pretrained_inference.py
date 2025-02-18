@@ -13,6 +13,7 @@ from muat.dataloader import *
 from muat.trainer import *
 from muat.predict import *
 from muat.model import *
+from muat.checkpoint import *
 
 
 if __name__ == "__main__":
@@ -28,8 +29,7 @@ if __name__ == "__main__":
     #load ckpt
     load_ckpt_path = 'path/to/ckpt/weight.pthx'
 
-    checkpoint = torch.load(load_ckpt_path)
-    checkpoint = check_checkpoint_and_fix(checkpoint,args) 
+    checkpoint = load_and_check_checkpoint(load_ckpt_path)
 
     #pdb.set_trace()
 

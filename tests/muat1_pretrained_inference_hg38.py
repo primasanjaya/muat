@@ -13,6 +13,7 @@ from muat.dataloader import *
 from muat.trainer import *
 from muat.predict import *
 from muat.model import *
+from muat.checkpoint import *
 
 if __name__ == "__main__":
 
@@ -26,8 +27,7 @@ if __name__ == "__main__":
     #load ckpt
     load_ckpt_path = 'path/to/ckpt/weight.pthx'
 
-    checkpoint = torch.load(load_ckpt_path)
-    checkpoint = check_checkpoint_and_fix(checkpoint,args) 
+    checkpoint = load_and_check_checkpoint(load_ckpt_path)
 
     dict_motif,dict_pos,dict_ges = load_token_dict(checkpoint)
 
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     vcf_files = 'path/to/input/sample.vcf.gz'
     tmp_dir = muat_dir + '/data/preprocessed_test/'
     vcf_files = multifiles_handler(vcf_files)
-    preprocessing_vcf38_tokenizing(vcf_file=multifiles_handler,
+    preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
                                 genome_reference_38_path=genome_reference_38_path,
                                 genome_reference_19_path=genome_reference_19_path,
                                 tmp_dir=tmp_dir,
