@@ -141,6 +141,59 @@ class MuAtMotifF(nn.Module):
 
         return logits, loss
 
+class MuAtMotifF_2Labels(nn.Module):
+    """
+    Transformer for classifying sequences
+    """
+    def __init__(self, config):
+        super().__init__()
+
+        self.num_tokens, self.max_pool = config.motif_size, False
+
+        self.token_embedding = nn.Embedding(config.motif_size, config.n_embd, padding_idx=0)
+
+        tblocks = []
+        for i in range(config.n_layer):
+            tblocks.append(
+                TransformerBlock(emb=config.n_embd, heads=config.n_head, seq_length=config.mutation_sampling_size, mask=False, dropout=config.attn_pdrop))
+
+        self.tblocks = nn.Sequential(*tblocks)
+
+        self.tofeature = nn.Sequential(nn.Linear(int(config.n_embd), 24),
+                                       nn.ReLU())
+
+        self.toprobs = nn.Linear(24, config.num_class)
+
+        self.do = nn.Dropout(config.embd_pdrop)
+
+    def forward(self, x, targets=None, vis=None,get_features=False):
+
+        motif = x[:, 0, :]
+
+        tokens = self.token_embedding(motif)
+
+        b, t, e = tokens.size()
+
+        x = self.do(tokens)
+
+        x = self.tblocks(x)
+
+        x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
+
+        feature = self.tofeature(x)
+
+        if get_features:
+            return feature
+        else:
+            logits = self.toprobs(feature)
+
+        # if we are given some desired targets also calculate the loss
+        loss = None
+        if targets is not None:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+
+        return logits, loss
+
 class MuAtMotifPosition(nn.Module):
     """
     Transformer for classifying sequences
@@ -273,6 +326,85 @@ class MuAtMotifPositionF(nn.Module):
 
         return logits, loss
 
+class MuAtMotifPositionF_2Labels(nn.Module):
+    """
+    Transformer for classifying sequences
+    """
+    def __init__(self, config):
+        super().__init__()
+
+        self.num_tokens, self.max_pool = config.motif_size, False
+
+        self.token_embedding = nn.Embedding(config.motif_size, config.n_embd, padding_idx=0)
+        self.position_embedding = nn.Embedding(config.position_size, config.n_embd, padding_idx=0)
+
+        # pdb.set_trace()
+
+        tblocks = []
+        for i in range(config.n_layer):
+            tblocks.append(
+                TransformerBlock(emb=int(config.n_embd + config.n_embd), heads=config.n_head, seq_length=config.mutation_sampling_size, mask=False, dropout=config.attn_pdrop))
+
+        self.tblocks = nn.Sequential(*tblocks)
+
+        self.tofeature = nn.Sequential(nn.Linear(int(config.n_embd + config.n_embd), 24),
+                                       nn.ReLU())
+
+        # pdb.set_trace()
+        self.toprobs = nn.Linear(24, config.num_class)
+
+        self.do = nn.Dropout(config.embd_pdrop)
+
+    def forward(self, x, targets=None, vis=None, visatt=None,get_features=False):
+
+        triplettoken = x[:, 0, :]
+        # pdb.set_trace()
+        postoken = x[:, 1, :]
+
+        tokens = self.token_embedding(triplettoken)
+        positions = self.position_embedding(postoken)
+
+        x = torch.cat((tokens, positions), axis=2)
+
+        x = self.do(x)
+
+        if visatt:
+            dot1 = self.tblocks[0].attention(x, vis=True)
+
+            manual_tblock = self.tblocks[0](x)
+
+            after_tblock = self.tblocks(x)
+
+            '''
+            for block in self.tblocks:
+
+                dot = block.attention(x,vis=True)
+
+                pdb.set_trace()
+
+                print(name)
+            '''
+
+            return dot1
+
+        else:
+            x = self.tblocks(x)
+
+        x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
+
+        feature = self.tofeature(x)
+
+        if get_features:
+            return feature
+        else:
+            logits = self.toprobs(feature)
+
+        # if we are given some desired targets also calculate the loss
+        loss = None
+        if targets is not None:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+
+        return logits, loss
 
 class MuAtMotifPositionGES(nn.Module):
     """
@@ -385,6 +517,81 @@ class MuAtMotifPositionGESF(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
         return logits, loss
+
+class MuAtMotifPositionGESF_2Labels(nn.Module):
+    """
+    Transformer for classifying sequences
+    """
+    def __init__(self, config):
+        super().__init__()
+
+        self.num_tokens, self.max_pool = config.motif_size, False
+
+        self.token_embedding = nn.Embedding(config.motif_size, config.n_embd, padding_idx=0)
+        self.position_embedding = nn.Embedding(config.position_size, config.n_embd, padding_idx=0)
+        self.ges_embedding = nn.Embedding(config.ges_size + 1, 4, padding_idx=0)
+
+        tblocks = []
+        for i in range(config.n_layer):
+            tblocks.append(
+                TransformerBlock(emb=int(config.n_embd + config.n_embd + 4), heads=config.n_head, seq_length=config.mutation_sampling_size, mask=False, dropout=config.attn_pdrop))
+
+        self.tblocks = nn.Sequential(*tblocks)
+        
+        self.to_joinfeatures = nn.Sequential(nn.Linear(int(config.n_embd + config.n_embd + 4), 64),
+                                       nn.ReLU())
+
+        self.to_typefeatures = nn.Sequential(nn.Linear(64, 32),
+                                       nn.ReLU())
+
+        self.to_subtypefeatures = nn.Sequential(nn.Linear(64, 32),
+                                       nn.ReLU())
+
+        self.to_typeprobs = nn.Linear(32, config.num_class)
+
+        self.to_subtypeprobs = nn.Linear(32, config.num_subclass)
+
+    def forward(self, x, targets=None, vis=None,get_features=False):
+
+        triplettoken = x[:, 0, :]
+        postoken = x[:, 1, :]
+        gestoken = x[:, 2, :]
+
+        tokens = self.token_embedding(triplettoken)
+        positions = self.position_embedding(postoken)
+        ges = self.ges_embedding(gestoken)
+
+        x = torch.cat((tokens, positions, ges), axis=2)
+
+        x = self.do(x)
+        # pdb.set_trace()
+
+        x = self.tblocks(x)
+
+        x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
+
+        join_features = self.to_joinfeatures(x)
+
+        type_features = self.to_typefeatures(join_features)
+
+        subtype_features = self.to_subtypefeatures(join_features)
+
+        typeprobs = self.to_typeprobs(type_features)
+        subtypeprobs = self.to_subtypeprobs(subtype_features)
+
+        # if we are given some desired targets also calculate the loss
+        loss = None
+        if targets is not None:
+            loss1 = F.cross_entropy(typeprobs.view(-1, typeprobs.size(-1)), targets.view(-1))
+            loss2 = F.cross_entropy(subtypeprobs.view(-1, subtypeprobs.size(-1)), targets.view(-1))
+
+        logits_feats = {'first_logits': typeprobs,
+                        'second_logits': subtypeprobs,
+                        'first_features': type_features,
+                        'second_features': subtype_features,
+                        'join_features': join_features
+                        }
+        return logits_feats, loss
 
 class TransformerBlock(nn.Module):
     def __init__(self, emb, heads, mask, seq_length, ff_hidden_mult=4, dropout=0.0):
