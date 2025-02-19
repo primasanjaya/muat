@@ -7,13 +7,14 @@ shell_scripts = [os.path.join('muat/pkg_shell', f) for f in os.listdir('muat/pkg
 
 setup(
     name="muat",
-    version="0.1.0",
+    version="0.1.1",
     packages=find_packages(),
     package_data={
         'muat': [
             'pkg_data/*',
             'extfile/*',            
             'pkg_shell/*.sh',  # Make sure shell scripts are included as package data
+            'pkg_ckpt/*'
         ],
     },
     scripts=shell_scripts,  # Install as executable scripts
