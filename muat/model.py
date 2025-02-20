@@ -18,26 +18,6 @@ class ModelConfig:
         for k,v in kwargs.items():
             setattr(self, k, v)
 
-class Block(nn.Module):
-    """ an unassuming Transformer block """
-
-    def __init__(self, config):
-        super().__init__()
-        self.ln1 = nn.LayerNorm(config.n_embd)
-        self.ln2 = nn.LayerNorm(config.n_embd)
-        self.attn = CausalSelfAttention(config)
-        self.mlp = nn.Sequential(
-            nn.Linear(config.n_embd, 4 * config.n_embd),
-            nn.GELU(),
-            nn.Linear(4 * config.n_embd, config.n_embd),
-            nn.Dropout(config.resid_pdrop),
-        )
-
-    def forward(self, x):
-        x = x + self.attn(self.ln1(x))
-        x = x + self.mlp(self.ln2(x))
-        return x
-
 class MuAtMotif(nn.Module):
     """
     Transformer for classifying sequences
@@ -158,13 +138,20 @@ class MuAtMotifF_2Labels(nn.Module):
                 TransformerBlock(emb=config.n_embd, heads=config.n_head, seq_length=config.mutation_sampling_size, mask=False, dropout=config.attn_pdrop))
 
         self.tblocks = nn.Sequential(*tblocks)
+        self.do = nn.Dropout(config.embd_pdrop)
 
-        self.tofeature = nn.Sequential(nn.Linear(int(config.n_embd), 24),
+        self.to_joinfeatures = nn.Sequential(nn.Linear(int(config.n_embd + config.n_embd + 4), 64),
                                        nn.ReLU())
 
-        self.toprobs = nn.Linear(24, config.num_class)
+        self.to_typefeatures = nn.Sequential(nn.Linear(64, 32),
+                                       nn.ReLU())
 
-        self.do = nn.Dropout(config.embd_pdrop)
+        self.to_subtypefeatures = nn.Sequential(nn.Linear(64, 32),
+                                       nn.ReLU())
+
+        self.to_typeprobs = nn.Linear(32, config.num_class)
+
+        self.to_subtypeprobs = nn.Linear(32, config.num_subclass)        
 
     def forward(self, x, targets=None, vis=None,get_features=False):
 
@@ -180,19 +167,25 @@ class MuAtMotifF_2Labels(nn.Module):
 
         x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
 
-        feature = self.tofeature(x)
+        join_features = self.to_joinfeatures(x)
+        type_features = self.to_typefeatures(join_features)
+        subtype_features = self.to_subtypefeatures(join_features)
 
-        if get_features:
-            return feature
-        else:
-            logits = self.toprobs(feature)
-
+        typeprobs = self.to_typeprobs(type_features)
+        subtypeprobs = self.to_subtypeprobs(subtype_features)
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            loss1 = F.cross_entropy(typeprobs.view(-1, typeprobs.size(-1)), targets.view(-1))
+            loss2 = F.cross_entropy(subtypeprobs.view(-1, subtypeprobs.size(-1)), targets.view(-1))
 
-        return logits, loss
+        logits_feats = {'first_logits': typeprobs,
+                        'second_logits': subtypeprobs,
+                        'first_features': type_features,
+                        'second_features': subtype_features,
+                        'join_features': join_features
+                        }
+        return logits_feats, loss
 
 class MuAtMotifPosition(nn.Module):
     """
@@ -347,11 +340,18 @@ class MuAtMotifPositionF_2Labels(nn.Module):
 
         self.tblocks = nn.Sequential(*tblocks)
 
-        self.tofeature = nn.Sequential(nn.Linear(int(config.n_embd + config.n_embd), 24),
+        self.to_joinfeatures = nn.Sequential(nn.Linear(int(config.n_embd + config.n_embd + 4), 64),
                                        nn.ReLU())
 
-        # pdb.set_trace()
-        self.toprobs = nn.Linear(24, config.num_class)
+        self.to_typefeatures = nn.Sequential(nn.Linear(64, 32),
+                                       nn.ReLU())
+
+        self.to_subtypefeatures = nn.Sequential(nn.Linear(64, 32),
+                                       nn.ReLU())
+
+        self.to_typeprobs = nn.Linear(32, config.num_class)
+
+        self.to_subtypeprobs = nn.Linear(32, config.num_subclass)
 
         self.do = nn.Dropout(config.embd_pdrop)
 
@@ -368,43 +368,29 @@ class MuAtMotifPositionF_2Labels(nn.Module):
 
         x = self.do(x)
 
-        if visatt:
-            dot1 = self.tblocks[0].attention(x, vis=True)
+        x = self.tblocks(x)
 
-            manual_tblock = self.tblocks[0](x)
+        x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1) 
 
-            after_tblock = self.tblocks(x)
+        join_features = self.to_joinfeatures(x)
+        type_features = self.to_typefeatures(join_features)
+        subtype_features = self.to_subtypefeatures(join_features)
 
-            '''
-            for block in self.tblocks:
-
-                dot = block.attention(x,vis=True)
-
-                pdb.set_trace()
-
-                print(name)
-            '''
-
-            return dot1
-
-        else:
-            x = self.tblocks(x)
-
-        x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
-
-        feature = self.tofeature(x)
-
-        if get_features:
-            return feature
-        else:
-            logits = self.toprobs(feature)
-
+        typeprobs = self.to_typeprobs(type_features)
+        subtypeprobs = self.to_subtypeprobs(subtype_features)
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            loss1 = F.cross_entropy(typeprobs.view(-1, typeprobs.size(-1)), targets.view(-1))
+            loss2 = F.cross_entropy(subtypeprobs.view(-1, subtypeprobs.size(-1)), targets.view(-1))
 
-        return logits, loss
+        logits_feats = {'first_logits': typeprobs,
+                        'second_logits': subtypeprobs,
+                        'first_features': type_features,
+                        'second_features': subtype_features,
+                        'join_features': join_features
+                        }
+        return logits_feats, loss
 
 class MuAtMotifPositionGES(nn.Module):
     """
@@ -550,6 +536,7 @@ class MuAtMotifPositionGESF_2Labels(nn.Module):
         self.to_typeprobs = nn.Linear(32, config.num_class)
 
         self.to_subtypeprobs = nn.Linear(32, config.num_subclass)
+        self.do = nn.Dropout(config.embd_pdrop)
 
     def forward(self, x, targets=None, vis=None,get_features=False):
 

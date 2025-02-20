@@ -98,15 +98,15 @@ def load_and_check_checkpoint(ckpt_path):
 
     checkpoint = torch.load(ckpt_path,map_location=torch.device('cpu'))
 
-    #pdb.set_trace()
-
-    if len(checkpoint) >=3: #version 1 no args
-        checkpoint = convert_checkpoint_version1(checkpoint,ckpt_path)
-    else:     
+    if isinstance(checkpoint, dict):
+        return checkpoint
+    else:
         if isinstance(checkpoint, list): #version 2 with args
-            checkpoint = convert_checkpoint_version2(checkpoint,ckpt_path)
-    
-    return checkpoint
+            if len(checkpoint) == 3:
+                checkpoint = convert_checkpoint_version2(checkpoint,ckpt_path)
+            else:
+                checkpoint = convert_checkpoint_version1(checkpoint,ckpt_path)
+        return checkpoint
 
 def convert_checkpoint_version1(checkpoint,ckpt_path):
 
@@ -177,7 +177,6 @@ def convert_checkpoint_version1(checkpoint,ckpt_path):
         arch = 'MuAtMotifF'
     if arch == 'CTransformer':
         arch = 'MuAtMotifF'
-
 
     if arch == 'TripletPosition':
         arch = 'MuAtMotifPosition'
@@ -347,6 +346,4 @@ def convert_checkpoint_version2(checkpoint,ckpt_path):
     #pdb.set_trace()
     new_name = '-'.join(new_name)
 
-    torch.save(save_ckpt_params,'/csc/epitkane/projects/github/muat/muat/pkg_ckpt/' + new_name + '.pthx')
-
-    
+    torch.save(save_ckpt_params,'/Users/primasan/Documents/work/muat/tests/local_weight.pthx')

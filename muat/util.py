@@ -134,8 +134,21 @@ def get_simlified_args():
         args = parser.parse_args()
         return args
 
+def check_model_match(model_name,pretrained_model):
+    return True
 
-def get_model(arch,model_config):
+def initialize_pretrained_weight(model_name,model_config,checkpoint):
+
+    model = get_model(model_name,model_config)
+    model_dict = model.state_dict()
+    pretrained_dict = checkpoint['weight']
+    filtered_pretrained_dict = {k:v for k,v in pretrained_dict.items() if k in model_dict}
+    model_dict.update(filtered_pretrained_dict)
+    model.load_state_dict(model_dict)
+
+    return model
+
+def get_model(arch,model_config=None):
     if arch == 'MuAtMotif':
         return MuAtMotif(model_config)
     elif arch == 'MuAtMotifF':
@@ -147,7 +160,15 @@ def get_model(arch,model_config):
     elif arch == 'MuAtMotifPositionGES':
         return MuAtMotifPositionGES(model_config)
     elif arch == 'MuAtMotifPositionGESF':
-        return MuAtMotifPositionGESF(model_config)    
+        return MuAtMotifPositionGESF(model_config)
+    elif arch == 'MuAtMotifPositionGESF':
+        return MuAtMotifPositionGESF(model_config)
+    elif arch == 'MuAtMotifF_2Labels':
+        return MuAtMotifF_2Labels(model_config)    
+    elif arch == 'MuAtMotifPositionF_2Labels':
+        return MuAtMotifPositionF_2Labels(model_config)
+    elif arch == 'MuAtMotifPositionGESF_2Labels':
+        return MuAtMotifPositionGESF_2Labels(model_config)
     else:
         raise ValueError(f"Unsupported architecture: {arch}")
 
