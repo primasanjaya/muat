@@ -81,7 +81,7 @@ def check_checkpoint_and_fix(checkpoint,args):
             dataloader_config = DataloaderConfig(model_input=model_use,mutation_type=mutation_type,mutation_sampling_size=mutation_sampling_size)
 
             save_ckpt_params = {'weight':weight,
-                            'target_handler':target_handler,
+                            'target_handler':[target_handler],
                             'model_config':model_config,
                             'trainer_config':trainer_config,
                             'dataloader_config':dataloader_config,
@@ -334,7 +334,7 @@ def convert_checkpoint_version2(checkpoint,ckpt_path):
     dataloader_config = DataloaderConfig(model_input=model_use,mutation_type=mutation_type,mutation_sampling_size=mutation_sampling_size)
 
     save_ckpt_params = {'weight':weight,
-                    'target_handler':target_handler,
+                    'target_handler':[target_handler],
                     'model_config':model_config,
                     'trainer_config':trainer_config,
                     'dataloader_config':dataloader_config,
@@ -346,4 +346,6 @@ def convert_checkpoint_version2(checkpoint,ckpt_path):
     #pdb.set_trace()
     new_name = '-'.join(new_name)
 
-    torch.save(save_ckpt_params,'/Users/primasan/Documents/work/muat/tests/local_weight.pthx')
+    return save_ckpt_params
+
+    #torch.save(save_ckpt_params,'/Users/primasan/Documents/work/muat/tests/local_weight.pthx')
