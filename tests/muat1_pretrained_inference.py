@@ -20,18 +20,15 @@ if __name__ == "__main__":
 
     args = get_simlified_args()
 
-    muat_dir = '/path/to/muat'
+    muat_dir = '/path/to/muat/dir/'
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     genome_reference_path = muat_dir + '/data/genome_reference/'
 
     #load ckpt
-    load_ckpt_path = 'path/to/ckpt/weight.pthx'
-
+    load_ckpt_path = '/path/to/checkpoint/'
     checkpoint = load_and_check_checkpoint(load_ckpt_path)
-
-    #pdb.set_trace()
 
     dict_motif,dict_pos,dict_ges = load_token_dict(checkpoint)
 
@@ -54,20 +51,14 @@ if __name__ == "__main__":
 
     pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
 
-    le = load_target_handler(checkpoint)
+    target_handler = load_target_handler(checkpoint)
 
     dataloader_config = checkpoint['dataloader_config']
     test_dataloader = MuAtDataloader( pd_predict,dataloader_config)
-
     model = checkpoint['model']
     model = model.to(device)
     model.load_state_dict(checkpoint['weight'])
-
-    predict_config = PredictorConfig(max_epochs=1, batch_size=1,result_dir=os.path.dirname(load_ckpt_path),target_handler=le)
-    #pdb.set_trace()
-    predict_config.get_features = True #get features
+    predict_config = PredictorConfig(max_epochs=1, batch_size=1,result_dir=os.path.dirname(load_ckpt_path),target_handler=target_handler)
     predictor = Predictor(model, test_dataloader, predict_config)
 
-    predictor.batch_predict()
-
-    print('result saved in ',os.path.dirname(load_ckpt_path))
+    predictor.batch_predict_multi()
