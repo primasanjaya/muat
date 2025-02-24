@@ -30,7 +30,3 @@ tgz_file_path = muat_dir + '/data/PCAWG/consensus_snv_indel/final_consensus_snv_
 with tarfile.open(tgz_file_path, 'r:gz') as tar:
     tar.extractall(path=muat_dir + '/data/PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public/')  # Specify the directory to extract to
     print("Extraction complete.")
-
-#download reference genome
-genome_reference_path = muat_dir + '/data/genome_reference/'
-download_reference(genome_reference_path=genome_reference_path)
