@@ -38,8 +38,6 @@ class Predictor:
         model = model.to(self.device)
 
         model = torch.nn.DataParallel(model).to(self.device)
-        valloader = torch.utils.data.DataLoader(self.test_dataset, batch_size=self.config.batch_size, shuffle=False)
-
         model.train(False)
         #pdb.set_trace()
 

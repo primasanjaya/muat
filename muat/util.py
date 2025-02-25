@@ -171,8 +171,6 @@ def get_model(arch,model_config=None):
     else:
         raise ValueError(f"Unsupported architecture: {arch}")
 
-import csv
-
 class LabelEncoderFromCSV:
     def __init__(self, csv_file):
         """Initialise the encoder by loading class mappings from a CSV file."""

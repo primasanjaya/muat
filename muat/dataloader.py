@@ -98,16 +98,16 @@ class MuAtDataloader(Dataset):
         instances = self.data_split_tsv.iloc[idx]
         pd_row = pd.read_csv(instances['prep_path'], sep='\t', compression='gzip', low_memory=False)
         sample_path = instances['prep_path']
-
+        
         # Get idx_class and idx_subclass if they exist
         idx_class = None
         if 'idx_class' in instances.index.to_list():
             idx_class = torch.tensor(np.array(instances['idx_class']), dtype=torch.long)
-
+        
         idx_subclass = None
         if 'idx_subclass' in instances.index.to_list():
             idx_subclass = torch.tensor(np.array(instances['idx_subclass']), dtype=torch.long)
-
+        
         # Sampling logic
         avail_count = self.count_ratio(pd_row)
         pd_sampling = pd.DataFrame()
@@ -124,10 +124,9 @@ class MuAtDataloader(Dataset):
             if value > 0:
                 pd_samp = pd_row[pd_row['mut_type'] == key][grab_col].sample(n=value, replace=False)
                 pd_sampling = pd.concat([pd_sampling, pd_samp], ignore_index=True)
-
-        pd_sampling = pd_sampling.sample(frac=1)
+        
+        # Handle padding
         np_triplettoken = pd_sampling.to_numpy()
-
         is_padding = len(pd_sampling) < self.mutation_sampling_size
         mins = self.mutation_sampling_size - len(np_triplettoken) if is_padding else 0
 
@@ -139,12 +138,13 @@ class MuAtDataloader(Dataset):
             np_data = np.asarray(np_data[:self.mutation_sampling_size], dtype=int)
             datanumeric.append(torch.tensor(np_data, dtype=torch.long))
 
+        # Ensure datanumeric is valid
         datanumeric = torch.stack(datanumeric)
 
-        # Flexible data output
+        # Ensure no None values in data_targets
         data_targets = {
-            "idx_class": idx_class,
-            "idx_subclass": idx_subclass
+            "idx_class": idx_class if idx_class is not None else [],
+            "idx_subclass": idx_subclass if idx_subclass is not None else []
         }
 
         return datanumeric, data_targets, sample_path

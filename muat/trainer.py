@@ -72,19 +72,27 @@ class Trainer:
             train_corr = []
 
             num_iterations = 30  # Set limit
-            #for batch_idx, (data, target, sample_path) in enumerate(trainloader):
-            for batch_idx, (data, target, sample_path) in zip(range(num_iterations), trainloader):
+            for batch_idx, (data, target, sample_path) in enumerate(trainloader):
+            #for batch_idx, (data, target, sample_path) in zip(range(num_iterations), trainloader):
+
+            #for batch_idx in range(len(trainloader.dataset)):
+                #data, target, sample_path = trainloader.dataset[batch_idx]
+                #pdb.set_trace()
 
                 string_data = target
                 numeric_data = data
                 numeric_data = numeric_data.to(self.device)
-
-                class_keys = [x for x in string_data.keys() if 'idx_' in x]
-                class_values = [string_data[x] for x in class_keys]
+                class_keys = [x for x in string_data.values() if not isinstance(x, list)]
+                class_values = []
+                for x in string_data.keys():
+                    values = string_data[x]
+                    if not isinstance(values, list):
+                        class_values.append(values)
+                #pdb.set_trace()
                 if len(class_values)>1:
                     target = torch.stack(class_values, dim=0)
-                else:
-                    target = class_values
+                elif len(class_values)==1:
+                    target = class_values[0].unsqueeze(dim=0)
                 target.to(self.device)
 
                 # forward the model
