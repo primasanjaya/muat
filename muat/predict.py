@@ -25,8 +25,6 @@ class Predictor:
         self.model = model
         self.test_dataset = test_dataset
         self.config = config
-        self.global_acc = 0
-        self.pd_logits = []
 
         # take over whatever gpus are on the system
         self.device = 'cpu'
@@ -43,6 +41,7 @@ class Predictor:
         valloader = torch.utils.data.DataLoader(self.test_dataset, batch_size=self.config.batch_size, shuffle=False)
 
         model.train(False)
+        #pdb.set_trace()
 
         for i in range(len(self.test_dataset)):
             data, target, sample_path = self.test_dataset.__getitem__(i)
@@ -51,8 +50,10 @@ class Predictor:
             # forward the model 
             with torch.set_grad_enabled(False):
                 logits, _ = model(numeric_data)
+                #pdb.set_trace()
                 if isinstance(logits, dict):
                     #write all logits
+                    #pdb.set_trace()
                     logit_keys = [x for x in logits.keys() if 'logits' in x]
                     for nk, lk in enumerate(logit_keys):
                         logit = logits[lk]

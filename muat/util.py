@@ -365,3 +365,51 @@ def read_reference(reffn, verbose=0):
 def is_valid_dna(s):
     s2 = [a in 'ACGTN' for a in s]
     return len(s2) == sum(s2)
+
+def search_best(folder):
+
+    best = ''
+    curr_acc = 0
+    for x in folder:
+        try:
+            pd_data = pd.read_csv(x+'/finalprf.csv',index_col=0)
+            acc = pd_data['acc'].unique()[0]
+
+            if os.path.isfile(x + '/model.pthx'):
+                if acc > curr_acc:
+                    curr_acc=acc
+                    best = x
+            else:
+                pass
+        except:
+            pass
+    print(best + '/model.pthx')
+    #print(str(curr_acc))
+    return best + '/model.pthx', curr_acc
+
+def get_checkpoint_args():
+
+    parser = argparse.ArgumentParser(description='PCAWG / TCGA experiment')
+    parser.add_argument('--arch', type=str, default=None,
+                        help='architecture')
+
+    parser.add_argument('--n-class', type=int, default=None,
+                        help='number of class')
+    parser.add_argument('--n-layer', type=int, default=1,
+                        help='attention layer')
+    parser.add_argument('--n-head', type=int, default=8,
+                    help='attention head')
+    parser.add_argument('--n-emb', type=int, default=128,
+                    help='embedding dimension')
+
+    parser.add_argument('--get-motif', action='store_true', default=False)
+    parser.add_argument('--get-position', action='store_true', default=False)
+    parser.add_argument('--get-ges', action='store_true', default=False)
+    parser.add_argument('--get-epi', action='store_true', default=False)
+
+    parser.add_argument('--motif', action='store_true', default=False)
+    parser.add_argument('--motif-pos', action='store_true', default=False)
+    parser.add_argument('--motif-pos-ges', action='store_true', default=False)
+    parser.add_argument('--motif-pos-ges-epi', action='store_true', default=False)
+    args = parser.parse_args()
+    return args

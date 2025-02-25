@@ -5,121 +5,36 @@ from sklearn.preprocessing import LabelEncoder
 import pandas as pd
 from muat.util import *
 import shutil
+import os
 
-def check_checkpoint_and_fix(checkpoint,args):
-
-    if isinstance(checkpoint, list):
-        classfileinfo = resource_filename('muat', 'extfile')
-        if args.classinfo_filepath is None or args.dict_motif_filepath is None or args.dict_pos_filepath is None or args.dict_ges_filepath is None:
-            #raise ValueError("You are using old checkpoint version. Please provide --classinfo-filepath --dict-motif-filepath --dict-pos-filepath --dict-ges-filepath, example files are in ",classfileinfo)
-
-            #converting old checkpoint
-            print('pass')
-
-        else:
-            classfileinfo = args.classinfo_filepath
-            target_handler = LabelEncoder()
-            pd_classinfo = pd.read_csv(classfileinfo,index_col=0)
-            target_handler.fit(pd_classinfo['class_name'])
-            #pdb.set_trace()
-
-            weight = checkpoint[0]
-
-            dict_motif = pd.read_csv(args.dict_motif_filepath,sep='\t')
-            dict_pos = pd.read_csv(args.dict_pos_filepath,sep='\t')
-            dict_ges = pd.read_csv(args.dict_ges_filepath,sep='\t')
-
-            #pdb.set_trace()
-
-            mutratio = checkpoint[1].mutratio.split('-')
-            snv_ratio = float(mutratio[0])
-            mnv_ratio = float(mutratio[1])
-            indel_ratio = float(mutratio[2])
-            sv_mei_ratio = float(mutratio[3])
-            neg_ratio = float(mutratio[4])
-
-            # Ensure these values are set correctly
-            mutation_type, motif_size = mutation_type_ratio(snv=snv_ratio, mnv=mnv_ratio, indel=indel_ratio, sv_mei=sv_mei_ratio, neg=neg_ratio, pd_motif=dict_motif)
-
-            n_class = checkpoint[1].n_class
-            mutation_sampling_size = checkpoint[1].block_size
-            n_emb = checkpoint[1].n_emb
-            n_layer = checkpoint[1].n_layer
-            n_head = checkpoint[1].n_head
-
-            # Check the values before creating the model
-            model_config = ModelConfig(
-                motif_size=motif_size+1,#plus one for padding
-                num_class=n_class,
-                mutation_sampling_size=mutation_sampling_size,
-                position_size=len(dict_pos)+1,#plus one for padding 
-                ges_size=len(dict_ges)+1,#plus one for padding
-                n_embd=n_emb,
-                n_layer=n_layer,
-                n_head=n_head
-            )
-            
-            trainer_config = TrainerConfig()
-
-            model = get_model(checkpoint[1].arch,model_config)
-
-            if checkpoint[1].motif:
-                motif = True
-                pos = False
-                ges = False
-            elif checkpoint[1].motif_pos:
-                motif = True
-                pos = True
-                ges = False
-            elif checkpoint[1].motif_pos_ges:
-                motif = True
-                pos = True
-                ges = True
-
-            model_use = model_input(motif=motif,pos=pos,ges=ges) #model input
-
-            dataloader_config = DataloaderConfig(model_input=model_use,mutation_type=mutation_type,mutation_sampling_size=mutation_sampling_size)
-
-            save_ckpt_params = {'weight':weight,
-                            'target_handler':[target_handler],
-                            'model_config':model_config,
-                            'trainer_config':trainer_config,
-                            'dataloader_config':dataloader_config,
-                            'model':model,
-                            'motif_dict':dict_motif,
-                            'pos_dict':dict_pos,
-                            'ges_dict':dict_ges}
-
-            return save_ckpt_params
-    else:
-        return save_ckpt_params
-
-def load_and_check_checkpoint(ckpt_path):
+def load_and_check_checkpoint(ckpt_path,save=False):
 
     checkpoint = torch.load(ckpt_path,map_location=torch.device('cpu'))
 
     if isinstance(checkpoint, dict):
-        return checkpoint
+        if 'target_handler' in checkpoint.keys():
+            return checkpoint
+        else:
+            checkpoint = convert_checkpoint_version1(checkpoint,ckpt_path,save=save)
+            return checkpoint
     else:
         if isinstance(checkpoint, list): #version 2 with args
             if len(checkpoint) == 3:
-                checkpoint = convert_checkpoint_version2(checkpoint,ckpt_path)
-            else:
-                checkpoint = convert_checkpoint_version1(checkpoint,ckpt_path)
-        return checkpoint
+                checkpoint = convert_checkpoint_version2(checkpoint,ckpt_path,save=save)
+                return checkpoint
 
-def convert_checkpoint_version1(checkpoint,ckpt_path):
+def convert_checkpoint_version1(checkpoint,ckpt_path,save=False):
+    print('convert checkpoint v.1')
 
     args = get_checkpoint_args()
 
+    ckpt_path = os.path.normpath(ckpt_path)
     splitfolder = ckpt_path.split('/')[-2].split('_')
 
     if 'pcawg' in ckpt_path:
         n_class = 24
     if 'tcga' in ckpt_path:
         n_class = 22
-
-    ##pdb.set_trace()
 
     smivn = splitfolder[1]
 
@@ -214,9 +129,10 @@ def convert_checkpoint_version1(checkpoint,ckpt_path):
 
     weight_newformat = [checkpoint,args,1]
 
-    convert_checkpoint_version2(weight_newformat,ckpt_path)
+    convert_checkpoint_version2(weight_newformat,ckpt_path,save)
 
-def convert_checkpoint_version2(checkpoint,ckpt_path):
+def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
+    print('convert checkpoint v.2')
 
     new_name = []
 
@@ -278,6 +194,7 @@ def convert_checkpoint_version2(checkpoint,ckpt_path):
         pd_classinfo = pd.read_csv(classfileinfo,index_col=0)
         target_handler.fit(pd_classinfo['class_name'])
 
+    #pdb.set_trace()
     dict_motif = pd.read_csv(extdir + '/' + 'dictMutation.tsv',sep='\t')
     dict_pos = pd.read_csv(extdir + '/' + 'dictChpos.tsv',sep='\t')
     dict_ges = pd.read_csv(extdir + '/' + 'dictGES.tsv',sep='\t')
@@ -343,9 +260,12 @@ def convert_checkpoint_version2(checkpoint,ckpt_path):
                     'pos_dict':dict_pos,
                     'ges_dict':dict_ges}
 
-    #pdb.set_trace()
-    new_name = '-'.join(new_name)
+    if save:
+        filename = '-'.join(new_name) + '.pthx'
+        dir_name = new_name[0] + '_' + new_name[1] 
+        #pdb.set_trace()
+        path = '/csc/epitkane/projects/github/muat/muat/pkg_ckpt/' + dir_name + '/' + new_name[2] + '/' + filename
+        path = os.path.normpath(path)
+        torch.save(save_ckpt_params,path)
 
     return save_ckpt_params
-
-    #torch.save(save_ckpt_params,'/Users/primasan/Documents/work/muat/tests/local_weight.pthx')

@@ -54,11 +54,16 @@ if __name__ == "__main__":
     target_handler = load_target_handler(checkpoint)
 
     dataloader_config = checkpoint['dataloader_config']
-    test_dataloader = MuAtDataloader( pd_predict,dataloader_config)
-    model = checkpoint['model']
+    test_dataloader = MuAtDataloader(pd_predict,dataloader_config)
+
+    model_name = checkpoint['model'].__class__.__name__
+    #pdb.set_trace()
+    model = get_model(model_name,checkpoint['model_config'])
     model = model.to(device)
     model.load_state_dict(checkpoint['weight'])
-    predict_config = PredictorConfig(max_epochs=1, batch_size=1,result_dir=os.path.dirname(load_ckpt_path),target_handler=target_handler)
+
+    result_dir = '/csc/epitkane/projects/github/muat/data/results/'
+    predict_config = PredictorConfig(max_epochs=1, batch_size=1,result_dir=result_dir,target_handler=target_handler)
     predictor = Predictor(model, test_dataloader, predict_config)
 
-    predictor.batch_predict_multi()
+    predictor.batch_predict()
