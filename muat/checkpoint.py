@@ -129,7 +129,8 @@ def convert_checkpoint_version1(checkpoint,ckpt_path,save=False):
 
     weight_newformat = [checkpoint,args,1]
 
-    convert_checkpoint_version2(weight_newformat,ckpt_path,save)
+    checkpoint = convert_checkpoint_version2(weight_newformat,ckpt_path,save)
+    return checkpoint
 
 def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
     print('convert checkpoint v.2')
@@ -190,9 +191,7 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
     if 'pcawg' in new_name:
         extdir = resource_filename('muat', 'extfile')
         classfileinfo = extdir + '/' + 'classinfo_pcawg.csv'
-        target_handler = LabelEncoder()
-        pd_classinfo = pd.read_csv(classfileinfo,index_col=0)
-        target_handler.fit(pd_classinfo['class_name'])
+        target_handler = LabelEncoderFromCSV(classfileinfo)
 
     #pdb.set_trace()
     dict_motif = pd.read_csv(extdir + '/' + 'dictMutation.tsv',sep='\t')
@@ -205,6 +204,8 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
     indel_ratio = float(mutratio[2])
     sv_mei_ratio = float(mutratio[3])
     neg_ratio = float(mutratio[4])
+
+    #pdb.set_trace()
 
     # Ensure these values are set correctly
     mutation_type, motif_size = mutation_type_ratio(snv=snv_ratio, mnv=mnv_ratio, indel=indel_ratio, sv_mei=sv_mei_ratio, neg=neg_ratio, pd_motif=dict_motif)
@@ -255,7 +256,7 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
                     'model_config':model_config,
                     'trainer_config':trainer_config,
                     'dataloader_config':dataloader_config,
-                    'model':model.__class__.__name__,
+                    'model_name':model.__class__.__name__,
                     'motif_dict':dict_motif,
                     'pos_dict':dict_pos,
                     'ges_dict':dict_ges}
@@ -267,5 +268,5 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
         path = '/csc/epitkane/projects/github/muat/muat/pkg_ckpt/' + dir_name + '/' + new_name[2] + '/' + filename
         path = os.path.normpath(path)
         torch.save(save_ckpt_params,path)
-
+    #pdb.set_trace()
     return save_ckpt_params

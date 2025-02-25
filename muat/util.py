@@ -12,6 +12,7 @@ from sklearn.preprocessing import LabelEncoder
 import pandas as pd
 from muat.dataloader import *
 from muat.trainer import *
+import csv
 
 
 def get_simlified_args():
@@ -169,6 +170,34 @@ def get_model(arch,model_config=None):
         return MuAtMotifPositionGESF_2Labels(model_config)
     else:
         raise ValueError(f"Unsupported architecture: {arch}")
+
+import csv
+
+class LabelEncoderFromCSV:
+    def __init__(self, csv_file):
+        """Initialise the encoder by loading class mappings from a CSV file."""
+        self.class_to_idx = {}
+        self.idx_to_class = {}
+        self._load_class_mapping(csv_file)
+        self.classes_ = list(self.class_to_idx.keys())
+
+    def _load_class_mapping(self, csv_file):
+        """Load class mappings from a CSV file."""
+        with open(csv_file, mode='r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                class_name = row['class_name']
+                class_idx = int(row['class_index'])
+                self.class_to_idx[class_name] = class_idx
+                self.idx_to_class[class_idx] = class_name
+
+    def fit_transform(self, labels):
+        """Encode a list of labels into their corresponding indices."""
+        return [self.class_to_idx[label] for label in labels]
+
+    def inverse_transform(self, encoded_labels):
+        """Decode a list of indices back into their corresponding labels."""
+        return [self.idx_to_class[idx] for idx in encoded_labels]
 
 def multifiles_handler(file):
     if isinstance(file, str):

@@ -68,7 +68,7 @@ class Predictor:
                         
                         if i==0:
                             f = open(self.result_dir + '/' + logit_filename, 'w+') 
-                            header_class = target_handler.classes_.tolist()
+                            header_class = target_handler.classes_
                             header_class.append('prediction')
                             header_class.append('sample')
                             write_header = "\t".join(header_class)
