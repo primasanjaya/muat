@@ -302,7 +302,7 @@ def gunzip_file(gz_filename):
     if os.name == "nt":  # Windows
         cmd = f'powershell -Command "gzip -d \'{gz_filename}\'"'
     else:  # Linux/macOS
-        cmd = f"gunzip -c '{gz_filename}' > '{filename}'"
+        cmd = f"gunzip -c {gz_filename} > {filename}"
     try:
         subprocess.run(cmd, shell=True, check=True)
         print(f"Decompressed: {gz_filename} -> {filename}")
