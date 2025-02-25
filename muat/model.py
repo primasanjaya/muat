@@ -445,7 +445,9 @@ class MuAtMotifPositionGES(nn.Module):
         if targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
-        return logits, loss
+        logits_feats = {'first_logits': logits,
+                        }
+        return logits_feats, loss
 
 class MuAtMotifPositionGESF(nn.Module):
     """
@@ -494,18 +496,18 @@ class MuAtMotifPositionGESF(nn.Module):
         x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
 
         feature = self.tofeature(x)
-
-        if get_features:
-            return feature
-        else:
-            logits = self.toprobs(feature)
+        logits = self.toprobs(feature)
 
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
-        return logits, loss
+        logits_feats = {'first_logits': logits,
+                        'first_features': feature
+                        }
+                        
+        return logits_feats, loss
 
 class MuAtMotifPositionGESF_2Labels(nn.Module):
     """

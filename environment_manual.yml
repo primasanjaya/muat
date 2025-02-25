@@ -1,4 +1,4 @@
-name: muat-test
+name: muat-env
 channels:
   - anaconda
   - defaults
@@ -18,4 +18,5 @@ dependencies:
   - pyliftover
   - bcftools
   - tqdm
-prefix: /opt/anaconda3/envs/muat-test
+  - bedops
+prefix: /opt/anaconda3/envs/muat-env

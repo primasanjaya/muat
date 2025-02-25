@@ -185,6 +185,7 @@ def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_mot
     for x in vcf_file:
         if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
             all_preprocessed_vcf.append(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+    #pdb.set_trace()
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf)
     
 

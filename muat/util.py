@@ -161,8 +161,6 @@ def get_model(arch,model_config=None):
         return MuAtMotifPositionGES(model_config)
     elif arch == 'MuAtMotifPositionGESF':
         return MuAtMotifPositionGESF(model_config)
-    elif arch == 'MuAtMotifPositionGESF':
-        return MuAtMotifPositionGESF(model_config)
     elif arch == 'MuAtMotifF_2Labels':
         return MuAtMotifF_2Labels(model_config)    
     elif arch == 'MuAtMotifPositionF_2Labels':
