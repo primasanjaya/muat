@@ -15,125 +15,30 @@ from muat.trainer import *
 import csv
 
 
-def get_simlified_args():
-        parser = argparse.ArgumentParser(description='Mutation Attention Tool')
+def get_main_args():
+    parser = argparse.ArgumentParser(description='Mutation Attention Tool')
+    # EXECUTIION
+    #PREDICTION
+    parser.add_argument('--predict-vcf-hg19', action='store_true', default=False,
+                        help='execute prediction of vcf hg19')
+    #INPUT
+    parser.add_argument("--vcf-hg19-filepath", nargs="+", type=str, 
+                        help="List of vcf hg19")
+    #OUTPUT
+    parser.add_argument("--result-dir", type=str, default=None,
+                    help='path to save the result')
+    #CHECKPOINT
+    parser.add_argument('--load-ckpt-filepath', type=str, default=None,
+                    help='load checkpoint complete path file')
+    #UTILS
+        #PREPROCESSING
+    parser.add_argument('--hg19-filepath', type=str, default=None,
+                    help='path to Human Genome Reference hg19')
 
-        # DATASET
-        parser.add_argument('--cwd', type=str,help='project dir')
-        parser.add_argument('--dataloader', type=str, default=None,
-                        help='dataloader setup, option: pcawg or tcga')
-        # MODEL
-        parser.add_argument('--arch', type=str, default=None,
-                        help='architecture')
-        # DIRECTORY
-            #INPUT DATA
-                #PREPROCESSING
-        parser.add_argument('--raw-filepath', type=str, default=None,
-                        help='path of raw vcf files')
-                #TOKENIZING
-        parser.add_argument('--prep-filepath', type=str, default=None,
-                        help='path to preprocessed files')
-                #TRAINING
-        parser.add_argument('--trainfold-filepath', type=str, default=None,
-                        help='path to training fold split')
-        parser.add_argument('--valfold-filepath', type=str, default=None,
-                        help='path to validation fold split')
-                #PREDICT
-        parser.add_argument('--predict-filepath', type=str, default=None,
-                        help='path to predict data')
-        parser.add_argument('--predict-ready-filepath', type=str, default=None,
-                        help='path to clean predict data')
-                
-            #OUTPUT DATA
-                #PREPROCESSING
-        parser.add_argument('--prep-outdir', type=str, default=None,
-                        help='directory of preprocessed files')
-                #TOKENIZING        
-        parser.add_argument('--token-outdir', type=str, default=None,
-                        help='directory of tokenized files')
-                #PREDICT        
-        parser.add_argument('--output-pred-dir', type=str, default=None,
-                        help='directory of prediction output')
+    
 
-
-        # EXECUTIION
-            #PREPROCESSING
-        parser.add_argument('--preprocessing', action='store_true', default=False,
-                            help='execute preprocessing')
-            #TOKENIZING 
-        parser.add_argument('--tokenizing', action='store_true', default=False,
-                            help='execute tokenizing')
-            #TRAINING
-        parser.add_argument('--train', action='store_true', default=False,
-                            help='execute training')
-            #PREDICTION
-        parser.add_argument('--predict-all', action='store_true', default=False,
-                            help='execute prediction all samples')
-        parser.add_argument('--predict-all-noprep', action='store_true', default=False,
-                            help='execute prediction all samples from the preprocessed files')
-
-        parser.add_argument('--get-features', action='store_true', default=False,
-                            help='get features from the models')
-        parser.add_argument('--convert_hg38_hg19', action='store_true', default=False,
-                            help='convert_hg38_hg19')
-
-        parser.add_argument('--motif', action='store_true', default=False)
-        parser.add_argument('--motif-pos', action='store_true', default=False)
-        parser.add_argument('--motif-pos-ges', action='store_true', default=False)
-
-
-        #CKPT SAVE
-        parser.add_argument('--save-ckpt-filepath', type=str, default=None,
-                        help='save checkpoint filename')
-        #CKPT LOAD
-        parser.add_argument('--load-ckpt-filepath', type=str, default=None,
-                        help='load checkpoint complete path file')
-        # HYPER PARAMS 
-        parser.add_argument('--epoch', type=int, default=1,
-                        help='number of epoch')
-        parser.add_argument('--l-rate', type=float, default=6e-4,
-                        help='learning rate')
-        parser.add_argument('--n-class', type=int, default=None,
-                        help='number of class')
-        parser.add_argument('--batch-size', type=int, default=1,
-                        help='batch size')
-        parser.add_argument('--block-size', type=int, default=1000,
-                        help='block of sequence')
-        parser.add_argument('--context-length', type=int, default=3,
-                        help='length of sequence')
-        parser.add_argument('--n-layer', type=int, default=1,
-                        help='attention layer')
-        parser.add_argument('--n-head', type=int, default=8,
-                        help='attention head')
-        parser.add_argument('--n-emb', type=int, default=128,
-                        help='embedding dimension')
-        parser.add_argument('--fold', type=int, default=1, 
-                            help='fold')
-        
-        #UTILS
-            #PREPROCESSING
-        parser.add_argument('--hg19-path', type=str, default=None,
-                        help='path to Human Genome Reference hg19')
-        parser.add_argument('--hg38-path', type=str, default=None,
-                        help='path to Human Genome Reference hg38')
-        parser.add_argument('--dict-motif-filepath', type=str, default=None,
-                        help='path to motif dictionary')
-        parser.add_argument('--dict-pos-filepath', type=str, default=None,
-                        help='path to position dictionary')
-        parser.add_argument('--dict-ges-filepath', type=str, default=None,
-                        help='path to ges dictionary')
-
-            #TRAINING
-        parser.add_argument('--classinfo-filepath', type=str, default=None,
-                        help='path to class info')
-
-        parser.add_argument('--mut-type', type=str, default='',
-                        help='mutation type, only [SNV,SNV+MNV,SNV+MNV+indel,SNV+MNV+indel+SV/MEI,SNV+MNV+indel+SV/MEI+Neg] can be applied')
-        parser.add_argument('--mutratio', type=str, default=None,
-                        help='mutation ratio per mutation type, sum of them must be one')
-
-        args = parser.parse_args()
-        return args
+    args = parser.parse_args()
+    return args
 
 def check_model_match(model_name,pretrained_model):
     return True
