@@ -255,7 +255,7 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
                     'model_config':model_config,
                     'trainer_config':trainer_config,
                     'dataloader_config':dataloader_config,
-                    'model':model,
+                    'model':model.__class__.__name__,
                     'motif_dict':dict_motif,
                     'pos_dict':dict_pos,
                     'ges_dict':dict_ges}
