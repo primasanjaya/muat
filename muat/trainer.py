@@ -122,11 +122,11 @@ class Trainer:
                     train_acc = train_corr / len(self.train_dataset)
 
                     if batch_idx % self.config.show_loss_interval == 0:
-                        show_text = "Epoch {} - Batch ({}/{}) - Mini-batch Training loss: {:.4f}".format(e,batch_idx , len(trainloader) , running_loss/(batch_idx+1))
+                        show_text = "Epoch {} - Batch ({}/{}) - Mini-batch Training loss: {:.4f}".format(e+1,batch_idx , len(trainloader) , running_loss/(batch_idx+1))
                         for x in range(len(logit_keys)):
                             show_text = show_text + ' - Training Acc {}: {:.2f}'.format(x+1,train_acc[x])
-                        #print(show_text)
-            show_text = "Epoch {} - Full-batch Training loss: {:.4f}".format(e, running_loss/(batch_idx+1))
+                        print(show_text)
+            show_text = "Epoch {} - Full-batch Training loss: {:.4f}".format(e+1, running_loss/(batch_idx+1))
             for x in range(len(logit_keys)):
                 show_text = show_text + ' - Training Acc {}: {:.2f}'.format(x+1,train_acc[x])
             print(show_text)
@@ -141,7 +141,7 @@ class Trainer:
                     logit_filename = 'val_{}.tsv'.format(lk)
                     f = open(self.complete_save_dir + logit_filename, 'w+')  # open file in write mode
                     target_handler = self.config.target_handler[nk]
-                    header_class = target_handler.classes_.tolist()
+                    header_class = target_handler.classes_
                     header_class.append('target_name')  
                     header_class.append('sample')
                     write_header = "\t".join(header_class)
