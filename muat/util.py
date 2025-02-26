@@ -18,12 +18,27 @@ import csv
 def get_main_args():
     parser = argparse.ArgumentParser(description='Mutation Attention Tool')
     # EXECUTIION
+    #PREPROCESSING
+    parser.add_argument('--preprocessing-vcf-hg19', action='store_true', default=False,
+                        help='execute preprocessing for vcf hg19')
+    parser.add_argument('--preprocessing-vcf-hg38', action='store_true', default=False,
+                        help='execute preprocessing for vcf hg38')
+    parser.add_argument('--tokenizing', action='store_true', default=False,
+                        help='execute tokenizing preprocessed files')
+
     #PREDICTION
     parser.add_argument('--predict-vcf-hg19', action='store_true', default=False,
                         help='execute prediction of vcf hg19')
+    parser.add_argument('--predict-vcf-hg38', action='store_true', default=False,
+                        help='execute prediction of vcf hg38')
+
     #INPUT
     parser.add_argument("--vcf-hg19-filepath", nargs="+", type=str, 
                         help="List of vcf hg19")
+    parser.add_argument("--vcf-hg38-filepath", nargs="+", type=str, 
+                        help="List of vcf hg38")
+    parser.add_argument("--preprocessed-filepath", nargs="+", type=str, 
+                        help="List of preprocessed files (.gc.genic.exonic.cs.tsv.gz) which contain motif position and ges to be tokenized")
     #OUTPUT
     parser.add_argument("--result-dir", type=str, default=None,
                     help='path to save the result')
@@ -34,8 +49,19 @@ def get_main_args():
         #PREPROCESSING
     parser.add_argument('--hg19-filepath', type=str, default=None,
                     help='path to Human Genome Reference hg19')
+    parser.add_argument('--hg38-filepath', type=str, default=None,
+                    help='path to Human Genome Reference hg38')
+    parser.add_argument('--motif-dictionary-filepath', type=str, default=None,
+                    help='path to motif dictionary (.tsv)')
+    parser.add_argument('--position-dictionary-filepath', type=str, default=None,
+                    help='path to genomic position dictionary (.tsv)')
+    parser.add_argument('--ges-dictionary-filepath', type=str, default=None,
+                    help='path to genic exonic strand dictionary (.tsv)')
 
-    
+    parser.add_argument('--tmp-dir', type=str, default=None,
+                    help='directory to store preprocessed files')
+
+
 
     args = parser.parse_args()
     return args
@@ -318,6 +344,22 @@ def search_best(folder):
     print(best + '/model.pthx')
     #print(str(curr_acc))
     return best + '/model.pthx', curr_acc
+
+def ensure_dirpath(path, terminator="/"):
+    path = path.replace('//', terminator)
+    if path.endswith(terminator):
+        return path
+    else:
+        path = path + terminator
+    return path
+
+def check_tmp_dir(args):
+    if args.tmp_dir is None:
+        tmp_dir = ensure_dirpath(os.path.abspath(os.path.join(os.getcwd(), 'data/preprocessed_local'))) 
+        print('--tmp-dir was not defined, --tmp-dir is set to ' + str(tmp_dir))
+    else:
+        tmp_dir = args.tmp_dir
+    return tmp_dir
 
 def get_checkpoint_args():
 

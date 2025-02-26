@@ -109,7 +109,7 @@ def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,genome_refe
         if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
             all_preprocessed_vcf.append(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
     #pdb.set_trace()
-    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf)
+    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     #pdb.set_trace()
 
 
@@ -186,7 +186,7 @@ def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_mot
         if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
             all_preprocessed_vcf.append(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
     #pdb.set_trace()
-    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf)
+    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     
 
 def get_motif_pos_ges(fn,genome_ref,tmp_dir,genome_ref38=None,liftover=False,verbose=True):
@@ -306,7 +306,7 @@ def create_dictionary(prep_path,pos_bin_size=1000000,save_dict_path=None):
     
     return dict_motif, dict_pos, dict_ges
 
-def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,pos_bin_size=1000000):
+def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,tmp_dir,pos_bin_size=1000000):
     '''
     Tokenizing the motif, pos, and ges
     '''
@@ -325,4 +325,5 @@ def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,pos_bin_size=
             df = df.merge(dict_pos, left_on='chrompos', right_on='chrompos', how='left')
             df = df.merge(dict_ges, left_on='ges', right_on='ges', how='left')
 
-            df.to_csv(path, sep='\t',compression='gzip',index=False)
+            token_file = ensure_dirpath(tmp_dir) + get_sample_name(path) + '.token.gc.genic.exonic.cs.tsv.gz'
+            df.to_csv(token_file, sep='\t',compression='gzip',index=False)
