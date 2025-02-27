@@ -20,9 +20,10 @@ class DataloaderConfig:
 
 class MuAtDataloader(Dataset):
     def __init__(self, data_split_tsv,config,same_sampling=False):
+        self.config = config
         self.data_split_tsv = data_split_tsv
         self.model_input = config.model_input
-        self.mutation_type = config.mutation_type
+        self.mutation_type_ratio = config.mutation_type_ratio
         self.mutation_sampling_size = config.mutation_sampling_size
         self.same_sampling = same_sampling
 
@@ -42,7 +43,7 @@ class MuAtDataloader(Dataset):
             elif key == 'MEI':
                 row_count_init['SV/MEI'] += value
 
-        mut_ratio = np.array(list(self.mutation_type.values()))
+        mut_ratio = np.array(list(self.mutation_type_ratio.values()))
         avail_count = mut_ratio * self.mutation_sampling_size   
         row_count = np.array(list(row_count_init.values()))
             

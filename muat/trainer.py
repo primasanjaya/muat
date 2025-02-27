@@ -207,6 +207,17 @@ class Trainer:
             print('Validation set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
                 test_loss, test_correct[0], len(self.test_dataset), 100. * test_acc))
 
+            save_ckpt_params = {'weight':model.state_dict(),
+                    'target_handler':self.config.target_handler,
+                    'model_config':self.model.config,
+                    'trainer_config':self.config,
+                    'dataloader_config':self.train_dataset.config,
+                    'model_name':model.__class__.__name__,
+                    'motif_dict':self.model.config.dict_motif,
+                    'pos_dict':self.model.config.dict_pos,
+                    'ges_dict':self.model.config.dict_ges}
+            torch.save(save_ckpt_params, self.config.save_ckpt_dir + 'running_epoch_ckpt.pthx')
+
             if test_acc > self.global_acc:
                 self.global_acc = test_acc
                 print(self.global_acc)
@@ -214,7 +225,5 @@ class Trainer:
                     logit_filename = 'val_{}.tsv'.format(lk)
                     shutil.copyfile(self.complete_save_dir + logit_filename, self.complete_save_dir + 'best_' + logit_filename)
                     os.remove(self.complete_save_dir + logit_filename)
-                
-                ckpt_model = self.model.state_dict()
-
+                torch.save(save_ckpt_params, self.config.save_ckpt_dir + 'best_ckpt.pthx')
         return ckpt_model

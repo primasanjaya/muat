@@ -177,12 +177,7 @@ def mutation_type_ratio(snv, mnv, indel, sv_mei, neg,pd_motif):
         'neg': neg
     }, vocabsize
 
-def model_input(motif=True,pos=True,ges=True):
-    return {
-        'motif': motif,
-        'pos': pos,
-        'ges': ges
-    }
+
 
 # translation table to map each character to a nucleotide or N
 valid_dna = ''.join([chr(x) if chr(x) in 'ACGTN' else 'N' for x in range(256)])

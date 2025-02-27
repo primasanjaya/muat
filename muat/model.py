@@ -14,9 +14,98 @@ class ModelConfig:
     resid_pdrop = 0.1
     attn_pdrop = 0.1
 
-    def __init__(self, **kwargs):
+    def __init__(self,model_name,
+                    dict_motif,
+                    dict_pos,
+                    dict_ges,
+                    mutation_sampling_size,
+                    n_layer,
+                    n_emb,
+                    n_head,
+                    n_class,
+                    mutation_type, 
+                    **kwargs):
+
+        self.model_name = model_name
+        self.dict_motif = dict_motif
+        self.dict_pos = dict_pos
+        self.dict_ges = dict_ges
+        self.mutation_sampling_size = mutation_sampling_size
+        self.n_layer = n_layer
+        self.n_embd = n_emb
+        self.n_head = n_head
+        self.num_class = n_class
+        self.mutation_type = mutation_type
+
+        self.model_input = self.input_handler(model_name)
+        self.position_size = len(self.dict_pos)+1 #plus one for padding
+        self.ges_size = len(self.dict_ges)+1 #plus one for padding
+
+        self.mutatation_type_ratio = self.get_mut_ratio(mutation_type)
+        motif_size = self.compute_motif_size(dict_motif,self.mutatation_type_ratio)
+        
+        self.motif_size = motif_size + 1  # plus one for padding
+        #pdb.set_trace()
+   
         for k,v in kwargs.items():
             setattr(self, k, v)
+
+    def input_handler(self,arch):
+        motif = False
+        pos = False
+        ges = False
+        if 'motif' in arch.lower():
+            motif = True
+        if 'position' in arch.lower():
+            pos = True
+        if 'ges' in arch.lower():
+            ges = True
+        return {'motif': motif,
+                'pos': pos,
+                'ges': ges
+                }
+
+    def compute_motif_size(self,pd_motif,mutatation_type_ratio):
+
+        vocabsize = 0
+        vocabSNV = len(pd_motif.loc[pd_motif['mut_type']=='SNV'])
+        vocabMNV = len(pd_motif.loc[pd_motif['mut_type']=='MNV'])
+        vocabindel = len(pd_motif.loc[pd_motif['mut_type']=='indel']) 
+        vocabSVMEI = len(pd_motif.loc[pd_motif['mut_type'].isin(['MEI','SV'])])
+        vocabNormal = len(pd_motif.loc[pd_motif['mut_type']=='Normal'])
+
+        snv,mnv,indel,sv_mei,neg = mutatation_type_ratio.values()
+        if snv>0:
+            vocabsize = vocabSNV
+        if mnv>0:
+            vocabsize = vocabSNV + vocabMNV
+        if indel>0:
+            vocabsize = vocabSNV + vocabMNV + vocabindel         
+        if sv_mei>0:
+            vocabsize = vocabSNV + vocabMNV + vocabindel + vocabSVMEI   
+        if neg>0:
+            vocabsize = vocabSNV + vocabMNV + vocabindel + vocabSVMEI + vocabNormal
+
+        return vocabsize
+        
+
+    def get_mut_ratio(self,mutation_type):
+        if mutation_type == 'snv':
+            mutation_type_ratio = {'snv': 1,'mnv': 0,'indel': 0,'sv_mei': 0,'neg': 0}
+        elif mutation_type == 'snv+mnv':
+            mutation_type_ratio =  {'snv': 0.5,'mnv': 0.5,'indel': 0,'sv_mei': 0,'neg': 0}
+        elif mutation_type == 'snv+mnv+indel':
+            mutation_type_ratio = {'snv': 0.4,'mnv': 0.4,'indel': 0.2,'sv_mei': 0,'neg': 0}
+        elif mutation_type == 'snv+mnv+indel+svmei':
+            mutation_type_ratio = {'snv': 0.3,'mnv': 0.4,'indel': 0.2,'sv_mei': 0.2,'neg': 0}
+        elif mutation_type == 'snv+mnv+indel+svmei+neg':
+            mutation_type_ratio={'snv': 0.2,'mnv': 0.2,'indel': 0.2,'sv_mei': 0.2,'neg': 0.2}
+        elif mutation_type == 'snv+indel':
+            mutation_type_ratio={'snv': 0.5,'mnv': 0,'indel': 0.5,'sv_mei': 0,'neg': 0}
+
+        return mutation_type_ratio
+
+        
 
 class MuAtMotif(nn.Module):
     """
@@ -247,11 +336,11 @@ class MuAtMotifPositionF(nn.Module):
     def __init__(self, config):
         super().__init__()
 
+        self.config = config 
+        
         self.num_tokens, self.max_pool = config.motif_size, False
-
         self.token_embedding = nn.Embedding(config.motif_size, config.n_embd, padding_idx=0)
         self.position_embedding = nn.Embedding(config.position_size, config.n_embd, padding_idx=0)
-
         # pdb.set_trace()
 
         tblocks = []
