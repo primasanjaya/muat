@@ -17,6 +17,12 @@ import csv
 
 def get_main_args():
     parser = argparse.ArgumentParser(description='Mutation Attention Tool')
+
+    parser.add_argument("--arch", type=str, default=None,
+                    help='architecture')
+    parser.add_argument("--mutation-type", type=str, default=None,
+                    help='mutation type, only {snv,snv+mnv,snv+mnv+indel,snv+mnv+indel+svmei,snv+mnv+indel+svmei+neg} can be applied')
+
     # EXECUTIION
     #PREPROCESSING
     parser.add_argument('--preprocessing-vcf-hg19', action='store_true', default=False,
@@ -25,6 +31,8 @@ def get_main_args():
                         help='execute preprocessing for vcf hg38')
     parser.add_argument('--tokenizing', action='store_true', default=False,
                         help='execute tokenizing preprocessed files')
+    parser.add_argument('--train', action='store_true', default=False,
+                        help='execute training')
 
     #PREDICTION
     parser.add_argument('--predict-vcf-hg19', action='store_true', default=False,
@@ -45,6 +53,10 @@ def get_main_args():
     #CHECKPOINT
     parser.add_argument('--load-ckpt-filepath', type=str, default=None,
                     help='load checkpoint complete path file')
+    
+    parser.add_argument('--save-ckpt-dir', type=str, default=None,
+                    help='save checkpoint directory')
+
     #UTILS
         #PREPROCESSING
     parser.add_argument('--hg19-filepath', type=str, default=None,
@@ -58,10 +70,35 @@ def get_main_args():
     parser.add_argument('--ges-dictionary-filepath', type=str, default=None,
                     help='path to genic exonic strand dictionary (.tsv)')
 
+        #HYPERPARAMETERS
+    parser.add_argument('--epoch', type=int, default=1,
+                    help='number of epoch')
+    parser.add_argument('--learning-rate', type=float, default=6e-4,
+                    help='learning rate')
+    parser.add_argument('--batch-size', type=int, default=1,
+                    help='batch size')
+    parser.add_argument('--n-layer', type=int, default=1,
+                    help='attention layer')
+    parser.add_argument('--n-head', type=int, default=8,
+                    help='attention head')
+    parser.add_argument('--n-emb', type=int, default=128,
+                    help='embedding dimension') 
+    parser.add_argument('--mutation-sampling-size', type=int, default=5000,
+                    help='embedding dimension')
+
+    #TRAIN RELATED
+    parser.add_argument('--train-split-filepath', type=str, default=None,
+                    help='training split filepath')
+    parser.add_argument('--val-split-filepath', type=str, default=None,
+                    help='internal validation split filepath')
+    parser.add_argument('--target-dict-filepath', type=str, default=None,
+                    help='target dictionary filepath') 
+    parser.add_argument('--subtarget-dict-filepath', type=str, default=None,
+                    help='subtarget dictionary filepath') 
+
+
     parser.add_argument('--tmp-dir', type=str, default=None,
                     help='directory to store preprocessed files')
-
-
 
     args = parser.parse_args()
     return args
