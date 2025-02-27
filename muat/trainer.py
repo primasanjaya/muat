@@ -135,19 +135,7 @@ class Trainer:
             test_loss = 0
             test_correct = []
 
-            if isinstance(logits, dict):
-                logit_keys = [x for x in logits.keys() if 'logits' in x]
-                for nk,lk in enumerate(logit_keys):
-                    logit_filename = 'val_{}.tsv'.format(lk)
-                    f = open(self.complete_save_dir + logit_filename, 'w+')  # open file in write mode
-                    target_handler = self.config.target_handler[nk]
-                    header_class = target_handler.classes_
-                    header_class.append('target_name')  
-                    header_class.append('sample')
-                    write_header = "\t".join(header_class)
-                    f.write(write_header)
-                    f.close()
-            
+            val_header = False
             model.train(False)
             for batch_idx_val, (data, target, sample_path) in enumerate(valloader):
 
@@ -181,20 +169,30 @@ class Trainer:
 
                             logits_cpu =logit.detach().cpu().numpy()
                             logit_filename = 'val_{}.tsv'.format(lk)
-                            f = open(self.complete_save_dir + logit_filename, 'a+')
 
-                            for i_b in range(len(sample_path)):
-                                f.write('\n')
-                                logits_cpu_flat = logits_cpu[i_b].flatten()
-                                logits_cpu_list = logits_cpu_flat.tolist()
-                                write_logits = [f'{i:.8f}' for i in logits_cpu_list]
+                            if val_header == False:
+                                f = open(self.complete_save_dir + logit_filename, 'w+')
                                 target_handler = self.config.target_handler[nk]
-                                target_name = target_handler.inverse_transform([target[nk].detach().cpu().numpy().tolist()[i_b]])[0]
-                                write_logits.append(str(target_name))
-                                write_logits.append(sample_path[i_b])
-                                write_header = "\t".join(write_logits)
+                                header_class = target_handler.classes_
+                                write_header = "\t".join(header_class)
                                 f.write(write_header)
-                            f.close()
+                                f.write('\ttarget_name\tsample')
+                                f.close()
+                                val_header==True
+                            else:
+                                f = open(self.complete_save_dir + logit_filename, 'a+')
+                                for i_b in range(len(sample_path)):
+                                    f.write('\n')
+                                    logits_cpu_flat = logits_cpu[i_b].flatten()
+                                    logits_cpu_list = logits_cpu_flat.tolist()
+                                    write_logits = [f'{i:.8f}' for i in logits_cpu_list]
+                                    target_handler = self.config.target_handler[nk]
+                                    target_name = target_handler.inverse_transform([target[nk].detach().cpu().numpy().tolist()[i_b]])[0]
+                                    write_logits.append(str(target_name))
+                                    write_logits.append(sample_path[i_b])
+                                    write_header = "\t".join(write_logits)
+                                    f.write(write_header)
+                                f.close()
                             test_correct_inside.append(predicted.eq(target[nk].view_as(predicted)).sum().item())
                         if len(test_correct) == 0:
                             test_correct = np.zeros(len(logit_keys))
