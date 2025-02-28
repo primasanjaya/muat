@@ -94,7 +94,7 @@ if __name__ == "__main__":
         #example for preprocessing multiple vcf files
         vcf_files = pd.read_csv(args.vcf_hg38_filepath,sep='\t')['vcf_hg38_path'].to_list()
         vcf_files = multifiles_handler(vcf_files)
-        '''
+        
         preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
                                     genome_reference_38_path=genome_reference_38_path,
                                     genome_reference_19_path=genome_reference_19_path,
@@ -102,7 +102,7 @@ if __name__ == "__main__":
                                     dict_motif=dict_motif,
                                     dict_pos=dict_pos,
                                     dict_ges=dict_ges)
-        '''
+        
         print('preprocessed data saved in ' + tmp_dir)
         predict_ready_files = []
         for x in vcf_files:
