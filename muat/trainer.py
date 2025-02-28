@@ -6,6 +6,7 @@ import shutil
 import pdb
 import logging
 import numpy as np
+from muat.util import *
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class Trainer:
         if torch.cuda.is_available():
             self.device = torch.cuda.current_device()
         
-        self.complete_save_dir = self.config.save_ckpt_dir
+        self.complete_save_dir = ensure_dirpath(self.config.save_ckpt_dir)
 
     def batch_train(self):
         model = self.model
@@ -201,13 +202,13 @@ class Trainer:
             test_acc = test_correct[0] / len(self.test_dataset) #accuracy based on first target
             print('Validation set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
                 test_loss, test_correct[0], len(self.test_dataset), 100. * test_acc))
-
-            save_ckpt_params = {'weight':model.state_dict(),
+            #pdb.set_trace()
+            save_ckpt_params = {'weight':model.module.state_dict(),
                     'target_handler':self.config.target_handler,
                     'model_config':self.model.config,
                     'trainer_config':self.config,
                     'dataloader_config':self.train_dataset.config,
-                    'model_name':model.__class__.__name__,
+                    'model_name':self.model.__class__.__name__,
                     'motif_dict':self.model.config.dict_motif,
                     'pos_dict':self.model.config.dict_pos,
                     'ges_dict':self.model.config.dict_ges}

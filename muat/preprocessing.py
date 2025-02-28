@@ -17,6 +17,8 @@ def combine_samplefolders_tosingle_tsv(sample_folder,tmp_dir):
     sample_folder : list of all sample folders
     tmp_dir: directory after combining all chunks per sample
     '''
+
+    tmp_dir = ensure_dirpath(tmp_dir)
     
     all_chunk = glob.glob(os.path.join(sample_folder,'*.tsv'))
 
@@ -26,17 +28,19 @@ def combine_samplefolders_tosingle_tsv(sample_folder,tmp_dir):
         pd_persample.append(pd_read)
     pd_persample = pd_persample[['#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','PLATEKEY']]
     pd_persample.columns = ['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','PLATEKEY']
-    pd_persample.to_csv(tmp_dir + '/' + get_sample_name(sample) + '.somagg.tsv.gz', sep='\t',compression='gzip')
+    pd_persample.to_csv(tmp_dir + get_sample_name(sample) + '.somagg.tsv.gz', sep='\t',compression='gzip')
 
 def split_chunk_persample(filtered_chunk,tmp_dir):
     pd_file = pd.read_csv(filtered_chunk,sep='\t',low_memory=False)
     sample_list = pd_file['PLATEKEY'].unique()
 
+    tmp_dir = ensure_dirpath(tmp_dir)
+
     #split samples per chunk
     for sample in sample_list:
-        os.makedirs(tmp_dir + '/' + sample,exist_ok=True)
+        os.makedirs(tmp_dir + sample,exist_ok=True)
         pd_samp_chunk = pd_file.loc[pd_file['PLATEKEY']==sample]
-        pd_samp_chunk.to_csv(tmp_dir + '/' + sample + '/' + get_sample_name(chunk_file) + '.tsv',sep='\t',index=False)
+        pd_samp_chunk.to_csv(tmp_dir + sample + get_sample_name(chunk_file) + '.tsv',sep='\t',index=False)
 
 
 def filtering_somagg_vcf(all_somagg_chunks,tmp_dir):
@@ -48,11 +52,13 @@ def filtering_somagg_vcf(all_somagg_chunks,tmp_dir):
     header_line = ''
 
     fns = multifiles_handler(all_somagg_chunks)
+
+    tmp_dir = ensure_dirpath(tmp_dir)
     
     for fn in fns:
         filename_only = get_sample_name(fn)
         exportdir = tmp_dir
-        output_file = exportdir + '/' + filename_only + '.tsv'
+        output_file = exportdir + filename_only + '.tsv'
         
         fvcf = open(outputfile, "w")
         with gzip.open(fn, 'rb') as f:
@@ -105,13 +111,14 @@ def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,genome_refe
 
     all_preprocessed_vcf = []
 
+    tmp_dir = ensure_dirpath(tmp_dir)
+
     for x in tsv_file:
-        if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
-            all_preprocessed_vcf.append(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
+            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
     #pdb.set_trace()
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     #pdb.set_trace()
-
 
 
 def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,dict_motif,dict_pos,dict_ges):
@@ -123,9 +130,11 @@ def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,genome_refe
 
     all_preprocessed_vcf = []
 
+    tmp_dir = ensure_dirpath(tmp_dir)
+
     for x in vcf_file:
-        if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
-            all_preprocessed_vcf.append(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
+            all_preprocessed_vcf.append(tmp_dir  + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
     #pdb.set_trace()
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf)
     #pdb.set_trace()
@@ -182,9 +191,11 @@ def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_mot
     preprocessing_vcf(vcf_file,genome_reference_path,tmp_dir)
     #pdb.set_trace()
     all_preprocessed_vcf = []
+
+    tmp_dir = ensure_dirpath(tmp_dir)
     for x in vcf_file:
-        if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
-            all_preprocessed_vcf.append(tmp_dir + '/' + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
+            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
     #pdb.set_trace()
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     
@@ -198,6 +209,8 @@ def get_motif_pos_ges(fn,genome_ref,tmp_dir,genome_ref38=None,liftover=False,ver
         tmp_dir: str, path to temporary directory for storing preprocessed files
         liftover: bool, if True, liftover the vcf file from GRCh38 to GRCh37
     """
+
+    tmp_dir = ensure_dirpath(tmp_dir)
 
     try:
         # get motif
@@ -235,6 +248,8 @@ def preprocessing_vcf(vcf_file,genome_reference_path,tmp_dir,info_column=None,ve
     genome_ref = read_reference(genome_reference_path,verbose=verbose)   
 
     fns = multifiles_handler(vcf_file)
+
+    tmp_dir = ensure_dirpath(tmp_dir)
 
     for i,fn in enumerate(fns):
         digits = int(np.ceil(np.log10(len(fns))))

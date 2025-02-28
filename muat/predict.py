@@ -6,6 +6,7 @@ import pdb
 from muat.util import get_sample_name
 import traceback
 import pandas as pd
+from muat.util import *
 
 class PredictorConfig:
     # optimization parameters
@@ -31,7 +32,7 @@ class Predictor:
         if torch.cuda.is_available():
             self.device = torch.cuda.current_device()
 
-        self.result_dir = self.config.result_dir
+        self.result_dir = ensure_dirpath(self.config.result_dir)
 
     def batch_predict(self):
         model = self.model
@@ -40,6 +41,8 @@ class Predictor:
         model = torch.nn.DataParallel(model).to(self.device)
         model.train(False)
         #pdb.set_trace()
+
+        ensure_dir_exists(self.result_dir)
 
         for i in range(len(self.test_dataset)):
             data, target, sample_path = self.test_dataset.__getitem__(i)
@@ -65,7 +68,7 @@ class Predictor:
                         logit_filename = 'prediction_{}.tsv'.format(lk)
                         
                         if i==0:
-                            f = open(self.result_dir + '/' + logit_filename, 'w+') 
+                            f = open(self.result_dir + logit_filename, 'w+') 
                             header_class = target_handler.classes_
                             header_class.append('prediction')
                             header_class.append('sample')
@@ -74,7 +77,7 @@ class Predictor:
                             f.close()
                         else:
                             #write logits
-                            f = open(self.result_dir + '/' + logit_filename, 'a+')
+                            f = open(self.result_dir + logit_filename, 'a+')
                             logits_cpu =logit.detach().cpu().numpy()
                             f.write('\n')
                             logits_cpu_flat = logits_cpu.flatten()
@@ -97,7 +100,7 @@ class Predictor:
                         feat_filename = 'features_{}.tsv'.format(lk)
                         
                         if i==0:
-                            f = open(self.result_dir + '/' + feat_filename, 'w+') 
+                            f = open(self.result_dir + feat_filename, 'w+') 
                             feat_cpu_flat = feat_cpu.flatten()
                             feat_cpu_list = feat_cpu_flat.tolist()
                             write_header = [f'M{i+1}' for i in range(len(feat_cpu_list))]
@@ -107,7 +110,7 @@ class Predictor:
                             f.close()
                         else:
                             #write features
-                            f = open(self.result_dir + '/' + feat_filename, 'a+')
+                            f = open(self.result_dir + feat_filename, 'a+')
                             f.write('\n')
                             feat_cpu_flat = feat_cpu.flatten()
                             feat_cpu_list = feat_cpu_flat.tolist()

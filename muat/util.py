@@ -41,8 +41,8 @@ def get_main_args():
                         help='execute prediction of vcf hg38')
 
     #INPUT
-    parser.add_argument("--vcf-hg19-filepath", nargs="+", type=str, 
-                        help="List of vcf hg19")
+    parser.add_argument("--vcf-hg19-filepath", type=str, default=None,
+                    help='List of vcf hg19')
     parser.add_argument("--vcf-hg38-filepath", nargs="+", type=str, 
                         help="List of vcf hg38")
     parser.add_argument("--preprocessed-filepath", nargs="+", type=str, 

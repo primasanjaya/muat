@@ -31,10 +31,17 @@ if __name__ == "__main__":
         load_ckpt_path = args.load_ckpt_filepath
         checkpoint = load_and_check_checkpoint(load_ckpt_path)
 
+        model_name = checkpoint['model_name']
+
+        #pdb.set_trace()
+
         dict_motif,dict_pos,dict_ges = load_token_dict(checkpoint)
 
         #example for preprocessing multiple vcf files
-        vcf_files = args.vcf_hg19_filepath
+        #pdb.set_trace()
+        vcf_files = pd.read_csv(args.vcf_hg19_filepath,sep='\t')['vcf_hg19_path'].to_list()
+        vcf_files = multifiles_handler(vcf_files)
+
         tmp_dir = check_tmp_dir(args)
         preprocessing_vcf_tokenizing(vcf_file=vcf_files,
                                     genome_reference_path=genome_reference_path,
