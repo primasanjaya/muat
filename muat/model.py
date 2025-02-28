@@ -41,8 +41,8 @@ class ModelConfig:
         self.position_size = len(self.dict_pos)+1 #plus one for padding
         self.ges_size = len(self.dict_ges)+1 #plus one for padding
 
-        self.mutatation_type_ratio = self.get_mut_ratio(mutation_type)
-        motif_size = self.compute_motif_size(dict_motif,self.mutatation_type_ratio)
+        self.mutation_type_ratio = self.get_mut_ratio(mutation_type)
+        motif_size = self.compute_motif_size(dict_motif,self.mutation_type_ratio)
         
         self.motif_size = motif_size + 1  # plus one for padding
         #pdb.set_trace()
@@ -337,7 +337,7 @@ class MuAtMotifPositionF(nn.Module):
         super().__init__()
 
         self.config = config 
-        
+
         self.num_tokens, self.max_pool = config.motif_size, False
         self.token_embedding = nn.Embedding(config.motif_size, config.n_embd, padding_idx=0)
         self.position_embedding = nn.Embedding(config.position_size, config.n_embd, padding_idx=0)

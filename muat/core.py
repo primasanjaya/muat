@@ -43,6 +43,7 @@ if __name__ == "__main__":
         vcf_files = multifiles_handler(vcf_files)
 
         tmp_dir = check_tmp_dir(args)
+        
         preprocessing_vcf_tokenizing(vcf_file=vcf_files,
                                     genome_reference_path=genome_reference_path,
                                     tmp_dir=tmp_dir,
@@ -50,6 +51,7 @@ if __name__ == "__main__":
                                     dict_pos=dict_pos,
                                     dict_ges=dict_ges)
         print('preprocessed data saved in ' + tmp_dir)
+        
         predict_ready_files = []
         for x in vcf_files:
             if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
@@ -59,6 +61,7 @@ if __name__ == "__main__":
         target_handler = load_target_handler(checkpoint)
 
         dataloader_config = checkpoint['dataloader_config']
+        #pdb.set_trace()
         test_dataloader = MuAtDataloader(pd_predict,dataloader_config)
 
         #pdb.set_trace()
@@ -78,6 +81,7 @@ if __name__ == "__main__":
         if not args.load_ckpt_filepath or not args.hg38_filepath or not args.hg19_filepath or not args.vcf_hg38_filepath or not args.result_dir:
             raise ValueError('--predict-vcf-hg38 requires --load-ckpt-filepath --vcf-hg38-filepath --hg38-filepath --hg19-filepath --result-dir')
 
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         #load ckpt
         load_ckpt_path = args.load_ckpt_filepath
         checkpoint = load_and_check_checkpoint(load_ckpt_path)
@@ -88,8 +92,9 @@ if __name__ == "__main__":
 
         dict_motif,dict_pos,dict_ges = load_token_dict(checkpoint)
         #example for preprocessing multiple vcf files
-        vcf_files = args.vcf_hg38_filepath
-        
+        vcf_files = pd.read_csv(args.vcf_hg38_filepath,sep='\t')['vcf_hg38_path'].to_list()
+        vcf_files = multifiles_handler(vcf_files)
+        '''
         preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
                                     genome_reference_38_path=genome_reference_38_path,
                                     genome_reference_19_path=genome_reference_19_path,
@@ -97,7 +102,7 @@ if __name__ == "__main__":
                                     dict_motif=dict_motif,
                                     dict_pos=dict_pos,
                                     dict_ges=dict_ges)
-
+        '''
         print('preprocessed data saved in ' + tmp_dir)
         predict_ready_files = []
         for x in vcf_files:
@@ -217,8 +222,8 @@ if __name__ == "__main__":
             target_handler.append(le2)
             model_config.num_subclass = subclass
         #pdb.set_trace()
-        train_dataloader_config = DataloaderConfig(model_input=model_config.model_input,mutation_type_ratio=model_config.mutatation_type_ratio,mutation_sampling_size=mutation_sampling_size)
-        test_dataloader_config = DataloaderConfig(model_input=model_config.model_input,mutation_type_ratio=model_config.mutatation_type_ratio,mutation_sampling_size=mutation_sampling_size)
+        train_dataloader_config = DataloaderConfig(model_input=model_config.model_input,mutation_type_ratio=model_config.mutation_type_ratio,mutation_sampling_size=mutation_sampling_size)
+        test_dataloader_config = DataloaderConfig(model_input=model_config.model_input,mutation_type_ratio=model_config.mutation_type_ratio,mutation_sampling_size=mutation_sampling_size)
         
         train_split = pd.read_csv(args.train_split_filepath,sep='\t',low_memory=False)
         test_split = pd.read_csv(args.val_split_filepath,sep='\t',low_memory=False)

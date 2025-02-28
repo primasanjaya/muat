@@ -90,7 +90,7 @@ class Predictor:
                             f.write(write_header)
                             f.close()
                         if nk == 0:
-                            print(get_sample_name(sample_path) + ' is predicted as ' + str(target_name))
+                            print(get_sample_name(sample_path) + ' is predicted to be ' + str(target_name))
 
                     #write all features
                     feature_keys = [x for x in logits.keys() if 'features' in x]

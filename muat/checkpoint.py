@@ -147,18 +147,23 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
 
     if '10000' in ckpt_path: 
         new_name.append('snv')
+        mutation_type = 'snv'
 
     if '11000' in ckpt_path: 
         new_name.append('snv+mnv')
+        mutation_type = 'snv+mnv'
 
     if '11100' in ckpt_path: 
         new_name.append('snv+mnv+indel')
+        mutation_type = 'snv+mnv+indel'
     
     if '11110' in ckpt_path: 
         new_name.append('snv+mnv+indel+svmei')
+        mutation_type = 'snv+mnv+indel+svmei'
     
     if '11111' in ckpt_path: 
         new_name.append('snv+mnv+indel+svmei+neg')
+        mutation_type = 'snv+mnvindel+svmei+neg'
 
     #check model
     model_name = ckpt_path.split('/')[-2].split('_')[3]
@@ -191,7 +196,7 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
     if 'pcawg' in new_name:
         extdir = resource_filename('muat', 'extfile')
         classfileinfo = extdir + '/' + 'classinfo_pcawg.csv'
-        target_handler = LabelEncoderFromCSV(classfileinfo)
+        le = LabelEncoderFromCSV(csv_file=classfileinfo)
 
     #pdb.set_trace()
     dict_motif = pd.read_csv(extdir + '/' + 'dictMutation.tsv',sep='\t')
@@ -208,25 +213,27 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
     #pdb.set_trace()
 
     # Ensure these values are set correctly
-    mutation_type, motif_size = mutation_type_ratio(snv=snv_ratio, mnv=mnv_ratio, indel=indel_ratio, sv_mei=sv_mei_ratio, neg=neg_ratio, pd_motif=dict_motif)
 
-    n_class = checkpoint[1].n_class
     mutation_sampling_size = checkpoint[1].block_size
     n_emb = checkpoint[1].n_emb
     n_layer = checkpoint[1].n_layer
     n_head = checkpoint[1].n_head
+    target_handler = []
 
-    # Check the values before creating the model
+    n_class = len(le.classes_)
+    target_handler.append(le)
+
     model_config = ModelConfig(
-        motif_size=motif_size+1,#plus one for padding
-        num_class=n_class,
-        mutation_sampling_size=mutation_sampling_size,
-        position_size=len(dict_pos)+1,#plus one for padding 
-        ges_size=len(dict_ges)+1,#plus one for padding
-        n_embd=n_emb,
-        n_layer=n_layer,
-        n_head=n_head
-    )
+                        model_name,
+                        dict_motif,
+                        dict_pos,
+                        dict_ges,
+                        mutation_sampling_size,
+                        n_layer,
+                        n_emb,
+                        n_head,
+                        n_class, 
+                        mutation_type)
     
     trainer_config = TrainerConfig()
 
@@ -247,12 +254,11 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
         pos = True
         ges = True
 
-    model_use = model_input(motif=motif,pos=pos,ges=ges) #model input
-
-    dataloader_config = DataloaderConfig(model_input=model_use,mutation_type=mutation_type,mutation_sampling_size=mutation_sampling_size)
+    #pdb.set_trace()
+    dataloader_config = DataloaderConfig(model_input=model_config.model_input,mutation_type_ratio=model_config.mutation_type_ratio,mutation_sampling_size=mutation_sampling_size)
 
     save_ckpt_params = {'weight':weight,
-                    'target_handler':[target_handler],
+                    'target_handler':target_handler,
                     'model_config':model_config,
                     'trainer_config':trainer_config,
                     'dataloader_config':dataloader_config,

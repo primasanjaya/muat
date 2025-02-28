@@ -42,10 +42,11 @@ def get_main_args():
 
     #INPUT
     parser.add_argument("--vcf-hg19-filepath", type=str, default=None,
-                    help='List of vcf hg19')
-    parser.add_argument("--vcf-hg38-filepath", nargs="+", type=str, 
+                        help='List of vcf hg19')
+    parser.add_argument("--vcf-hg38-filepath", type=str, default=None,
                         help="List of vcf hg38")
-    parser.add_argument("--preprocessed-filepath", nargs="+", type=str, 
+
+    parser.add_argument("--preprocessed-filepath", type=str, default=None,
                         help="List of preprocessed files (.gc.genic.exonic.cs.tsv.gz) which contain motif position and ges to be tokenized")
     #OUTPUT
     parser.add_argument("--result-dir", type=str, default=None,

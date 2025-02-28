@@ -136,7 +136,7 @@ def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,genome_refe
         if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
             all_preprocessed_vcf.append(tmp_dir  + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
     #pdb.set_trace()
-    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf)
+    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     #pdb.set_trace()
 
 def preprocessing_tsv38(tsv_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,verbose=True):
