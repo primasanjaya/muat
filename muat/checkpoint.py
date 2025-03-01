@@ -195,13 +195,14 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
 
     if 'pcawg' in new_name:
         extdir = resource_filename('muat', 'extfile')
-        classfileinfo = extdir + '/' + 'classinfo_pcawg.csv'
-        le = LabelEncoderFromCSV(csv_file=classfileinfo)
+        extdir = ensure_dirpath(extdir)
+        classfileinfo = extdir + 'classinfo_pcawg.tsv'
+        le = LabelEncoderFromCSV(csv_file=classfileinfo,class_name_col='class_name',class_index_col='class_index')
 
     #pdb.set_trace()
-    dict_motif = pd.read_csv(extdir + '/' + 'dictMutation.tsv',sep='\t')
-    dict_pos = pd.read_csv(extdir + '/' + 'dictChpos.tsv',sep='\t')
-    dict_ges = pd.read_csv(extdir + '/' + 'dictGES.tsv',sep='\t')
+    dict_motif = pd.read_csv(extdir + 'dictMutation.tsv',sep='\t')
+    dict_pos = pd.read_csv(extdir + 'dictChpos.tsv',sep='\t')
+    dict_ges = pd.read_csv(extdir + 'dictGES.tsv',sep='\t')
 
     mutratio = checkpoint[1].mutratio.split('-')
     snv_ratio = float(mutratio[0])

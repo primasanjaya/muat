@@ -114,6 +114,8 @@ class MuAtMotif(nn.Module):
     def __init__(self, config):
         super().__init__()
 
+        self.config = config 
+
         self.num_tokens, self.max_pool = config.motif_size, False
 
         self.token_embedding = nn.Embedding(config.motif_size, config.n_embd, padding_idx=0)
@@ -163,6 +165,8 @@ class MuAtMotifF(nn.Module):
     """
     def __init__(self, config):
         super().__init__()
+
+        self.config = config 
 
         self.num_tokens, self.max_pool = config.motif_size, False
 
@@ -216,6 +220,8 @@ class MuAtMotifF_2Labels(nn.Module):
     """
     def __init__(self, config):
         super().__init__()
+
+        self.config = config 
 
         self.num_tokens, self.max_pool = config.motif_size, False
 
@@ -283,6 +289,8 @@ class MuAtMotifPosition(nn.Module):
     """
     def __init__(self, config):
         super().__init__()
+
+        self.config = config 
 
         self.num_tokens, self.max_pool = config.motif_size, False
 
@@ -416,6 +424,8 @@ class MuAtMotifPositionF_2Labels(nn.Module):
     def __init__(self, config):
         super().__init__()
 
+        self.config = config 
+
         self.num_tokens, self.max_pool = config.motif_size, False
 
         self.token_embedding = nn.Embedding(config.motif_size, config.n_embd, padding_idx=0)
@@ -491,6 +501,8 @@ class MuAtMotifPositionGES(nn.Module):
     def __init__(self, config):
         super().__init__()
 
+        self.config = config 
+
         self.num_tokens, self.max_pool = config.motif_size, False
 
         self.token_embedding = nn.Embedding(config.motif_size, config.n_embd, padding_idx=0)
@@ -544,6 +556,8 @@ class MuAtMotifPositionGESF(nn.Module):
     """
     def __init__(self, config):
         super().__init__()
+
+        self.config = config 
 
         self.num_tokens, self.max_pool = config.motif_size, False
 
@@ -604,6 +618,8 @@ class MuAtMotifPositionGESF_2Labels(nn.Module):
     """
     def __init__(self, config):
         super().__init__()
+
+        self.config = config 
 
         self.num_tokens, self.max_pool = config.motif_size, False
 

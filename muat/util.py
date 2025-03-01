@@ -141,20 +141,20 @@ def get_model(arch,model_config=None):
         raise ValueError(f"Unsupported architecture: {arch}")
 
 class LabelEncoderFromCSV:
-    def __init__(self, csv_file):
+    def __init__(self, csv_file,class_name_col,class_index_col):
         """Initialise the encoder by loading class mappings from a CSV file."""
         self.class_to_idx = {}
         self.idx_to_class = {}
-        self._load_class_mapping(csv_file)
+        self._load_class_mapping(csv_file,class_name_col,class_index_col)
         self.classes_ = list(self.class_to_idx.keys())
 
-    def _load_class_mapping(self, csv_file):
+    def _load_class_mapping(self, csv_file,class_name_col,class_index_col):
         """Load class mappings from a CSV file."""
         with open(csv_file, mode='r') as file:
-            reader = csv.DictReader(file)
+            reader = csv.DictReader(file,delimiter='\t')
             for row in reader:
-                class_name = row['class_name']
-                class_idx = int(row['class_index'])
+                class_name = row[class_name_col]
+                class_idx = int(row[class_index_col])
                 self.class_to_idx[class_name] = class_idx
                 self.idx_to_class[class_idx] = class_name
 

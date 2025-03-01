@@ -102,12 +102,12 @@ class MuAtDataloader(Dataset):
         
         # Get idx_class and idx_subclass if they exist
         idx_class = None
-        if 'idx_class' in instances.index.to_list():
-            idx_class = torch.tensor(np.array(instances['idx_class']), dtype=torch.long)
+        if 'class_index' in instances.index.to_list():
+            idx_class = torch.tensor(np.array(instances['class_index']), dtype=torch.long)
         
         idx_subclass = None
-        if 'idx_subclass' in instances.index.to_list():
-            idx_subclass = torch.tensor(np.array(instances['idx_subclass']), dtype=torch.long)
+        if 'subclass_index' in instances.index.to_list():
+            idx_subclass = torch.tensor(np.array(instances['subclass_index']), dtype=torch.long)
         
         # Sampling logic
         avail_count = self.count_ratio(pd_row)
@@ -144,8 +144,8 @@ class MuAtDataloader(Dataset):
 
         # Ensure no None values in data_targets
         data_targets = {
-            "idx_class": idx_class if idx_class is not None else [],
-            "idx_subclass": idx_subclass if idx_subclass is not None else []
+            "class_index": idx_class if idx_class is not None else [],
+            "subclass_index": idx_subclass if idx_subclass is not None else []
         }
 
         return datanumeric, data_targets, sample_path

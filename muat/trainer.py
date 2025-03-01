@@ -49,7 +49,7 @@ class Trainer:
         if torch.cuda.is_available():
             self.device = torch.cuda.current_device()
         
-        self.complete_save_dir = ensure_dirpath(self.config.save_ckpt_dir)
+        self.complete_save_dir = self.config.save_ckpt_dir
 
     def batch_train(self):
         model = self.model

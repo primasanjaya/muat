@@ -54,7 +54,7 @@ if __name__ == "__main__":
         
         predict_ready_files = []
         for x in vcf_files:
-            if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
+            if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
                 predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
 
         pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
@@ -86,6 +86,7 @@ if __name__ == "__main__":
         load_ckpt_path = args.load_ckpt_filepath
         checkpoint = load_and_check_checkpoint(load_ckpt_path)
         tmp_dir = check_tmp_dir(args)
+        tmp_dir = ensure_dirpath(tmp_dir)
 
         genome_reference_38_path = args.hg38_filepath
         genome_reference_19_path = args.hg19_filepath
@@ -106,8 +107,8 @@ if __name__ == "__main__":
         print('preprocessed data saved in ' + tmp_dir)
         predict_ready_files = []
         for x in vcf_files:
-            if os.path.exists(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
-                predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+            if os.path.exists(tmp_dir  + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
+                predict_ready_files.append(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
 
         pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
         target_handler = load_target_handler(checkpoint)
@@ -165,9 +166,10 @@ if __name__ == "__main__":
         if not args.motif_dictionary_filepath or not args.position_dictionary_filepath or not args.ges_dictionary_filepath:
             
             extdir = resource_filename('muat', 'extfile')
-            motif_path = extdir + '/' + 'dictMutation.tsv'
-            pos_path = extdir + '/' + 'dictChpos.tsv'
-            ges_path = extdir + '/' + 'dictGES.tsv'
+            extdir = ensure_dirpath(extdir)
+            motif_path = extdir + 'dictMutation.tsv'
+            pos_path = extdir + 'dictChpos.tsv'
+            ges_path = extdir + 'dictGES.tsv'
             
             warnings.warn("Some dictionary file paths were not defined and have been set automatically.\n"
     "--motif-dictionary-filepath is set to {}, --position-dictionary-filepath is set to {}, --ges-dictionary-filepath is set to {}\n"
