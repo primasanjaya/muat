@@ -33,6 +33,10 @@ def get_main_args():
                         help='execute tokenizing preprocessed files')
     parser.add_argument('--train', action='store_true', default=False,
                         help='execute training')
+    parser.add_argument('--from-scratch', action='store_true', default=False,
+                        help='execute training from scratch')
+    parser.add_argument('--from-checkpoint', action='store_true', default=False,
+                        help='execute training from checkpoint')
 
     #PREDICTION
     parser.add_argument('--predict-vcf-hg19', action='store_true', default=False,
