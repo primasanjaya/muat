@@ -399,28 +399,19 @@ def check_tmp_dir(args):
     return tmp_dir
 
 def get_checkpoint_args():
-
-    parser = argparse.ArgumentParser(description='PCAWG / TCGA experiment')
-    parser.add_argument('--arch', type=str, default=None,
-                        help='architecture')
-
-    parser.add_argument('--n-class', type=int, default=None,
-                        help='number of class')
-    parser.add_argument('--n-layer', type=int, default=1,
-                        help='attention layer')
-    parser.add_argument('--n-head', type=int, default=8,
-                    help='attention head')
-    parser.add_argument('--n-emb', type=int, default=128,
-                    help='embedding dimension')
-
-    parser.add_argument('--get-motif', action='store_true', default=False)
-    parser.add_argument('--get-position', action='store_true', default=False)
-    parser.add_argument('--get-ges', action='store_true', default=False)
-    parser.add_argument('--get-epi', action='store_true', default=False)
-
-    parser.add_argument('--motif', action='store_true', default=False)
-    parser.add_argument('--motif-pos', action='store_true', default=False)
-    parser.add_argument('--motif-pos-ges', action='store_true', default=False)
-    parser.add_argument('--motif-pos-ges-epi', action='store_true', default=False)
-    args = parser.parse_args()
+    args = argparse.Namespace(
+        arch=None,
+        n_class=None,
+        n_layer=1,
+        n_head=8,
+        n_emb=128,
+        get_motif=False,
+        get_position=False,
+        get_ges=False,
+        get_epi=False,
+        motif=False,
+        motif_pos=False,
+        motif_pos_ges=False,
+        motif_pos_ges_epi=False
+    )
     return args

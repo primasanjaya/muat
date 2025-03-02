@@ -1,4 +1,4 @@
-prep_path	nm_class	idx_class
+prep_path	class_name	class_index
 /absolute_path/to/627823ec-c623-11e3-bf01-24c6515278c0.token.gc.genic.exonic.cs.tsv.gz	Liver-HCC	10
 /absolute_path/to/1b7838c9-c685-41c3-b184-a2e40c7c4dc7.token.gc.genic.exonic.cs.tsv.gz	Panc-Endocrine	18
 /absolute_path/to/e76128b3-8629-4ffd-b02a-e3f0aae8b1a9.token.gc.genic.exonic.cs.tsv.gz	CNS-Medullo	3

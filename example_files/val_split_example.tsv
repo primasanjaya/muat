@@ -1,4 +1,4 @@
-prep_path	nm_class	idx_class
+prep_path	class_name	class_index
 /absolute_path/to/a9ec7d9e-b179-4782-a589-43c7d1642be9.token.gc.genic.exonic.cs.tsv.gz	Prost-AdenoCA	19
 /absolute_path/to/c459dba5-b27c-46f0-b5b8-c62d597a0542.token.gc.genic.exonic.cs.tsv.gz	Lymph-CLL	14
 /absolute_path/to/48624a82-c623-11e3-bf01-24c6515278c0.token.gc.genic.exonic.cs.tsv.gz	Liver-HCC	10

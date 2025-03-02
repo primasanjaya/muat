@@ -26,7 +26,7 @@ def load_and_check_checkpoint(ckpt_path,save=False):
 def convert_checkpoint_version1(checkpoint,ckpt_path,save=False):
     print('convert checkpoint v.1')
 
-    args = get_checkpoint_args()
+    #args = get_checkpoint_args()
 
     ckpt_path = os.path.normpath(ckpt_path)
     splitfolder = ckpt_path.split('/')[-2].split('_')
@@ -110,6 +110,9 @@ def convert_checkpoint_version1(checkpoint,ckpt_path,save=False):
     n_head = int(splitfolder[6][2:])
 
     n_emb = int(splitfolder[7][2:])
+
+    # Example usage:
+    args = get_checkpoint_args()
 
     #fillin args
     args.mut_type = mut_type
