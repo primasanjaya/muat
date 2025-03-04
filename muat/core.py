@@ -55,6 +55,85 @@ def setup_trainer(model, train_data, test_data, trainer_config):
 def main():
     args = get_main_args()
 
+    if args.command == 'predict':
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        extdir = resource_filename('muat', 'genome_reference')
+        extdir = ensure_dirpath(extdir)
+
+        genome_reference_path_hg19 = extdir + 'hg19.fa'
+        genome_reference_path_hg38 = extdir + 'hg38.fa'
+        #load ckpt
+
+        if args.mutation_type is not None:
+            if args.wgs:
+                wgs_wes = 'wgs'
+            else:
+                wgs_wes = 'wes'
+
+            load_ckpt_path = mut_type_checkpoint_handler(args.mutation_type,wgs_wes)
+        else:
+            load_ckpt_path = args.load_ckpt_filepath
+        
+        checkpoint = load_and_check_checkpoint(load_ckpt_path)
+        model_name = checkpoint['model_name']
+
+        dict_motif,dict_pos,dict_ges = load_token_dict(checkpoint)
+        vcf_files = multifiles_handler(args.input_filepath)
+        tmp_dir = check_tmp_dir(args)
+
+        if args.hg19:
+            preprocessing_vcf_tokenizing(vcf_file=vcf_files,
+                                    genome_reference_path=genome_reference_path_hg19,
+                                    tmp_dir=tmp_dir,
+                                    dict_motif=dict_motif,
+                                    dict_pos=dict_pos,
+                                    dict_ges=dict_ges)
+        if args.hg38:
+            preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
+                                    genome_reference_38_path=genome_reference_path_hg38,
+                                    genome_reference_19_path=genome_reference_path_hg19,
+                                    tmp_dir=tmp_dir,
+                                    dict_motif=dict_motif,
+                                    dict_pos=dict_pos,
+                                    dict_ges=dict_ges)
+        print('preprocessed data saved in ' + tmp_dir)
+
+        predict_ready_files = []
+        for x in vcf_files:
+            if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
+                predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+
+        pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+        target_handler = load_target_handler(checkpoint)
+
+        dataloader_config = checkpoint['dataloader_config']
+        #pdb.set_trace()
+        test_dataloader = MuAtDataloader(pd_predict,dataloader_config)
+
+        #pdb.set_trace()
+        model_name = checkpoint['model_name']
+        model = get_model(model_name,checkpoint['model_config'])
+        model = model.to(device)
+        model.load_state_dict(checkpoint['weight'])
+
+        result_dir = ensure_dirpath(args.result_dir)
+        predict_config = PredictorConfig(max_epochs=1, batch_size=1,result_dir=result_dir,target_handler=target_handler)
+        predictor = Predictor(model, test_dataloader, predict_config)
+        predictor.batch_predict()
+        
+    if args.command == 'preprocessing':
+        print('todo')
+
+    if args.command == 'train':
+        print('todo')
+
+
+
+'''
+def main_old():
+    args = get_main_args()
+
     if args.predict_vcf_hg19:
 
         if not args.hg19_filepath or not args.load_ckpt_filepath or not args.vcf_hg19_filepath or not args.result_dir:
@@ -225,28 +304,6 @@ def main():
             trainer_config = checkpoint['trainer_config']
             trainer_config.save_ckpt_dir = ensure_dirpath(args.save_ckpt_dir)
 
-            '''
-            # Validate trainer configuration to ensure all necessary hyperparameters are present
-            required_params = ['batch_size', 'learning_rate']
-            for param in required_params:
-                if not hasattr(trainer_config, param) or trainer_config.__dict__[param] is None:
-                    raise ValueError(f"Checkpoint trainer configuration is missing '{param}'.")
-            
-
-            # Override checkpoint hyperparameters with command-line args if provided
-            trainer_config.max_epochs = args.epoch if args.epoch is not None else trainer_config.max_epochs
-            trainer_config.batch_size = args.batch_size if args.batch_size is not None else trainer_config.batch_size
-            trainer_config.learning_rate = args.learning_rate if args.learning_rate is not None else trainer_config.learning_rate
-
-            trainer_config.save_ckpt_dir = ensure_dirpath(args.save_ckpt_dir)
-
-            # Initialize model from checkpoint
-
-            pdb.set_trace()
-            model = get_model(args.arch, model_config)
-            model = initialize_pretrained_weight(args.arch, model_config, checkpoint)
-            '''
-
         elif args.from_scratch:
             # Define dictionary file paths (use defaults if not provided)
             extdir = ensure_dirpath(resource_filename('muat', 'extfile'))
@@ -333,6 +390,7 @@ def main():
         # Initialize trainer and start training
         trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
         trainer.batch_train()
+'''
 
 if __name__ == "__main__":
 

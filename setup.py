@@ -3,6 +3,51 @@ import os
 import urllib.request
 import zipfile
 import pdb
+import gzip
+import shutil
+import sys
+
+def download_reference(genome_reference_path="./data/genome_reference/"):
+    """
+    Download reference genome files from UCSC
+    
+    Args:
+        genome_reference_path (str): Path to store reference files
+    """
+    # Create directory if it doesn't exist
+    os.makedirs(genome_reference_path, exist_ok=True)
+    
+    # Define URLs for reference files
+    references = {
+        'hg19': 'https://ftp.sanger.ac.uk/pub/project/PanCancer/genome.fa.gz',
+        'hg38': 'https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
+    }
+    
+    for genome_build, url in references.items():
+        output_file = os.path.join(genome_reference_path, f"{genome_build}.fa.gz")
+        
+        # Skip if file already exists
+        if os.path.exists(output_file):
+            print(f"{genome_build} reference already exists at {output_file}")
+            continue
+            
+        print(f"Downloading {genome_build} reference...")
+        try:
+            urllib.request.urlretrieve(url, output_file)
+            print(f"Successfully downloaded {genome_build} to {output_file}")
+            
+            # Gunzip the downloaded file
+            with gzip.open(output_file, 'rb') as f_in:
+                with open(os.path.join(genome_reference_path, f"{genome_build}.fa"), 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            print(f"Successfully gunzipped {genome_build} to {genome_reference_path}{genome_build}.fa")
+            
+            # Remove the original .gz file
+            os.remove(output_file)
+            print(f"Removed original gzipped file: {output_file}")
+            
+        except Exception as e:
+            print(f"Error downloading {genome_build}: {str(e)}")
 
 # Function to download and extract the checkpoint
 def download_checkpoint():
@@ -35,6 +80,9 @@ shell_scripts = [os.path.join('muat/pkg_shell', f) for f in os.listdir('muat/pkg
 
 # Call download_checkpoint function to download the checkpoint during installation
 download_checkpoint()
+#download genome reference and unzip 
+path = os.path.dirname(os.path.abspath(__file__)) + '/'
+download_reference(genome_reference_path=path + 'muat/genome_reference/')
 
 setup(
     name="muat",
@@ -45,7 +93,8 @@ setup(
             'pkg_data/*',
             'extfile/*',            
             'pkg_shell/*.sh',  # Make sure shell scripts are included as package data
-            'pkg_ckpt/*'
+            'pkg_ckpt/*',
+            'genome_reference/*'
         ],
     },
     scripts=shell_scripts,  # Install as executable scripts

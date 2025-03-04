@@ -14,8 +14,52 @@ from muat.dataloader import *
 from muat.trainer import *
 import csv
 
-
 def get_main_args():
+    parser = argparse.ArgumentParser(description='Mutation Attention Tool')
+    subparsers = parser.add_subparsers(dest='command', required=True, help='Available commands')
+    #predict subparser
+    #muat predict --wgs,wes --hg19,hg38 --input-filepath '' '' --mutation-type 'snv+mnv' --output-filepath '' --load-ckpt-filepath '(if load ckpt file path exist, mutation type will be adjusted)'
+    predict_parser = subparsers.add_parser('predict', help='Preprocess VCF and TSV files')
+    wgs_wes = predict_parser.add_mutually_exclusive_group(required=True)
+    wgs_wes.add_argument("--wgs", action="store_true", help="Run prediction for WGS")
+    wgs_wes.add_argument("--wes", action="store_true", help="Run prediction for WES")
+    hg19_hg38 = predict_parser.add_mutually_exclusive_group(required=True)
+    hg19_hg38.add_argument("--hg19", action="store_true", help="VCF file using hg19 genome reference")
+    hg19_hg38.add_argument("--hg38", action="store_true", help="VCF file using hg38 genome reference")
+    mut_type_loadckpt = predict_parser.add_mutually_exclusive_group(required=True)
+    mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
+                        help='mutation type, only {snv,snv+mnv,snv+mnv+indel,snv+mnv+indel+svmei,snv+mnv+indel+svmei+neg} can be applied')
+    mut_type_loadckpt.add_argument("--load-ckpt-filepath", type=str, default=None,
+                        help='complete file path to load checkpoint (.pthx), --mutation-type will be adjusted accordingly when loading from ckpt')
+
+    predict_parser.add_argument("--input-filepath", nargs="+", help="input file paths (.vcf or .vcf.gz)")
+    predict_parser.add_argument("--result-dir", type=str, default=None,required=True,
+                        help='result directory where the output will be written (.tsv)')
+    predict_parser.add_argument("--tmp-dir", type=str, default=None,
+                        help='directory for storing preprocessed files')
+
+    args = parser.parse_args()
+
+    return args
+
+def mut_type_checkpoint_handler(mutation_type,wgs_wes):
+    ckptdir = resource_filename('muat','pkg_ckpt')
+    ckptdir = ensure_dirpath(ckptdir)
+
+    if wgs_wes == 'wgs':
+        if mutation_type == 'snv':
+            load_ckpt_filepath = ensure_dirpath(ckptdir+'/pcawg_wgs/snv/') + 'pcawg-wgs-snv-MuAtMotifPositionGES.pthx'
+        elif mutation_type == 'snv+mnv':
+            load_ckpt_filepath = ensure_dirpath(ckptdir+'/pcawg_wgs/snv+mnv/') + 'pcawg-wgs-snv+mnv-MuAtMotifPositionGESF.pthx'
+        elif mutation_type == 'snv+mnv+indel':
+            load_ckpt_filepath = ensure_dirpath(ckptdir+'/pcawg_wgs/snv+mnv+indel/') +'pcawg-wgs-snv+mnv+indel-MuAtMotifPositionGESF.pthx'
+        elif mutation_type == 'snv+mnv+indel+svmei':
+            load_ckpt_filepath = ensure_dirpath(ckptdir+'/pcawg_wgs/snv+mnv+indel+svmei/') + 'pcawg-wgs-snv+mnv+indel+svmei-MuAtMotifPositionGESF.pthx'
+        
+        print('load from ckpt ' + load_ckpt_filepath)
+        return load_ckpt_filepath
+
+def get_main_args_old():
     parser = argparse.ArgumentParser(description='Mutation Attention Tool')
 
     parser.add_argument("--arch", type=str, default=None,
