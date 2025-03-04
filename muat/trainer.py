@@ -106,9 +106,10 @@ class Trainer:
                             logit = logits[lk]
                             _, pred = torch.max(logit.data, 1)                            
                             logits_cpu =logit.detach().cpu().numpy()
-
                             pred = logit.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-                            train_corr_inside.append(pred.eq(target[nk].view_as(pred)).sum().item())
+                            # Ensure target is on the same device as pred
+                            target_on_device = target[nk].to(pred.device)  # Move target to the same device as pred
+                            train_corr_inside.append(pred.eq(target_on_device.view_as(pred)).sum().item())
 
                         if len(train_corr) == 0:
                             train_corr = np.zeros(len(logit_keys))
@@ -167,7 +168,7 @@ class Trainer:
                             logit = logits[lk]
                             _, predicted = torch.max(logit.data, 1)                            
 
-                            logits_cpu =logit.detach().cpu().numpy()
+                            logits_cpu = logit.detach().cpu().numpy()
                             logit_filename = 'val_{}.tsv'.format(lk)
                             if batch_idx_val == 0:
                                 f = open(self.complete_save_dir + logit_filename, 'w+')
@@ -191,7 +192,10 @@ class Trainer:
                                 write_header = "\t".join(write_logits)
                                 f.write(write_header)
                             f.close()
-                            test_correct_inside.append(predicted.eq(target[nk].view_as(predicted)).sum().item())
+
+                            # Ensure target is on the same device as predicted
+                            target_on_device = target[nk].to(predicted.device)  # Move target to the same device as predicted
+                            test_correct_inside.append(predicted.eq(target_on_device.view_as(predicted)).sum().item())
                         if len(test_correct) == 0:
                             test_correct = np.zeros(len(logit_keys))
                         test_correct += np.asarray(test_correct_inside)

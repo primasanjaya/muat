@@ -1,0 +1,20 @@
+name: muat-env
+channels:
+  - anaconda
+  - defaults
+  - conda-forge
+  - bioconda
+dependencies:
+  - python>=3.8
+  - pandas
+  - numpy
+  - natsort
+  - tqdm
+  - requests
+  - boto3
+  - openpyxl
+  - scikit-learn
+  - pytorch
+  - pyliftover
+  - bcftools
+  - tqdm

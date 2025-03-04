@@ -6,7 +6,7 @@ import pdb
 
 # Function to download and extract the checkpoint
 def download_checkpoint():
-    checkpoint_url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_pcawg.zip"  # Replace with your checkpoint URL
+    checkpoint_url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip"  # Replace with your checkpoint URL
     checkpoint_dir = os.path.join('muat', 'pkg_ckpt')  # Directory where checkpoint will be stored
 
     # Ensure the checkpoint directory exists

@@ -52,8 +52,7 @@ def setup_trainer(model, train_data, test_data, trainer_config):
     test_dataloader = MuAtDataloader(test_data, trainer_config.dataloader_config)
     return Trainer(model, train_dataloader, test_dataloader, trainer_config)
 
-if __name__ == "__main__":
-
+def main():
     args = get_main_args()
 
     if args.predict_vcf_hg19:
@@ -173,7 +172,9 @@ if __name__ == "__main__":
         tmp_dir = check_tmp_dir(args)
 
         #example for preprocessing multiple vcf files
-        vcf_files = args.vcf_hg19_filepath
+        vcf_files = pd.read_csv(args.vcf_hg19_filepath,sep='\t')['vcf_hg19_path'].to_list()
+        vcf_files = multifiles_handler(vcf_files)
+
         preprocessing_vcf(vcf_file=vcf_files,genome_reference_path=genome_reference_path,tmp_dir=tmp_dir)
 
     if args.preprocessing_vcf_hg38:
@@ -184,17 +185,32 @@ if __name__ == "__main__":
         genome_reference_19_path = args.hg19_filepath
 
         #example for preprocessing multiple vcf files
-        vcf_files = args.vcf_hg38_filepath
+        vcf_files = pd.read_csv(args.vcf_hg38_filepath,sep='\t')['vcf_hg38_path'].to_list()
+        vcf_files = multifiles_handler(vcf_files)
         #run preprocessing 
         preprocessing_vcf38(vcf_files,genome_reference_38_path,genome_reference_19_path,tmp_dir)
 
     if args.tokenizing:
-        dict_motif = pd.read_csv(args.motif_dictionary_filepath,sep='\t')
-        dict_pos = pd.read_csv(args.position_dictionary_filepath,sep='\t')
-        dict_ges = pd.read_csv(args.ges_dictionary_filepath,sep='\t')
-        all_preprocessed_vcf = args.preprocessed_filepath
+
+        if not args.motif_dictionary_filepath or not args.position_dictionary_filepath or not args.ges_dictionary_filepath:
+            extdir = resource_filename('muat', 'extfile')
+            extdir = ensure_dirpath(extdir)
+            
+            dict_motif = pd.read_csv(extdir + 'dictMutation.tsv',sep='\t')
+            dict_pos = pd.read_csv(extdir + 'dictChpos.tsv',sep='\t')
+            dict_ges = pd.read_csv(extdir + 'dictGES.tsv',sep='\t')
+
+            print('using default dictionary in ' + extdir + 'dict{Mutation,Chpos,GES}.tsv')
+
+        else:
+            dict_motif = pd.read_csv(args.motif_dictionary_filepath,sep='\t')
+            dict_pos = pd.read_csv(args.position_dictionary_filepath,sep='\t')
+            dict_ges = pd.read_csv(args.ges_dictionary_filepath,sep='\t')
 
         tmp_dir = check_tmp_dir(args)
+        all_preprocessed_vcf = glob.glob(ensure_dirpath(tmp_dir) + '/*.gc.genic.exonic.cs.tsv.gz')
+        all_preprocessed_vcf = multifiles_handler(all_preprocessed_vcf)
+
         tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,pos_bin_size=1000000,tmp_dir=tmp_dir)
 
     if args.train:
@@ -318,134 +334,6 @@ if __name__ == "__main__":
         trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
         trainer.batch_train()
 
+if __name__ == "__main__":
 
-
-        '''
-        if args.from_scratch:
-            if not args.motif_dictionary_filepath or not args.position_dictionary_filepath or not args.ges_dictionary_filepath:
-                
-                extdir = resource_filename('muat', 'extfile')
-                extdir = ensure_dirpath(extdir)
-                motif_path = extdir + 'dictMutation.tsv'
-                pos_path = extdir + 'dictChpos.tsv'
-                ges_path = extdir + 'dictGES.tsv'
-                
-                warnings.warn("Some dictionary file paths were not defined and have been set automatically.\n"
-        "--motif-dictionary-filepath is set to {}, --position-dictionary-filepath is set to {}, --ges-dictionary-filepath is set to {}\n"
-        "These motif position ges dictionary might be different from your preprocessed files!".format(
-            motif_path, pos_path, ges_path))
-
-            else:
-                motif_path = args.motif_dictionary_filepath
-                pos_path = args.position_dictionary_filepath
-                ges_path = args.ges_dictionary_filepath
-
-            dict_motif = pd.read_csv(motif_path,sep='\t')
-            dict_pos = pd.read_csv(pos_path,sep='\t')
-            dict_ges = pd.read_csv(ges_path,sep='\t')
-
-            if not args.arch or not args.mutation_type or not args.n_layer or not args.n_emb or not args.n_head or not args.target_dict_filepath:
-                raise ValueError('--train requires --arch --mutation-type --n-layer n-emb --n-head --target-dict-filepath')
-
-            model_name = args.arch
-            mutation_type = args.mutation_type
-            n_layer = args.n_layer
-            n_emb = args.n_emb
-            n_head = args.n_head
-            mutation_sampling_size = args.mutation_sampling_size
-
-            target_handler = []
-
-            le = LabelEncoderFromCSV(csv_file=args.target_dict_filepath,class_name_col='class_name',class_index_col='class_index')
-            n_class = len(le.classes_)
-            target_handler.append(le)
-
-            model_config = ModelConfig(
-                                model_name,
-                                dict_motif,
-                                dict_pos,
-                                dict_ges,
-                                mutation_sampling_size,
-                                n_layer,
-                                n_emb,
-                                n_head,
-                                n_class, 
-                                mutation_type)
-
-            model = get_model(model_name,model_config)
-
-            if args.load_ckpt_filepath is not None:
-                model = initialize_pretrained_weight(model_name,model_config,checkpoint)
-
-            if args.subtarget_dict_filepath is not None:
-                le2 = LabelEncoderFromCSV(csv_file=args.subtarget_dict_filepath)
-                subclass = len(le2.classes_)
-                target_handler.append(le2)
-                model_config.num_subclass = subclass
-            #pdb.set_trace()
-            train_dataloader_config = DataloaderConfig(model_input=model_config.model_input,mutation_type_ratio=model_config.mutation_type_ratio,mutation_sampling_size=mutation_sampling_size)
-            test_dataloader_config = DataloaderConfig(model_input=model_config.model_input,mutation_type_ratio=model_config.mutation_type_ratio,mutation_sampling_size=mutation_sampling_size)
-            
-            train_split = pd.read_csv(args.train_split_filepath,sep='\t',low_memory=False)
-            test_split = pd.read_csv(args.val_split_filepath,sep='\t',low_memory=False)
-
-            train_dataloader = MuAtDataloader(train_split,train_dataloader_config)
-            test_dataloader = MuAtDataloader(test_split,test_dataloader_config)
-
-            n_epochs = args.epoch
-            batch_size = args.batch_size
-            learning_rate = args.learning_rate
-
-            save_ckpt_dir = args.save_ckpt_dir
-            trainer_config = TrainerConfig(max_epochs=n_epochs, 
-                                            batch_size=batch_size, 
-                                            learning_rate=learning_rate, 
-                                            num_workers=1,
-                                            save_ckpt_dir=save_ckpt_dir,
-                                            target_handler=target_handler)
-            trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
-            trainer.batch_train()
-
-        if args.from_checkpoint:
-
-            train_split = pd.read_csv(args.train_split_filepath,sep='\t',low_memory=False)
-            test_split = pd.read_csv(args.val_split_filepath,sep='\t',low_memory=False)
-
-            load_ckpt_path = args.load_ckpt_filepath
-            checkpoint = load_and_check_checkpoint(load_ckpt_path)
-
-            dataloader_config = checkpoint['dataloader_config']
-            train_dataloader = MuAtDataloader(train_split,dataloader_config)
-            test_dataloader = MuAtDataloader(test_split,dataloader_config)
-
-            model_config = checkpoint['model_config']
-
-            target_handler = []
-            le = LabelEncoderFromCSV(csv_file=args.target_dict_filepath,class_name_col='class_name',class_index_col='class_index')
-            target_handler.append(le)
-            n_class = len(target_handler[0].classes_)
-            model_config.num_class = n_class
-
-            if args.subtarget_dict_filepath is not None:  
-                le2 = LabelEncoderFromCSV(csv_file=args.subtarget_dict_filepath,class_name_col='subclass_name',class_index_col='subclass_index')
-                target_handler.append(le2)
-                n_subclass = len(target_handler[1].classes_)
-                model_config.num_subclass = n_subclass
-
-            model_name = args.arch
-            model = get_model(model_name,model_config)
-
-            model = initialize_pretrained_weight(model_name,model_config,checkpoint)
-
-            trainer_config = checkpoint['trainer_config']
-            trainer_config.save_ckpt_dir = ensure_dirpath(args.save_ckpt_dir)
-            trainer_config.target_handler = target_handler
-
-            trainer_config.epoch = args.epoch
-            trainer_config.batch_size = args.batch_size
-            trainer_config.learning_rate = args.learning_rate
-
-            trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
-            trainer.batch_train()    
-
-        '''
+    main()

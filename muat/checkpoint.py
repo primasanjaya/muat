@@ -272,11 +272,13 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
                     'ges_dict':dict_ges}
 
     if save:
+        old_dir = ensure_dirpath(os.path.dirname(ckpt_path))
         filename = '-'.join(new_name) + '.pthx'
-        dir_name = new_name[0] + '_' + new_name[1] 
         #pdb.set_trace()
-        path = '/csc/epitkane/projects/github/muat/muat/pkg_ckpt/' + dir_name + '/' + new_name[2] + '/' + filename
+        path = old_dir + filename
         path = os.path.normpath(path)
         torch.save(save_ckpt_params,path)
-    #pdb.set_trace()
-    return save_ckpt_params
+        print('the latest checkpoint version has been saved in ' + path + '. Previous checkpoint version is deprecated, use this new version instead!')
+        return save_ckpt_params, path
+    else:
+        return save_ckpt_params
