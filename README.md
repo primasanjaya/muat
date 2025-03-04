@@ -6,77 +6,56 @@ Conda package for Mutation Attention deep learning tool for tumour type and subt
 
 ## Quick Start
 
-  * Clone muat repository
-  * Go to muat repository
-  * Create conda environment
+1. **Clone the muat Repository**
+   ```bash
+   git clone https://github.com/yourusername/muat.git
+   ```
 
-```
-conda env create -f muat-env.yml
-```
+2. **Navigate to the muat Directory**
+   ```bash
+   cd muat
+   ```
 
-## Installation
+3. **Create the Conda Environment**
+   To create the conda environment, run:
+   ```bash
+   conda env create -f muat-env.yml
+   ```
 
+4. **Activate the Conda Environment**
+   After creating the environment, activate it with:
+   ```bash
+   conda activate muat-env
+   ```
+
+5. **Verify the Installation**
+   To test if the installation was successful, run:
+   ```bash
+   muat -h
+   ```
+
+## Download PCAWG Dataset
+A Python code example for downloading the PCAWG dataset can be found in `tests/download_pcawg.py`. To download the dataset, execute:
 ```bash
-conda install bioconda::muat
+(muat-env)$ muat download --pcawg
 ```
 
-## Download PCAWG dataset
-an end-to-end code example is in tests/download_pcawg.py
-```python
-from muat.download import download_icgc_object_storage as download
-import tarfile
+## Predict PCAWG Samples (.vcf or .vcf.gz) Using Pretrained Models
 
-files_to_download = ['PCAWG/consensus_snv_indel/README.md',
-        'PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public.tgz',
-        'PCAWG/consensus_sv/README.md',
-        'PCAWG/consensus_sv/final_consensus_sv_bedpe_passonly.icgc.public.tgz',
-        'PCAWG/consensus_sv/final_consensus_sv_bedpe_passonly.tcga.public.tgz',
-        'PCAWG/data_releases/latest/pcawg_sample_sheet.v1.4.2016-09-14.tsv',
-        'PCAWG/data_releases/latest/release_may2016.v1.4.tsv',
-        'PCAWG/data_releases/latest/pcawg_sample_sheet.2016-08-12.tsv',
-        'PCAWG/clinical_and_histology/pcawg_specimen_histology_August2016_v9.xlsx']
-
-download_data_path = '/path/to/save/downloaded_data/'
-#download data
-download(data_path=download_data_path, files_to_download=files_to_download)
-
-tgz_file_path = muat_dir + '/data/PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public.tgz'
-# Extract the .tgz file
-with tarfile.open(tgz_file_path, 'r:gz') as tar:
-    tar.extractall(path=muat_dir + '/data/PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public/')  # Specify the directory to extract to
-    print("Extraction complete.")
-```
-
-## Predict PCAWG sample (.vcf or .vcf.gz) using pretrained models
-* Prepare tsv file with column 'vcf_hg19_path' containing absolute path of the vcf files which will be predicted by MuAt,
-<br>look at the example file in ./example_files/predict_vcf_hg19_example.tsv
-* Download the human genome reference which matches the vcf file, e.g. PCAWG used hg19.
-```python
-from muat.download import download_reference
-genome_reference_path = '/dirpath/to/save/genome_reference/' #dirpath to store genome reference
-download_reference(genome_reference_path=genome_reference_path)
-```
-* Choose your pretrained checkpoints, the best checkpoints stored in the package installation path `/pkg_ckpt/pcawg_wgs/`.
-
-```python
-from pkg_resources import resource_filename
-checkpoint_path = resource_filename('muat','pkg_ckpt/pcawg_wgs/snv+mnv/pcawg-wgs-snv+mnv-MuAtMotifPositionGESF.pthx')
-print(checkpoint_path) #use this absolute path for the prediction
-```
-
-* Run the inference from terminal
+### For VCF Files Written with hg19
+To predict using VCF files written with hg19, run:
 ```bash
-(muat-env)$  muat --predict-vcf-hg19 --hg19-filepath '/path/to/genome_reference.fa' --load-ckpt-filepath '/path/to/checkpoint.pthx' --vcf-hg19-filepath 'path/to/vcf_hg19.tsv' --result-dir 'path/to/output_result/'
+(muat-env)$ muat predict --wgs --hg19 --mutation-type 'snv' --input-filepath 'sample1_hg19.vcf.gz' 'sample2_hg19.vcf.gz' --result-dir 'path/to/result_dir/'
 ```
 
-## Preprocessing
-Read README_preprocessing.md
+### For VCF Files Written with hg38
+To predict using VCF files written with hg38, run:
+```bash
+(muat-env)$ muat predict --wgs --hg38 --mutation-type 'snv' --input-filepath 'sample_hg38.vcf' --result-dir 'path/to/result_dir/'
+```
 
-## General Training
-Read README_MuAtTraining.md
-
-## Full Training of PCAWG dataset
-Read README_PCAWG.md
-
-## Full Training of Genomics England dataset
-Read README_GEL.md
+## Additional Resources
+- **Preprocessing:** Read [README_preprocessing.md](README_preprocessing.md) for details on preprocessing.
+- **General Training:** Read [README_MuAtTraining.md](README_MuAtTraining.md) for general training instructions.
+- **Full Training of PCAWG Dataset:** Read [README_PCAWG.md](README_PCAWG.md) for full training instructions on the PCAWG dataset.
+- **Full Training of Genomics England Dataset:** Read [README_GEL.md](README_GEL.md) for full training instructions on the Genomics England dataset.

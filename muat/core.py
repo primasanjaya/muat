@@ -55,6 +55,24 @@ def setup_trainer(model, train_data, test_data, trainer_config):
 def main():
     args = get_main_args()
 
+    if args.command == 'download':
+
+        files_to_download = ['PCAWG/consensus_snv_indel/README.md',
+        'PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public.tgz',
+        'PCAWG/consensus_sv/README.md',
+        'PCAWG/consensus_sv/final_consensus_sv_bedpe_passonly.icgc.public.tgz',
+        'PCAWG/consensus_sv/final_consensus_sv_bedpe_passonly.tcga.public.tgz',
+        'PCAWG/data_releases/latest/pcawg_sample_sheet.v1.4.2016-09-14.tsv',
+        'PCAWG/data_releases/latest/release_may2016.v1.4.tsv',
+        'PCAWG/data_releases/latest/pcawg_sample_sheet.2016-08-12.tsv',
+        'PCAWG/clinical_and_histology/pcawg_specimen_histology_August2016_v9.xlsx']
+
+        download_data_path = args.download_dir
+        #download data
+        download_icgc_object_storage(data_path=download_data_path, files_to_download=files_to_download)
+        # Specify the directory to extract to
+        print("Download completed. Data saved in " + str(download_data_path))
+
     if args.command == 'predict':
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

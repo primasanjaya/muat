@@ -17,9 +17,14 @@ import csv
 def get_main_args():
     parser = argparse.ArgumentParser(description='Mutation Attention Tool')
     subparsers = parser.add_subparsers(dest='command', required=True, help='Available commands')
+
+    download_parser = subparsers.add_parser('download', help='Download dataset')
+    download_parser.add_argument("--pcawg", action="store_true", help="Download PCAWG Dataset",required=True)
+    download_parser.add_argument("--download-dir", type=str, default=None,
+                        help='directory for storing downloaded dataset')
     #predict subparser
     #muat predict --wgs,wes --hg19,hg38 --input-filepath '' '' --mutation-type 'snv+mnv' --output-filepath '' --load-ckpt-filepath '(if load ckpt file path exist, mutation type will be adjusted)'
-    predict_parser = subparsers.add_parser('predict', help='Preprocess VCF and TSV files')
+    predict_parser = subparsers.add_parser('predict', help='Predict VCF and TSV files')
     wgs_wes = predict_parser.add_mutually_exclusive_group(required=True)
     wgs_wes.add_argument("--wgs", action="store_true", help="Run prediction for WGS")
     wgs_wes.add_argument("--wes", action="store_true", help="Run prediction for WES")
