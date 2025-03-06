@@ -50,8 +50,8 @@ def download_reference(genome_reference_path="./data/genome_reference/"):
             print(f"Error downloading {genome_build}: {str(e)}")
 
 # Function to download and extract the checkpoint
-def download_checkpoint():
-    checkpoint_url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip"  # Replace with your checkpoint URL
+def download_checkpoint(url):
+    checkpoint_url = url  # Replace with your checkpoint URL
     checkpoint_dir = os.path.join('muat', 'pkg_ckpt')  # Directory where checkpoint will be stored
 
     # Ensure the checkpoint directory exists
@@ -61,28 +61,28 @@ def download_checkpoint():
     checkpoint_file = os.path.join(checkpoint_dir, 'my_checkpoint.zip')
 
     # Download the checkpoint if it doesn't already exist
-    if not os.path.exists(checkpoint_file):
-        print("Downloading checkpoint...")
-        urllib.request.urlretrieve(checkpoint_url, checkpoint_file)
+    print("Downloading checkpoint...")
+    urllib.request.urlretrieve(checkpoint_url, checkpoint_file)
 
-        # Optionally extract if it's a zip file
-        with zipfile.ZipFile(checkpoint_file, 'r') as zip_ref:
-            zip_ref.extractall(path=checkpoint_dir)
-        print(f"Checkpoint downloaded and extracted to {checkpoint_dir}")
+    # Optionally extract if it's a zip file
+    with zipfile.ZipFile(checkpoint_file, 'r') as zip_ref:
+        zip_ref.extractall(path=checkpoint_dir)
+    print(f"Checkpoint downloaded and extracted to {checkpoint_dir}")
 
-        os.remove(checkpoint_file)  
-    else:
-        print("Checkpoint already exists, skipping download.")
+    os.remove(checkpoint_file)  
 
 # Get list of shell scripts
 shell_scripts = [os.path.join('muat/pkg_shell', f) for f in os.listdir('muat/pkg_shell') 
                 if f.endswith('.sh')]
 
 # Call download_checkpoint function to download the checkpoint during installation
-download_checkpoint()
+download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip")
+download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip")
 #download genome reference and unzip 
 path = os.path.dirname(os.path.abspath(__file__)) + '/'
 download_reference(genome_reference_path=path + 'muat/genome_reference/')
+
+#pdb.set_trace()
 
 setup(
     name="muat",

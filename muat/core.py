@@ -54,6 +54,8 @@ def setup_trainer(model, train_data, test_data, trainer_config):
 
 def main():
     args = get_main_args()
+    genomedir = resource_filename('muat', 'genome_reference')
+    genomedir = ensure_dirpath(genomedir)
 
     if args.command == 'download':
 
@@ -76,11 +78,8 @@ def main():
     if args.command == 'predict':
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        extdir = resource_filename('muat', 'genome_reference')
-        extdir = ensure_dirpath(extdir)
-
-        genome_reference_path_hg19 = extdir + 'hg19.fa'
-        genome_reference_path_hg38 = extdir + 'hg38.fa'
+        genome_reference_path_hg19 = genomedir + 'hg19.fa'
+        genome_reference_path_hg38 = genomedir + 'hg38.fa'
         #load ckpt
 
         if args.mutation_type is not None:
@@ -89,9 +88,9 @@ def main():
             else:
                 wgs_wes = 'wes'
 
-            load_ckpt_path = mut_type_checkpoint_handler(args.mutation_type,wgs_wes)
+            load_ckpt_path = ensure_dirpath(mut_type_checkpoint_handler(args.mutation_type,wgs_wes))
         else:
-            load_ckpt_path = args.load_ckpt_filepath
+            load_ckpt_path = ensure_dirpath(args.ckpt_filepath)
         
         checkpoint = load_and_check_checkpoint(load_ckpt_path)
         model_name = checkpoint['model_name']
@@ -141,10 +140,270 @@ def main():
         predictor.batch_predict()
         
     if args.command == 'preprocessing':
-        print('todo')
 
-    if args.command == 'train':
-        print('todo')
+        genome_reference_path_hg19 = genomedir + 'hg19.fa'
+        genome_reference_path_hg38 = genomedir + 'hg38.fa'
+
+        tmp_dir = check_tmp_dir(args)
+        #example for preprocessing multiple vcf files
+        vcf_files = multifiles_handler(args.input_filepath)
+
+        #pdb.set_trace()
+        if args.motif_dictionary_filepath is None or args.position_dictionary_filepath is None or args.ges_dictionary_filepath is None:
+            extdir = resource_filename('muat', 'extfile')
+            extdir = ensure_dirpath(extdir)
+            
+            dict_motif = pd.read_csv(extdir + 'dictMutation.tsv',sep='\t')
+            dict_pos = pd.read_csv(extdir + 'dictChpos.tsv',sep='\t')
+            dict_ges = pd.read_csv(extdir + 'dictGES.tsv',sep='\t')
+            print('using default dictionary in ' + extdir + 'dict{Mutation,Chpos,GES}.tsv')
+        else:
+            dict_motif = pd.read_csv(args.motif_dictionary_filepath,sep='\t')
+            dict_pos = pd.read_csv(args.position_dictionary_filepath,sep='\t')
+            dict_ges = pd.read_csv(args.ges_dictionary_filepath,sep='\t')
+
+        if args.vcf:
+            if args.hg19:
+                preprocessing_vcf_tokenizing(vcf_file=vcf_files,
+                                        genome_reference_path=genome_reference_path_hg19,
+                                        tmp_dir=tmp_dir,
+                                        dict_motif=dict_motif,
+                                        dict_pos=dict_pos,
+                                        dict_ges=dict_ges)
+            if args.hg38:
+                preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
+                                        genome_reference_38_path=genome_reference_path_hg38,
+                                        genome_reference_19_path=genome_reference_path_hg19,
+                                        tmp_dir=tmp_dir,
+                                        dict_motif=dict_motif,
+                                        dict_pos=dict_pos,
+                                        dict_ges=dict_ges)
+
+            print('preprocessed data saved in ' + tmp_dir)
+
+        if args.tsv:
+            print('todo')            
+            filtering_somagg_vcf()
+        if args.somagg:
+            if args.hg19:
+                print('todo')
+            if args.hg38:
+                filtering_somagg_vcf(vcf_files,tmp_dir)
+    #pdb.set_trace()      
+    if args.command == 'from-scratch': #training from scratch
+        #pdb.set_trace()
+        extdir = ensure_dirpath(resource_filename('muat', 'extfile'))
+        motif_path = args.motif_dictionary_filepath or f"{extdir}/dictMutation.tsv"
+        pos_path = args.position_dictionary_filepath or f"{extdir}/dictChpos.tsv"
+        ges_path = args.ges_dictionary_filepath or f"{extdir}/dictGES.tsv"
+
+        save_dir = ensure_dirpath(args.save_dir)
+        os.makedirs(save_dir,exist_ok=True)
+
+        if args.motif_dictionary_filepath is None or args.position_dictionary_filepath is None or args.ges_dictionary_filepath is None:
+            warnings.warn(f"Dictionary file paths were not defined and have been set automatically:\n"
+                        f"--motif-dictionary-filepath: {motif_path}\n"
+                        f"--position-dictionary-filepath: {pos_path}\n"
+                        f"--ges-dictionary-filepath: {ges_path}\n"
+                        "These dictionaries might be different from your preprocessed files!")
+        # Load mutation-related dictionaries
+        dict_motif = pd.read_csv(motif_path, sep='\t')
+        dict_pos = pd.read_csv(pos_path, sep='\t')
+        dict_ges = pd.read_csv(ges_path, sep='\t')
+
+        train_split, test_split = load_data(args.train_split_filepath, args.val_split_filepath)
+        all_split = pd.concat([train_split, test_split], ignore_index=True)
+        label_1 = all_split[['class_name','class_index']].drop_duplicates()
+        label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)   
+        save_label_1 = save_dir+'/label_1.tsv'
+        label_1.to_csv(save_label_1,sep='\t',index=False)
+        
+        label_2 = None
+        save_label_2 = None
+        if 'subclass_name' in all_split.columns:
+            label_2 = all_split[['subclass_name','subclass_index']].drop_duplicates()
+            label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True) 
+            save_label_2 = save_dir+'/label_2.tsv'
+            label_2.to_csv(save_label_2,sep='\t',index=False)
+
+        if label_2 is None:
+            if args.use_motif and args.use_position is False and args.use_ges is False:
+                arch = 'MuAtMotifF'
+            if args.use_motif and args.use_position and args.use_ges is False:
+                arch = 'MuAtMotifPositionF'
+            if args.use_motif and args.use_position and args.use_ges:
+                arch = 'MuAtMotifPositionGESF'
+        else:
+            if args.use_motif and args.use_position is False and args.use_ges is False:
+                arch = 'MuAtMotifF_2Labels'
+            if args.use_motif and args.use_position and args.use_ges is False:
+                arch = 'MuAtMotifPositionF_2Labels'
+            if args.use_motif and args.use_position and args.use_ges:
+                arch = 'MuAtMotifPositionGESF_2Labels'
+
+        # Define model configuration
+        model_config = ModelConfig(
+            model_name=arch,
+            dict_motif=dict_motif,
+            dict_pos=dict_pos,
+            dict_ges=dict_ges,
+            mutation_sampling_size=args.mutation_sampling_size,
+            n_layer=args.n_layer,
+            n_emb=args.n_emb,
+            n_head=args.n_head,
+            n_class=None,  # Will be set after label encoding
+            mutation_type=args.mutation_type
+        )    
+
+        # Define trainer configuration
+        trainer_config = TrainerConfig(
+            max_epochs=args.epoch,
+            batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
+            num_workers=1,
+            save_ckpt_dir=save_dir,
+            target_handler=[]
+        )
+        # Initialize label encoders BEFORE creating the model
+        target_handler, n_class, n_subclass = initialize_label_encoders(save_label_1, save_label_2)
+        model_config.num_class = n_class
+        if n_subclass is not None:
+            model_config.num_subclass = n_subclass
+
+        trainer_config.target_handler = target_handler
+
+        model = get_model(arch, model_config)
+
+        # Define dataloader configurations
+        train_dataloader_config = DataloaderConfig(
+            model_input=model_config.model_input,
+            mutation_type_ratio=model_config.mutation_type_ratio,
+            mutation_sampling_size=args.mutation_sampling_size
+        )
+        test_dataloader_config = DataloaderConfig(
+            model_input=model_config.model_input,
+            mutation_type_ratio=model_config.mutation_type_ratio,
+            mutation_sampling_size=args.mutation_sampling_size
+        )
+
+        # Initialize dataloaders
+        train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
+        test_dataloader = MuAtDataloader(test_split, test_dataloader_config)
+
+        # Initialize trainer and start training
+        trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
+        trainer.batch_train()
+
+    if args.command == 'from-checkpoint':
+
+        save_dir = ensure_dirpath(args.save_dir)
+        load_ckpt_filepath = os.path.normpath(args.ckpt_filepath)
+        # Load checkpoint and extract stored configurations
+        checkpoint = load_and_check_checkpoint(load_ckpt_filepath)
+
+        #pdb.set_trace()
+        checkpoint['model_config']
+        model_config_muttype = checkpoint['model_config'].mutation_type
+        if model_config_muttype != args.mutation_type:
+            raise ValueError('You selected a different mutation type from the checkpoint. The checkpoint mutation type is ' + model_config_muttype + ', which is different from --mutation-type ' + args.mutation_type + '. Please select the correct checkpoint.')
+
+        dataloader_config = checkpoint['dataloader_config']
+        model_config = checkpoint['model_config']
+        trainer_config = checkpoint['trainer_config']
+        trainer_config.save_ckpt_dir = save_dir
+        os.makedirs(save_dir,exist_ok=True)
+
+        train_split, test_split = load_data(args.train_split_filepath, args.val_split_filepath)
+        all_split = pd.concat([train_split, test_split], ignore_index=True)
+        label_1 = all_split[['class_name','class_index']].drop_duplicates()
+        label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)   
+        save_label_1 = save_dir+'/label_1.tsv'
+        label_1.to_csv(save_label_1,sep='\t',index=False)
+        
+        label_2 = None
+        save_label_2 = None
+        if 'subclass_name' in all_split.columns:
+            label_2 = all_split[['subclass_name','subclass_index']].drop_duplicates()
+            label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True) 
+            save_label_2 = save_dir+'/label_2.tsv'
+            label_2.to_csv(save_label_2,sep='\t',index=False)
+
+        #pdb.set_trace()
+        if label_2 is None:
+            arch = checkpoint['model_name']
+        else:
+            if checkpoint['model_name'] == 'MuAtMotifF' or checkpoint['model_name'] == 'MuAtMotif':
+                arch = 'MuAtMotifF_2Labels'
+            if checkpoint['model_name'] == 'MuAtMotifPositionF' or checkpoint['model_name'] == 'MuAtMotifPosition':
+                arch = 'MuAtMotifPositionF_2Labels'
+            if checkpoint['model_name'] == 'MuAtMotifPositionGESF' or checkpoint['model_name'] == 'MuAtMotifPositionGES':
+                arch = 'MuAtMotifPositionGESF_2Labels'
+
+        # Initialize label encoders BEFORE creating the model
+        target_handler, n_class, n_subclass = initialize_label_encoders(save_label_1, save_label_2)
+        model_config.num_class = n_class
+        if n_subclass is not None:
+            model_config.num_subclass = n_subclass
+
+        trainer_config.target_handler = target_handler
+
+        # Initialize model (whether from scratch or checkpoint)
+        model = get_model(arch, model_config)
+
+        print('initializing checkpoint parameters')
+        #pdb.set_trace()
+        '''
+        'mutation_sampling_size': 5000, 
+        'n_layer': 1, 'n_embd': 512, 
+        'n_head': 2, 'num_class': 14, 
+        'mutation_type': 'snv+mnv', 
+        'model_input': {'motif': True, 'pos': True, 'ges': False}, 
+        'position_size': 2916,
+        'ges_size': 16, 
+        'mutation_type_ratio': {'snv': 0.5, 'mnv': 0.5, 'indel': 0, 'sv_mei': 0, 'neg': 0}, 
+        'motif_size': 2267, 
+        'num_subclass': 12}
+        '''
+        model = initialize_pretrained_weight(arch,model_config,checkpoint)
+
+        # Prepare dataloaders
+        train_split = pd.read_csv(args.train_split_filepath, sep='\t', low_memory=False)
+        test_split = pd.read_csv(args.val_split_filepath, sep='\t', low_memory=False)
+
+        # Define dataloader configurations
+        train_dataloader_config = DataloaderConfig(
+            model_input=model_config.model_input,
+            mutation_type_ratio=model_config.mutation_type_ratio,
+            mutation_sampling_size=args.mutation_sampling_size
+        )
+        test_dataloader_config = DataloaderConfig(
+            model_input=model_config.model_input,
+            mutation_type_ratio=model_config.mutation_type_ratio,
+            mutation_sampling_size=args.mutation_sampling_size
+        )
+
+        # Initialize dataloaders
+        train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
+        test_dataloader = MuAtDataloader(test_split, test_dataloader_config)
+
+        # Initialize trainer and start training
+        trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
+        trainer.batch_train()
+
+
+
+
+
+
+        
+
+        
+
+
+
+
+
+
 
 
 

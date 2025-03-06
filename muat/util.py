@@ -18,31 +18,127 @@ def get_main_args():
     parser = argparse.ArgumentParser(description='Mutation Attention Tool')
     subparsers = parser.add_subparsers(dest='command', required=True, help='Available commands')
 
-    download_parser = subparsers.add_parser('download', help='Download dataset')
-    download_parser.add_argument("--pcawg", action="store_true", help="Download PCAWG Dataset",required=True)
+    download_parser = subparsers.add_parser('download', help='Download the dataset.')
+    download_parser.add_argument("--pcawg", action="store_true", help="Download the PCAWG dataset.", required=True)
     download_parser.add_argument("--download-dir", type=str, default=None,
-                        help='directory for storing downloaded dataset')
-    #predict subparser
-    #muat predict --wgs,wes --hg19,hg38 --input-filepath '' '' --mutation-type 'snv+mnv' --output-filepath '' --load-ckpt-filepath '(if load ckpt file path exist, mutation type will be adjusted)'
-    predict_parser = subparsers.add_parser('predict', help='Predict VCF and TSV files')
-    wgs_wes = predict_parser.add_mutually_exclusive_group(required=True)
-    wgs_wes.add_argument("--wgs", action="store_true", help="Run prediction for WGS")
-    wgs_wes.add_argument("--wes", action="store_true", help="Run prediction for WES")
-    hg19_hg38 = predict_parser.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", action="store_true", help="VCF file using hg19 genome reference")
-    hg19_hg38.add_argument("--hg38", action="store_true", help="VCF file using hg38 genome reference")
-    mut_type_loadckpt = predict_parser.add_mutually_exclusive_group(required=True)
+                        help='Directory for storing the downloaded dataset.')
+
+    preprocessing = subparsers.add_parser('preprocessing', help='Preprocess the dataset.')
+    vcf_somagg_tsv = preprocessing.add_mutually_exclusive_group(required=True)
+    vcf_somagg_tsv.add_argument("--vcf", action="store_true", help="Preprocess VCF files.")
+    vcf_somagg_tsv.add_argument("--somagg", action="store_true", help="Preprocess SomAgg VCF files.")
+    vcf_somagg_tsv.add_argument("--tsv", action="store_true", help="Preprocess TSV files.")
+    hg19_hg38 = preprocessing.add_mutually_exclusive_group(required=True)
+    hg19_hg38.add_argument("--hg19", action="store_true", help="File using the hg19 genome reference.")
+    hg19_hg38.add_argument("--hg38", action="store_true", help="File using the hg38 genome reference.")
+    
+    preprocessing.add_argument("--input-filepath", nargs="+", help="Input file paths.", required=True)
+
+    preprocessing.add_argument("--tmp-dir", type=str, default=None, help='Directory for storing preprocessed files.')
+    preprocessing.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
+    preprocessing.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
+    preprocessing.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
+
+    # Predict subparser
+    predict_parser = subparsers.add_parser('predict', help='Predict samples.')
+    predict_subparser = predict_parser.add_subparsers(dest='command', required=True, help='Available commands.')
+
+    wgs = predict_subparser.add_parser('wgs', help='Whole Genome Sequence.')
+    hg19_hg38 = wgs.add_mutually_exclusive_group(required=True)
+    hg19_hg38.add_argument("--hg19", action="store_true", help="Input file written with the hg19 genome reference.")
+    hg19_hg38.add_argument("--hg38", action="store_true", help="Input file written with the hg38 genome reference.")
+
+    mut_type_loadckpt = wgs.add_mutually_exclusive_group(required=True)
     mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
-                        help='mutation type, only {snv,snv+mnv,snv+mnv+indel,snv+mnv+indel+svmei,snv+mnv+indel+svmei+neg} can be applied')
+                        help='Mutation type; only {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg} can be applied.')
+    mut_type_loadckpt.add_argument("--ckpt-filepath", type=str, default=None,
+                        help='Complete file path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
+
+    wgs.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz).")
+    wgs.add_argument("--result-dir", type=str, default=None, required=True,
+                        help='Result directory where the output will be written (.tsv).')
+    wgs.add_argument("--tmp-dir", type=str, default=None,
+                        help='Directory for storing preprocessed files.')
+
+    wes = predict_subparser.add_parser('wes', help='Whole Exome Sequence.')
+    hg19_hg38 = wes.add_mutually_exclusive_group(required=True)
+    hg19_hg38.add_argument("--hg19", action="store_true", help="VCF file using the hg19 genome reference.")
+    hg19_hg38.add_argument("--hg38", action="store_true", help="VCF file using the hg38 genome reference.")
+    mut_type_loadckpt = wes.add_mutually_exclusive_group(required=True)
+    mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
+                        help='Mutation type; only {snv, snv+mnv, snv+mnv+indel} can be applied.')
     mut_type_loadckpt.add_argument("--load-ckpt-filepath", type=str, default=None,
-                        help='complete file path to load checkpoint (.pthx), --mutation-type will be adjusted accordingly when loading from ckpt')
+                        help='Complete file path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
 
-    predict_parser.add_argument("--input-filepath", nargs="+", help="input file paths (.vcf or .vcf.gz)")
-    predict_parser.add_argument("--result-dir", type=str, default=None,required=True,
-                        help='result directory where the output will be written (.tsv)')
-    predict_parser.add_argument("--tmp-dir", type=str, default=None,
-                        help='directory for storing preprocessed files')
+    wes.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz).")
+    wes.add_argument("--result-dir", type=str, default=None, required=True,
+                        help='Result directory where the output will be written (.tsv).')
+    wes.add_argument("--tmp-dir", type=str, default=None,
+                        help='Directory for storing preprocessed files.')
 
+    train_parser = subparsers.add_parser('train', help='Train the MuAt model.')
+    train_subparsers = train_parser.add_subparsers(dest='command', required=True, help='Available commands.')
+    from_scratch = train_subparsers.add_parser('from-scratch', help='Train from scratch.')
+    from_scratch.add_argument('--mutation-type', type=str, default=None, required=True,
+                    help='Mutation type; choose from {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg}.')
+    from_scratch.add_argument("--use-motif", action="store_true", help="Use motif input.", required=True)
+    from_scratch.add_argument("--use-position", action="store_true", help="Use genomic position input.")
+    from_scratch.add_argument("--use-ges", action="store_true", help="Use genic, exonic, and strand annotation.")
+
+    from_scratch.add_argument('--train-split-filepath', type=str, default=None, required=True,
+                    help='Training split data; example file in example_files/train_split_example.tsv.')
+    from_scratch.add_argument('--val-split-filepath', type=str, default=None, required=True,
+                    help='Internal validation split data; example file in example_files/val_split_example.tsv.')
+    from_scratch.add_argument('--save-dir', type=str, default=None, required=True,
+                    help='Directory to save the model.')    
+
+    from_scratch.add_argument('--epoch', type=int, default=1,
+                    help='Number of epochs (default: 5).')
+    from_scratch.add_argument('--learning-rate', type=float, default=6e-4,
+                    help='Learning rate (default: 6e-4).')
+    from_scratch.add_argument('--batch-size', type=int, default=2,
+                    help='Batch size (default: 2).')
+    from_scratch.add_argument('--n-layer', type=int, default=1,
+                    help='Number of attention layers (default: 1).')
+    from_scratch.add_argument('--n-head', type=int, default=8,
+                    help='Number of attention heads (default: 8).')
+    from_scratch.add_argument('--n-emb', type=int, default=128,
+                    help='Embedding dimension (default: 128).') 
+    from_scratch.add_argument('--mutation-sampling-size', type=int, default=5000,
+                    help='Maximum number of mutations to fetch for the model (default: 5000).')
+
+    from_scratch.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
+    from_scratch.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
+    from_scratch.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
+
+    from_checkpoint = train_subparsers.add_parser('from-checkpoint', help='Train from a checkpoint.')
+    from_checkpoint.add_argument("--ckpt-filepath", type=str, default=None, required=True,
+                        help='Complete file path to load the checkpoint (.pthx).')
+    from_checkpoint.add_argument("--mutation-type", type=str, default=None, required=True,
+                        help='Mutation type; choose from {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg}.')
+    
+    from_checkpoint.add_argument('--train-split-filepath', type=str, default=None, required=True,
+                    help='Training split data; example file in example_files/train_split_example.tsv.')
+    from_checkpoint.add_argument('--val-split-filepath', type=str, default=None, required=True,
+                    help='Internal validation split data; example file in example_files/val_split_example.tsv.')
+    from_checkpoint.add_argument('--save-dir', type=str, default=None, required=True,
+                    help='Directory to save the model.')    
+
+    from_checkpoint.add_argument('--epoch', type=int, default=1,required=True,
+                    help='Number of epochs (default: 5).')
+    from_checkpoint.add_argument('--learning-rate', type=float, default=6e-4,
+                    help='Learning rate (default: 6e-4).')
+    from_checkpoint.add_argument('--batch-size', type=int, default=2,
+                    help='Batch size (default: 2).')
+    from_checkpoint.add_argument('--n-layer', type=int, default=1,
+                    help='Number of attention layers (default: 1).')
+    from_checkpoint.add_argument('--n-head', type=int, default=8,
+                    help='Number of attention heads (default: 8).')
+    from_checkpoint.add_argument('--n-emb', type=int, default=128,
+                    help='Embedding dimension (default: 128).') 
+    from_checkpoint.add_argument('--mutation-sampling-size', type=int, default=5000,
+                    help='Maximum number of mutations to fetch for the model (default: 5000).')
+        
     args = parser.parse_args()
 
     return args
@@ -60,9 +156,17 @@ def mut_type_checkpoint_handler(mutation_type,wgs_wes):
             load_ckpt_filepath = ensure_dirpath(ckptdir+'/pcawg_wgs/snv+mnv+indel/') +'pcawg-wgs-snv+mnv+indel-MuAtMotifPositionGESF.pthx'
         elif mutation_type == 'snv+mnv+indel+svmei':
             load_ckpt_filepath = ensure_dirpath(ckptdir+'/pcawg_wgs/snv+mnv+indel+svmei/') + 'pcawg-wgs-snv+mnv+indel+svmei-MuAtMotifPositionGESF.pthx'
-        
-        print('load from ckpt ' + load_ckpt_filepath)
-        return load_ckpt_filepath
+
+    elif wgs_wes == 'wes':
+        if mutation_type == 'snv':
+            load_ckpt_filepath = ensure_dirpath(ckptdir+'/tcga_wes/snv/') + 'tcga-wes-snv-MuAtMotifPositionGESF.pthx'
+        elif mutation_type == 'snv+mnv':
+            load_ckpt_filepath = ensure_dirpath(ckptdir+'/tcga_wes/snv+mnv/') + 'tcga-wes-snv+mnv-MuAtMotifPositionGESF.pthx'
+        elif mutation_type == 'snv+mnv+indel':
+            load_ckpt_filepath = ensure_dirpath(ckptdir+'/tcga_wes/snv+mnv+indel/') +'tcga-wes-snv+mnv+indel-MuAtMotifPositionGESF.pthx'
+    print('load from ckpt ' + load_ckpt_filepath)
+    return load_ckpt_filepath
+
 
 def get_main_args_old():
     parser = argparse.ArgumentParser(description='Mutation Attention Tool')
@@ -162,11 +266,13 @@ def check_model_match(model_name,pretrained_model):
 
 def initialize_pretrained_weight(model_name,model_config,checkpoint):
 
+    #pdb.set_trace()
     model = get_model(model_name,model_config)
     model_dict = model.state_dict()
     pretrained_dict = checkpoint['weight']
     filtered_pretrained_dict = {k:v for k,v in pretrained_dict.items() if k in model_dict}
     model_dict.update(filtered_pretrained_dict)
+    #pdb.set_trace()
     model.load_state_dict(model_dict)
 
     return model
@@ -464,3 +570,23 @@ def get_checkpoint_args():
         motif_pos_ges_epi=False
     )
     return args
+
+'''
+    wgs_wes = predict_parser.add_mutually_exclusive_group(required=True)
+    wgs_wes.add_argument("--wgs", action="store_true", help="Run prediction for WGS")
+    wgs_wes.add_argument("--wes", action="store_true", help="Run prediction for WES")
+    hg19_hg38 = predict_parser.add_mutually_exclusive_group(required=True)
+    hg19_hg38.add_argument("--hg19", action="store_true", help="VCF file using hg19 genome reference")
+    hg19_hg38.add_argument("--hg38", action="store_true", help="VCF file using hg38 genome reference")
+    mut_type_loadckpt = predict_parser.add_mutually_exclusive_group(required=True)
+    mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
+                        help='mutation type, only {snv,snv+mnv,snv+mnv+indel,snv+mnv+indel+svmei,snv+mnv+indel+svmei+neg} can be applied')
+    mut_type_loadckpt.add_argument("--load-ckpt-filepath", type=str, default=None,
+                        help='complete file path to load checkpoint (.pthx), --mutation-type will be adjusted accordingly when loading from ckpt')
+
+    predict_parser.add_argument("--input-filepath", nargs="+", help="input file paths (.vcf or .vcf.gz)")
+    predict_parser.add_argument("--result-dir", type=str, default=None,required=True,
+                        help='result directory where the output will be written (.tsv)')
+    predict_parser.add_argument("--tmp-dir", type=str, default=None,
+                        help='directory for storing preprocessed files')
+'''
