@@ -271,8 +271,8 @@ class MuAtMotifF_2Labels(nn.Module):
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
-            loss1 = F.cross_entropy(typeprobs.view(-1, typeprobs.size(-1)), targets.view(-1))
-            loss2 = F.cross_entropy(subtypeprobs.view(-1, subtypeprobs.size(-1)), targets.view(-1))
+            loss1 = F.cross_entropy(typeprobs.view(-1, typeprobs.size(-1)), targets[0].view(-1))
+            loss2 = F.cross_entropy(subtypeprobs.view(-1, subtypeprobs.size(-1)), targets[1].view(-1))
             loss = loss1 + loss2
 
         logits_feats = {'first_logits': typeprobs,
@@ -679,8 +679,9 @@ class MuAtMotifPositionGESF_2Labels(nn.Module):
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
-            loss1 = F.cross_entropy(typeprobs.view(-1, typeprobs.size(-1)), targets.view(-1))
-            loss2 = F.cross_entropy(subtypeprobs.view(-1, subtypeprobs.size(-1)), targets.view(-1))
+            #pdb.set_trace()
+            loss1 = F.cross_entropy(typeprobs.view(-1, typeprobs.size(-1)), targets[0].view(-1))
+            loss2 = F.cross_entropy(subtypeprobs.view(-1, subtypeprobs.size(-1)), targets[1].view(-1))
             loss = loss1 + loss2
 
         logits_feats = {'first_logits': typeprobs,

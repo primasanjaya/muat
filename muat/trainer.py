@@ -95,6 +95,7 @@ class Trainer:
                 with torch.set_grad_enabled(True):
 
                     optimizer.zero_grad()
+                    #pdb.set_trace()
                     logits, loss = model(numeric_data, target)
 
                     if isinstance(logits, dict):
