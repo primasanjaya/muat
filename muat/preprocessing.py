@@ -48,7 +48,6 @@ def filtering_somagg_vcf(all_somagg_chunks,tmp_dir):
     all_somagg_chunks : list of all somAgg chunk vcf files
     tmp_dir : directory after filtering somagg vcf
     '''
-
     header_line = ''
 
     fns = multifiles_handler(all_somagg_chunks)
@@ -58,9 +57,11 @@ def filtering_somagg_vcf(all_somagg_chunks,tmp_dir):
     for fn in fns:
         filename_only = get_sample_name(fn)
         exportdir = tmp_dir
+        os.makedirs(exportdir,exist_ok=True)
         output_file = exportdir + filename_only + '.tsv'
+        #pdb.set_trace()
         
-        fvcf = open(outputfile, "w")
+        fvcf = open(output_file, "w")
         with gzip.open(fn, 'rb') as f:
             val_start = 0
             header_line = ''
@@ -100,7 +101,23 @@ def filtering_somagg_vcf(all_somagg_chunks,tmp_dir):
                                     fvcf.write('\t')
                                     fvcf.write('\t'.join(colm_value_front))
                                     fvcf.write('\n')
+
         fvcf.close()
+
+        '''
+        pd_read = pd.read_csv(fn, sep="\t", comment='#',low_memory=False)
+        pd_read = pd_read.iloc[:,0:8]
+        pd_read.columns = ['#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO']
+        pd_read['PLATEKEY'] = filename_only
+
+        pd_read = pd_read[['PLATEKEY','#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO']]
+        pd_read.to_csv(output_file,sep='\t',index=False)
+        '''
+
+        #for somagg files
+        #pd_read = pd.read_csv(output_file,sep='\t',low_memory=False)
+
+
 
 def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,dict_motif,dict_pos,dict_ges):
     '''
@@ -151,7 +168,13 @@ def preprocessing_tsv38(tsv_file,genome_reference_38_path,genome_reference_19_pa
     for i, fn in enumerate(fns):
         digits = int(np.ceil(np.log10(len(fns))))
         fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
-        get_motif_pos_ges(fn, genome_ref19, tmp_dir, genome_ref38=genome_ref38, liftover=True, verbose=verbose)
+
+        # get motif
+        f, sample_name = open_stream(fn)
+        vr = SomAggTSVReader(f=f, pass_only=True, type_snvs=False)
+        status('Writing mutation sequences...', verbose)
+        process_input(vr, sample_name, genome_ref19,tmp_dir,genome_ref38=genome_ref38,liftover=True,verbose=verbose)
+        f.close()
 
 def preprocessing_vcf38(vcf_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,verbose=True):
     '''
