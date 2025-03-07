@@ -38,8 +38,6 @@ accepted_pos_h19 = ['1',
 def get_reader(f, type_snvs=False,pass_only=True):
     if '.vcf' in f.name:
         vr = VCFReader(f=f, pass_only=pass_only, type_snvs=type_snvs)
-    elif '.somagg.tsv.gz' in f.name:
-        vr = SomAggTSVReader(f=f, pass_only=pass_only, type_snvs=type_snvs)
     else:
         raise Exception('Unsupported file type: {}\n'.format(f.name))
     return vr
@@ -214,6 +212,8 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
         sys.stderr.flush()
 
     o.close()
+
+    #pdb.set_trace()
 
     pd_motif = pd.read_csv(output_file,sep='\t',low_memory=False,compression='gzip') 
     pd_motif  = pd_motif.sort_values(by=['chrom','pos'],key=natsort_keygen())
@@ -649,7 +649,7 @@ class SomAggTSVReader(VariantReader):
                 raise StopIteration()
             v = self.f.readline()
             
-            if v.startswith('CHROM'):
+            if v.startswith('PLATEKEY'):
                 self.hdr = v
                 continue
             if v == '':
@@ -657,7 +657,7 @@ class SomAggTSVReader(VariantReader):
                 return Variant(chrom=VariantReader.EOF, pos=0, ref='N', alt='N')
             
             v = v.rstrip('\n').split('\t')
-            chrom, pos, ref, alt, flt, info = v[0], int(v[1]), v[3], v[4], v[6], v[7]
+            sample_id, chrom, pos, ref, alt, flt, info = v[0], v[1], int(v[2]), v[4], v[5], v[7], v[8]
 
             self.update_pos(None, chrom, pos)
             if self.pass_only and flt not in SomAggTSVReader.FILTER_PASS:
@@ -690,7 +690,7 @@ class SomAggTSVReader(VariantReader):
             self.n_acc += 1
             # return None as sample id; vcf filename provides the sample id instead
             return Variant(chrom=chrom, pos=pos, ref=ref, alt=alt,
-                           vtype=Variant.variant_type(ref, alt, self.type_snvs))
+                           vtype=Variant.variant_type(ref, alt, self.type_snvs),sample_id=sample_id)
 
     def get_file_header(self):
         return '{}'.format(self.hdr.rstrip('\n'))
@@ -711,8 +711,6 @@ class SomAggTSVReader(VariantReader):
     @staticmethod
     def get_file_sort_cmd(infn, hdrfn, outfn):
         return "/bin/bash -c \"cat {} <(LC_ALL=C sort -t $'\\t' -k1,1 -k2n,2 {}) >{}\"".format(hdrfn, infn, outfn)
-
-
 
 
 class MAFReader(VariantReader):

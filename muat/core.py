@@ -75,7 +75,7 @@ def main():
         # Specify the directory to extract to
         print("Download completed. Data saved in " + str(download_data_path))
 
-    if args.command == 'predict':
+    if args.command == 'wgs' or args.command=='wes':
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         genome_reference_path_hg19 = genomedir + 'hg19.fa'
@@ -83,14 +83,14 @@ def main():
         #load ckpt
 
         if args.mutation_type is not None:
-            if args.wgs:
+            if args.command=='wgs':
                 wgs_wes = 'wgs'
             else:
                 wgs_wes = 'wes'
 
-            load_ckpt_path = ensure_dirpath(mut_type_checkpoint_handler(args.mutation_type,wgs_wes))
+            load_ckpt_path = mut_type_checkpoint_handler(args.mutation_type,wgs_wes)
         else:
-            load_ckpt_path = ensure_dirpath(args.ckpt_filepath)
+            load_ckpt_path = args.ckpt_filepath
         
         checkpoint = load_and_check_checkpoint(load_ckpt_path)
         model_name = checkpoint['model_name']
@@ -183,12 +183,17 @@ def main():
 
         if args.tsv:
             print('todo')            
-            filtering_somagg_vcf()
         if args.somagg:
             if args.hg19:
                 print('todo')
             if args.hg38:
+                tmp_dir = check_tmp_dir(args)
                 filtering_somagg_vcf(vcf_files,tmp_dir)
+                all_tsv = glob.glob(tmp_dir + '*.tsv')
+                all_tsv = multifiles_handler(all_tsv)
+                preprocessing_tsv38_tokenizing(all_tsv,genome_reference_path_hg38,genome_reference_path_hg19,tmp_dir,dict_motif,dict_pos,dict_ges)
+
+
     #pdb.set_trace()      
     if args.command == 'from-scratch': #training from scratch
         #pdb.set_trace()
@@ -389,22 +394,6 @@ def main():
         # Initialize trainer and start training
         trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
         trainer.batch_train()
-
-
-
-
-
-
-        
-
-        
-
-
-
-
-
-
-
 
 
 '''
