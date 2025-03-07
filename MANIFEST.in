@@ -3,3 +3,4 @@ include README.md
 recursive-include muat/pkg_shell *.sh
 recursive-include muat/pkg_data * 
 recursive-include muat/pkg_ckpt * 
+recursive-include muat/genome_reference *.fa 

@@ -32,22 +32,23 @@ def download_reference(genome_reference_path="./data/genome_reference/"):
             continue
             
         print(f"Downloading {genome_build} reference...")
+        
+        urllib.request.urlretrieve(url, output_file)
+        print(f"Successfully downloaded {genome_build} to {output_file}")
+        
         try:
-            urllib.request.urlretrieve(url, output_file)
-            print(f"Successfully downloaded {genome_build} to {output_file}")
-            
             # Gunzip the downloaded file
             with gzip.open(output_file, 'rb') as f_in:
                 with open(os.path.join(genome_reference_path, f"{genome_build}.fa"), 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
             print(f"Successfully gunzipped {genome_build} to {genome_reference_path}{genome_build}.fa")
-            
-            # Remove the original .gz file
             os.remove(output_file)
             print(f"Removed original gzipped file: {output_file}")
+        except:
+            os.remove(output_file)
+            print(f"Removed original gzipped file: {output_file}")
+            pass
             
-        except Exception as e:
-            print(f"Error downloading {genome_build}: {str(e)}")
 
 # Function to download and extract the checkpoint
 def download_checkpoint(url):
@@ -86,7 +87,7 @@ download_reference(genome_reference_path=path + 'muat/genome_reference/')
 
 setup(
     name="muat",
-    version="0.1.2",
+    version="0.1.3",
     packages=find_packages(),
     package_data={
         'muat': [
