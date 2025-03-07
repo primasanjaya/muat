@@ -1,6 +1,14 @@
 # Mutation Attention
 
-[![Anaconda-Server Badge](https://anaconda.org/bioconda/muat/badges/version.svg)](https://anaconda.org/bioconda/muat) [![Anaconda-Server Badge](https://anaconda.org/bioconda/muat/badges/latest_release_date.svg)](https://anaconda.org/bioconda/muat) [![Anaconda-Server Badge](https://anaconda.org/bioconda/muat/badges/platforms.svg)](https://anaconda.org/bioconda/muat) [![Anaconda-Server Badge](https://anaconda.org/bioconda/muat/badges/license.svg)](https://anaconda.org/bioconda/muat) [![Anaconda-Server Badge](https://anaconda.org/bioconda/muat/badges/downloads.svg)](https://anaconda.org/bioconda/muat)
+
+[![Latest Release](https://img.shields.io/github/v/release/primasanjaya/muat)](https://github.com/primasanjaya/muat/releases)
+[![Bioconda](https://img.shields.io/conda/vn/bioconda/muat)](https://anaconda.org/bioconda/muat)
+[![License](https://img.shields.io/github/license/primasanjaya/muat)](https://github.com/primasanjaya/muat/blob/main/LICENSE)
+[![Conda Downloads](https://img.shields.io/conda/dn/bioconda/muat)](https://anaconda.org/bioconda/muat)
+[![Issues](https://img.shields.io/github/issues/primasanjaya/muat)](https://github.com/primasanjaya/muat/issues)
+[![Stars](https://img.shields.io/github/stars/primasanjaya/muat?style=social)](https://github.com/primasanjaya/muat)
+
+
 
 Conda package for Mutation Attention deep learning tool for tumour type and subtype classification
 
