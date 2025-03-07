@@ -1,7 +1,7 @@
 import sys
 import os
 import tarfile
-
+import zipfile
 from muat.download import *
 from muat.preprocessing import *
 import glob
@@ -57,6 +57,16 @@ def main():
     genomedir = resource_filename('muat', 'genome_reference')
     genomedir = ensure_dirpath(genomedir)
 
+    pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
+    pkg_ckpt = ensure_dirpath(pkg_ckpt)
+
+    all_zip = glob.glob(pkg_ckpt+'*.zip')
+    if len(all_zip)>0:
+        for checkpoint_file in all_zip:
+            with zipfile.ZipFile(checkpoint_file, 'r') as zip_ref:
+                zip_ref.extractall(path=pkg_ckpt)
+            os.remove(checkpoint_file) 
+
     if args.command == 'download':
 
         files_to_download = ['PCAWG/consensus_snv_indel/README.md',
@@ -69,7 +79,7 @@ def main():
         'PCAWG/data_releases/latest/pcawg_sample_sheet.2016-08-12.tsv',
         'PCAWG/clinical_and_histology/pcawg_specimen_histology_August2016_v9.xlsx']
 
-        download_data_path = args.download_dir
+        download_data_path = args.download_dir    
         #download data
         download_icgc_object_storage(data_path=download_data_path, files_to_download=files_to_download)
         # Specify the directory to extract to
@@ -78,8 +88,9 @@ def main():
     if args.command == 'wgs' or args.command=='wes':
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        genome_reference_path_hg19 = genomedir + 'hg19.fa'
-        genome_reference_path_hg38 = genomedir + 'hg38.fa'
+        genome_reference_path_hg19 = args.hg19_filepath
+        genome_reference_path_hg38 = args.hg38_filepath
+        #pdb.set_trace()
         #load ckpt
 
         if args.mutation_type is not None:
@@ -141,8 +152,8 @@ def main():
         
     if args.command == 'preprocessing':
 
-        genome_reference_path_hg19 = genomedir + 'hg19.fa'
-        genome_reference_path_hg38 = genomedir + 'hg38.fa'
+        genome_reference_path_hg19 = args.hg19_filepath
+        genome_reference_path_hg38 = args.hg38_filepath
 
         tmp_dir = check_tmp_dir(args)
         #example for preprocessing multiple vcf files
