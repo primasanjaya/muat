@@ -11,37 +11,24 @@ import subprocess
 import pandas as pd
 import gzip
 
-
-def combine_samplefolders_tosingle_tsv(sample_folder,tmp_dir):
+def combine_somagg_chunks_to_platekey(sample_folder,tmp_dir):
     '''
     sample_folder : list of all sample folders
     tmp_dir: directory after combining all chunks per sample
     '''
 
     tmp_dir = ensure_dirpath(tmp_dir)
-    
-    all_chunk = glob.glob(os.path.join(sample_folder,'*.tsv'))
+    sample_folder = ensure_dirpath(sample_folder)
+    sample_folder = multifiles_handler(sample_folder)
 
-    pd_persample = pd.DataFrame()
-    for perchunk in all_chunk:
-        pd_read = pd.read_csv(perchunk,sep='\t',low_memory=False)
-        pd_persample.append(pd_read)
-    pd_persample = pd_persample[['#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','PLATEKEY']]
-    pd_persample.columns = ['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','PLATEKEY']
-    pd_persample.to_csv(tmp_dir + get_sample_name(sample) + '.somagg.tsv.gz', sep='\t',compression='gzip')
-
-def split_chunk_persample(filtered_chunk,tmp_dir):
-    pd_file = pd.read_csv(filtered_chunk,sep='\t',low_memory=False)
-    sample_list = pd_file['PLATEKEY'].unique()
-
-    tmp_dir = ensure_dirpath(tmp_dir)
-
-    #split samples per chunk
-    for sample in sample_list:
-        os.makedirs(tmp_dir + sample,exist_ok=True)
-        pd_samp_chunk = pd_file.loc[pd_file['PLATEKEY']==sample]
-        pd_samp_chunk.to_csv(tmp_dir + sample + get_sample_name(chunk_file) + '.tsv',sep='\t',index=False)
-
+    for sampfold in sample_folder:
+        all_chunk = glob.glob(sampfold + '*.tsv')
+        pd_persample = pd.DataFrame()
+        for perchunk in all_chunk:
+            pd_read = pd.read_csv(perchunk,sep='\t',low_memory=False)
+            pd_persample = pd.concat([pd_persample,pd_read])
+        samp_id = pd_persample['sample'].iloc[0]
+        pd_persample.to_csv(tmp_dir + get_sample_name(samp_id) + '.token.gc.genic.exonic.cs.tsv.gz', sep='\t',compression='gzip')
 
 def filtering_somagg_vcf(all_somagg_chunks,tmp_dir):
     '''
@@ -119,12 +106,12 @@ def filtering_somagg_vcf(all_somagg_chunks,tmp_dir):
 
 
 
-def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,dict_motif,dict_pos,dict_ges):
+def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,tmp_dir,dict_motif,dict_pos,dict_ges):
     '''
     Preprocess tsv file with GRCh38 and tokenize the motif, pos, and ges
     '''
     tsv_file = multifiles_handler(tsv_file)
-    preprocessing_tsv38(tsv_file,genome_reference_38_path,genome_reference_19_path,tmp_dir)
+    preprocessing_tsv38(tsv_file,genome_reference_38_path,tmp_dir)
 
     all_preprocessed_vcf = []
 
@@ -136,14 +123,30 @@ def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,genome_refe
     #pdb.set_trace()
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     #pdb.set_trace()
+    all_tokenized = []
+    for x in all_preprocessed_vcf:
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
+            all_tokenized.append(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+    
+    for x in all_tokenized:
+        pd_file = pd.read_csv(x,sep='\t',low_memory=False)
+        #pdb.set_trace()
+        all_samples = pd_file['sample'].unique().tolist()
 
+        for samp in all_samples:
+            persamp = pd_file.loc[pd_file['sample']==samp]
+            os.makedirs(tmp_dir + samp,exist_ok=True)
+            persamp_path = ensure_dirpath(tmp_dir + samp)
+            persamp.to_csv(persamp_path + get_sample_name(x) + '.tsv',sep='\t',index=False)
+            os.remove(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+            os.remove(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
 
-def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,dict_motif,dict_pos,dict_ges):
+def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,tmp_dir,dict_motif,dict_pos,dict_ges):
     '''
     Preprocess vcf file with GRCh38 and tokenize the motif, pos, and ges
     '''
     vcf_file = multifiles_handler(vcf_file)
-    preprocessing_vcf38(vcf_file,genome_reference_38_path,genome_reference_19_path,tmp_dir)
+    preprocessing_vcf38(vcf_file,genome_reference_38_path,tmp_dir)
 
     all_preprocessed_vcf = []
 
@@ -156,55 +159,42 @@ def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,genome_refe
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     #pdb.set_trace()
 
-def preprocessing_tsv38(tsv_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,verbose=True):
+def preprocessing_tsv38(tsv_file,genome_reference_38_path,tmp_dir,verbose=True):
     '''
     Preprocess tsv file with GRCh38
     '''
     genome_ref38 = read_reference(genome_reference_38_path, verbose=verbose)
-    genome_ref19 = read_reference(genome_reference_19_path, verbose=verbose)
-
     fns = multifiles_handler(tsv_file)
 
     for i, fn in enumerate(fns):
         digits = int(np.ceil(np.log10(len(fns))))
         fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
-
         # get motif
         f, sample_name = open_stream(fn)
         vr = SomAggTSVReader(f=f, pass_only=True, type_snvs=False)
         status('Writing mutation sequences...', verbose)
-        process_input(vr, sample_name, genome_ref19,tmp_dir,genome_ref38=genome_ref38,liftover=True,verbose=verbose)
+        process_input(vr, sample_name, None,tmp_dir,genome_ref38=genome_ref38,liftover=True,verbose=verbose)        
         f.close()
 
-def preprocessing_vcf38(vcf_file,genome_reference_38_path,genome_reference_19_path,tmp_dir,verbose=True):
+def preprocessing_vcf38(vcf_file,genome_reference_38_path,tmp_dir,verbose=True):
     '''
     Preprocess vcf file with GRCh38
     '''
-
-    # Check if reference files exist
-    if not os.path.exists(genome_reference_19_path):
-        raise FileNotFoundError(
-            "Reference files not found. Please download from:\n"
-            "- GRCh37/hg19: https://ftp.sanger.ac.uk/pub/project/PanCancer/genomehg19.fa.gz\n"
-            f"and place them in: genome_reference_19_path"
-        )
 
     if not os.path.exists(genome_reference_38_path):
         raise FileNotFoundError(
             "Reference files not found. Please download from:\n"
             "- GRCh38/hg38: http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa\n"
-            f"and place them in: genome_reference_38_path"
+            f"and place them in: --hg38"
         )
 
     genome_ref38 = read_reference(genome_reference_38_path, verbose=verbose)
-    genome_ref19 = read_reference(genome_reference_19_path, verbose=verbose)
-
     fns = multifiles_handler(vcf_file)
 
     for i, fn in enumerate(fns):
         digits = int(np.ceil(np.log10(len(fns))))
         fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
-        get_motif_pos_ges(fn, genome_ref19, tmp_dir, genome_ref38=genome_ref38, liftover=True, verbose=verbose)
+        get_motif_pos_ges(fn, None, tmp_dir, genome_ref38=genome_ref38, liftover=True, verbose=verbose)
 
 def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_motif,dict_pos,dict_ges):
     '''

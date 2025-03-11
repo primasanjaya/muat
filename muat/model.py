@@ -102,10 +102,10 @@ class ModelConfig:
             mutation_type_ratio={'snv': 0.2,'mnv': 0.2,'indel': 0.2,'sv_mei': 0.2,'neg': 0.2}
         elif mutation_type == 'snv+indel':
             mutation_type_ratio={'snv': 0.5,'mnv': 0,'indel': 0.5,'sv_mei': 0,'neg': 0}
+        elif mutation_type == 'snv+indel+sv':
+            mutation_type_ratio={'snv': 0.5,'mnv': 0,'indel': 0.3,'sv_mei': 0.2,'neg': 0}
 
         return mutation_type_ratio
-
-        
 
 class MuAtMotif(nn.Module):
     """
@@ -235,7 +235,7 @@ class MuAtMotifF_2Labels(nn.Module):
         self.tblocks = nn.Sequential(*tblocks)
         self.do = nn.Dropout(config.embd_pdrop)
 
-        self.to_joinfeatures = nn.Sequential(nn.Linear(int(config.n_embd + config.n_embd + 4), 64),
+        self.to_joinfeatures = nn.Sequential(nn.Linear(int(config.n_embd), 64),
                                        nn.ReLU())
 
         self.to_typefeatures = nn.Sequential(nn.Linear(64, 32),

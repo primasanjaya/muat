@@ -1,12 +1,10 @@
-import sys,itertools
 from .util import *
 import numpy as np
 import pandas as pd
 from natsort import natsort_keygen 
 from collections import deque
 from pkg_resources import resource_filename
-import os
-import subprocess
+import os, subprocess,re, sys,itertools
 
 import pdb
 
@@ -34,6 +32,40 @@ accepted_pos_h19 = ['1',
 '22',
 'X',
 'Y']
+
+try:
+    import swalign
+    align_scoring = swalign.NucleotideScoringMatrix(2, -1)
+    aligner = swalign.LocalAlignment(align_scoring, globalalign=True)
+    support_complex = True
+except:
+    sys.stderr.write('Warning: module swalign not installed: complex variants ignored\n')
+    sys.stderr.write('To install swalign: conda install bioconda::swalign\n')
+    support_complex = False
+
+re_ext_cigar = re.compile(r'(\d+)([MXID])')
+
+def align(ref, alt, mutation_code):
+    alignment = aligner.align(ref, alt)
+    ix_r = ix_a = 0
+    s = []
+    for seg_length, seg_type in re_ext_cigar.findall(alignment.extended_cigar_str):
+        seg_length = int(seg_length)
+        # seg_type is M, X, D or I
+        if seg_type == 'M' or seg_type == 'X':
+            s.extend([mutation_code[ref[ix_r + i]][alt[ix_a + i]] for i in range(seg_length)])
+            ix_r += seg_length
+            ix_a += seg_length
+        elif seg_type == 'D':
+            s.extend([mutation_code[ref[ix_r + i]]['-'] for i in range(seg_length)])
+            ix_r += seg_length
+        elif seg_type == 'I':
+            s.extend([mutation_code['-'][alt[ix_a + i]] for i in range(seg_length)])
+            ix_a += seg_length
+        else:
+            assert(0)  # invalid seg_type
+    return s
+
 
 def get_reader(f, type_snvs=False,pass_only=True):
     if '.vcf' in f.name:
@@ -148,7 +180,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     """A sweepline algorithm to insert mutations into the sequence flanking the focal mutation."""
 
     infotag = ''
-    report_interval = 500
+    report_interval = 1000
     process = []
     output_file = tmp_dir + sample_name + '.tsv.gz'
     ensure_dir_exists(output_file)
@@ -157,7 +189,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
 
     mutation_code, reverse_code = read_codes()
 
-    global warned_invalid_chrom
+    warned_invalid_chrom = False
     prev_buf, next_buf = [], []
     i = 0
     n_var = n_flt = n_invalid = n_invalid_chrom = n_ok = 0
@@ -170,6 +202,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
                 if warned_invalid_chrom == False:
                     sys.stderr.write('Warning: a chromosome found in data not present in reference: {}\n'.format(variant.chrom))
                     warned_invalid_chrom = True
+                    #pdb.set_trace()
                 n_invalid_chrom += 1
                 continue
         else:
@@ -232,23 +265,23 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
         for i in range(len(pd_hg38)):
             try:
                 row = pd_hg38.iloc[i]
-                chrom = row['chrom']
-                pos = row['pos']
+                chrom_38 = row['chrom']
+                pos_38 = row['pos']
                 ref = row['ref']
                 alt = row['alt']
                 sample = row['sample']
                 seq = row['seq']
                 #gc1kb = row['gc1kb']
-                hg19chrompos = lo.convert_coordinate(chrom, pos)
+                hg19chrompos = lo.convert_coordinate(chrom_38, pos_38)
                 chrom = hg19chrompos[0][0][3:]
                 pos = hg19chrompos[0][1]
-                chrom_pos.append((chrom,pos,ref,alt,sample,seq))
+                chrom_pos.append((chrom,pos,ref,alt,sample,seq,chrom_38,pos_38))
             except:
                 print('cant be converted at pos ' +str(row['chrom']) +':'+ str(row['pos']))
         pd_hg19 = pd.DataFrame(chrom_pos)
 
         #pdb.set_trace()
-        pd_hg19.columns = pd_hg38.columns.tolist()
+        pd_hg19.columns = ['chrom','pos','ref','alt','sample','seq','chrom_38','pos_38']
         #natural sort
         pd_hg19 = pd_hg19.loc[pd_hg19['chrom'].isin(accepted_pos_h19)]
         pd_hg19 = pd_hg19.sort_values(by=['chrom','pos'], key=natsort_keygen())
@@ -363,7 +396,13 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
 #        n_pos = len(filter(lambda x: x == '+', strands))
 #        n_neg = len(filter(lambda x: x == '-', strands))
 #        st = None
-        chrom, pos = v[0], int(v[1])
+        #pdb.set_trace()
+        if liftover:
+            chrom, pos,chrom_38, pos_38  = v[0], int(v[1]), v[7],int(v[8])
+        else:
+            chrom, pos = v[0], int(v[1])
+        ref, alt = v[3], v[4]
+
         if chrom != prev_chrom:
             if chrom in seen_chroms:
                 sys.stderr.write('Input is not sorted (chromosome order): {}:{}\n'.format(chrom, pos))
@@ -375,8 +414,13 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
                 sys.stderr.write('Input is not sorted (position order): {}:{}\n'.format(chrom, pos))
                 sys.exit(1)
         prev_pos = pos
-        ref, alt = v[3], v[4]
-        base = ref_genome[chrom][pos]
+       
+        if liftover:
+            base = genome_ref38[chrom_38][pos_38]
+        else:
+            base = ref_genome[chrom][pos]
+        #pdb.set_trace()
+
         if n_pos > 0:
             if n_neg > 0:
                 st = '?'

@@ -88,9 +88,8 @@ def main():
     if args.command == 'wgs' or args.command=='wes':
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        genome_reference_path_hg19 = args.hg19_filepath
-        genome_reference_path_hg38 = args.hg38_filepath
-        #pdb.set_trace()
+        genome_reference_path_hg19 = args.hg19
+        genome_reference_path_hg38 = args.hg38
         #load ckpt
 
         if args.mutation_type is not None:
@@ -110,29 +109,42 @@ def main():
         vcf_files = multifiles_handler(args.input_filepath)
         tmp_dir = check_tmp_dir(args)
 
-        if args.hg19:
+        if args.hg19 is not None:
+            genome_reference_path_hg19 = args.hg19
             preprocessing_vcf_tokenizing(vcf_file=vcf_files,
                                     genome_reference_path=genome_reference_path_hg19,
                                     tmp_dir=tmp_dir,
                                     dict_motif=dict_motif,
                                     dict_pos=dict_pos,
                                     dict_ges=dict_ges)
-        if args.hg38:
+            print('preprocessed data saved in ' + tmp_dir)
+            predict_ready_files = []
+            for x in vcf_files:
+                if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
+                    predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+
+            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+        if args.hg38 is not None:
+            genome_reference_path_hg38 = args.hg38
             preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
                                     genome_reference_38_path=genome_reference_path_hg38,
-                                    genome_reference_19_path=genome_reference_path_hg19,
                                     tmp_dir=tmp_dir,
                                     dict_motif=dict_motif,
                                     dict_pos=dict_pos,
                                     dict_ges=dict_ges)
-        print('preprocessed data saved in ' + tmp_dir)
+            print('preprocessed data saved in ' + tmp_dir)
 
-        predict_ready_files = []
-        for x in vcf_files:
-            if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
-                predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+            predict_ready_files = []
+            for x in vcf_files:
+                if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
+                    predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
 
-        pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+
+        if args.no_preprocessing:
+            predict_ready_files = vcf_files
+            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+        
         target_handler = load_target_handler(checkpoint)
 
         dataloader_config = checkpoint['dataloader_config']
@@ -152,8 +164,8 @@ def main():
         
     if args.command == 'preprocessing':
 
-        genome_reference_path_hg19 = args.hg19_filepath
-        genome_reference_path_hg38 = args.hg38_filepath
+        genome_reference_path_hg19 = args.hg19
+        genome_reference_path_hg38 = args.hg38
 
         tmp_dir = check_tmp_dir(args)
         #example for preprocessing multiple vcf files
@@ -174,17 +186,16 @@ def main():
             dict_ges = pd.read_csv(args.ges_dictionary_filepath,sep='\t')
 
         if args.vcf:
-            if args.hg19:
+            if args.hg19 is not None:
                 preprocessing_vcf_tokenizing(vcf_file=vcf_files,
                                         genome_reference_path=genome_reference_path_hg19,
                                         tmp_dir=tmp_dir,
                                         dict_motif=dict_motif,
                                         dict_pos=dict_pos,
                                         dict_ges=dict_ges)
-            if args.hg38:
+            if args.hg38 is not None:
                 preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
                                         genome_reference_38_path=genome_reference_path_hg38,
-                                        genome_reference_19_path=genome_reference_path_hg19,
                                         tmp_dir=tmp_dir,
                                         dict_motif=dict_motif,
                                         dict_pos=dict_pos,
@@ -195,15 +206,22 @@ def main():
         if args.tsv:
             print('todo')            
         if args.somagg:
-            if args.hg19:
+            if args.hg19 is not None:
                 print('todo')
-            if args.hg38:
+            if args.hg38 is not None:
                 tmp_dir = check_tmp_dir(args)
+                
                 filtering_somagg_vcf(vcf_files,tmp_dir)
-                all_tsv = glob.glob(tmp_dir + '*.tsv')
-                all_tsv = multifiles_handler(all_tsv)
-                preprocessing_tsv38_tokenizing(all_tsv,genome_reference_path_hg38,genome_reference_path_hg19,tmp_dir,dict_motif,dict_pos,dict_ges)
-
+                
+                #pdb.set_trace()
+                tsv_files = []
+                for x in vcf_files:
+                    sample_name = get_sample_name(x)
+                    all_tsv = glob.glob(tmp_dir + '*' + sample_name +'*.tsv')
+                    only_tsv = [x for x in all_tsv if x[-4:] == '.tsv'][0]
+                    tsv_files.append(only_tsv)
+                #pdb.set_trace()
+                preprocessing_tsv38_tokenizing(tsv_files,genome_reference_path_hg38,tmp_dir,dict_motif,dict_pos,dict_ges)
 
     #pdb.set_trace()      
     if args.command == 'from-scratch': #training from scratch

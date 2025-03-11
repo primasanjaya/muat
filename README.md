@@ -41,6 +41,21 @@ Conda package for Mutation Attention deep learning tool for tumour type and subt
    ```bash
    muat -h
    ```
+You will see:
+```
+Mutation Attention Tool
+
+positional arguments:
+  {download,preprocessing,predict,train}
+                        Available commands
+    download            Download the dataset.
+    preprocessing       Preprocess the dataset.
+    predict             Predict samples.
+    train               Train the MuAt model.
+
+options:
+  -h, --help            show this help message and exit
+```
 
 ## Download PCAWG Dataset
 A Python code example for downloading the PCAWG dataset can be found in `tests/download_pcawg.py`. To download the dataset, execute:
@@ -66,4 +81,4 @@ To predict using VCF files written with hg38, run:
 - **Preprocessing:** Read [README_preprocessing.md](README_preprocessing.md) for details on preprocessing.
 - **General Training:** Read [README_MuAtTraining.md](README_MuAtTraining.md) for general training instructions.
 - **Full Training of PCAWG Dataset:** Read [README_PCAWG.md](README_PCAWG.md) for full training instructions on the PCAWG dataset.
-- **Full Training of Genomics England Dataset:** Read [README_GEL.md](README_GEL.md) for full training instructions on the Genomics England dataset.
+- **Training and Predicting Genomics England Dataset:** Read [README_GEL.md](README_GEL.md) for complete training and prediction instructions on the Genomics England dataset.

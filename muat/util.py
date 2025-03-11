@@ -29,8 +29,8 @@ def get_main_args():
     vcf_somagg_tsv.add_argument("--somagg", action="store_true", help="Preprocess SomAgg VCF files.")
     vcf_somagg_tsv.add_argument("--tsv", action="store_true", help="Preprocess TSV files.")
     hg19_hg38 = preprocessing.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", action="store_true", help="File using the hg19 genome reference.")
-    hg19_hg38.add_argument("--hg38", action="store_true", help="File using the hg38 genome reference.")
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg38 (.fa or .fa.gz)")
     
     preprocessing.add_argument("--input-filepath", nargs="+", help="Input file paths.", required=True)
 
@@ -39,8 +39,8 @@ def get_main_args():
     preprocessing.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
     preprocessing.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
 
-    preprocessing.add_argument('--hg19-filepath', type=str, default=None, help='Path to GRCh37/hg19 (.fa or .fa.gz)',required=True)
-    preprocessing.add_argument('--hg38-filepath', type=str, default=None, help='Path to GRCh38/hg38 (.fa or .fa.gz)',required=True)
+    #preprocessing.add_argument('--hg19-filepath', type=str, default=None, help='Path to GRCh37/hg19 (.fa or .fa.gz)',required=True)
+    #preprocessing.add_argument('--hg38-filepath', type=str, default=None, help='Path to GRCh38/hg38 (.fa or .fa.gz)',required=True)
 
     # Predict subparser
     predict_parser = subparsers.add_parser('predict', help='Predict samples.')
@@ -48,8 +48,9 @@ def get_main_args():
 
     wgs = predict_subparser.add_parser('wgs', help='Whole Genome Sequence.')
     hg19_hg38 = wgs.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", action="store_true", help="Input file written with the hg19 genome reference.")
-    hg19_hg38.add_argument("--hg38", action="store_true", help="Input file written with the hg38 genome reference.")
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--no-preprocessing", action="store_true", help="Predict directly from preprocessed data (.token.gc.genic.exonic.cs.tsv.gz)")
 
     mut_type_loadckpt = wgs.add_mutually_exclusive_group(required=True)
     mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
@@ -62,13 +63,15 @@ def get_main_args():
                         help='Result directory where the output will be written (.tsv).')
     wgs.add_argument("--tmp-dir", type=str, default=None,
                         help='Directory for storing preprocessed files.')
-    wgs.add_argument('--hg19-filepath', type=str, default=None, help='Path to GRCh37/hg19 (.fa or .fa.gz)',required=True)
-    wgs.add_argument('--hg38-filepath', type=str, default=None, help='Path to GRCh38/hg38 (.fa or .fa.gz)',required=True)
+    #wgs.add_argument('--hg19-filepath', type=str, default=None, help='Path to GRCh37/hg19 (.fa or .fa.gz)',required=True)
+    #wgs.add_argument('--hg38-filepath', type=str, default=None, help='Path to GRCh38/hg38 (.fa or .fa.gz)',required=True)
 
     wes = predict_subparser.add_parser('wes', help='Whole Exome Sequence.')
     hg19_hg38 = wes.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", action="store_true", help="VCF file using the hg19 genome reference.")
-    hg19_hg38.add_argument("--hg38", action="store_true", help="VCF file using the hg38 genome reference.")
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--no-preprocessing", action="store_true", help="Predict from preprocessed data (.token.gc.genic.exonic.cs.tsv.gz)")
+
     mut_type_loadckpt = wes.add_mutually_exclusive_group(required=True)
     mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
                         help='Mutation type; only {snv, snv+mnv, snv+mnv+indel} can be applied.')
@@ -80,8 +83,8 @@ def get_main_args():
                         help='Result directory where the output will be written (.tsv).')
     wes.add_argument("--tmp-dir", type=str, default=None,
                         help='Directory for storing preprocessed files.')
-    wes.add_argument('--hg19-filepath', type=str, default=None, help='Path to GRCh37/hg19 (.fa or .fa.gz)',required=True)
-    wes.add_argument('--hg38-filepath', type=str, default=None, help='Path to GRCh38/hg38 (.fa or .fa.gz)',required=True)
+    #wes.add_argument('--hg19-filepath', type=str, default=None, help='Path to GRCh37/hg19 (.fa or .fa.gz)',required=True)
+    #wes.add_argument('--hg38-filepath', type=str, default=None, help='Path to GRCh38/hg38 (.fa or .fa.gz)',required=True)
 
     train_parser = subparsers.add_parser('train', help='Train the MuAt model.')
     train_subparsers = train_parser.add_subparsers(dest='command', required=True, help='Available commands.')
