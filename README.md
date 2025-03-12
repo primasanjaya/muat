@@ -74,13 +74,13 @@ download_reference(genome_reference_path=genome_reference_path)
 ```
 2. **Run the prediction**
 ```bash
-(muat-env)$ muat predict --wgs --hg19 '/path/to/genome_reference/hg19.fa' --mutation-type 'snv+mnv' --input-filepath 'example_files/0a6be23a-d5a0-4e95-ada2-a61b2b5d9485.consensus.20160830.somatic.snv_mnv.vcf.gz' --result-dir 'path/to/result_dir/'
+(muat-env)$ muat predict wgs --hg19 '/path/to/genome_reference/hg19.fa' --mutation-type 'snv+mnv' --input-filepath 'example_files/0a6be23a-d5a0-4e95-ada2-a61b2b5d9485.consensus.20160830.somatic.snv_mnv.vcf.gz' --result-dir 'path/to/result_dir/'
 ```
 
 ### For VCF Files Written with hg38
 To predict using VCF files written with hg38, run:
 ```bash
-(muat-env)$ muat predict --wgs --hg38 '/path/to/genome_reference/hg38.fa' --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
+(muat-env)$ muat predict wgs --hg38 '/path/to/genome_reference/hg38.fa' --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
 ```
 
 ## Additional Resources
