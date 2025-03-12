@@ -13,11 +13,11 @@ To do this, you need to specify the subclass name and subclass index as examples
 You can train MuAt from scratch or from pretrained checkpoints.
 ## From scratch
 ```bash
-python -m muat train from-scratch --mutation-type 'snv' --use-motif --use-position --use-ges --train-split-filepath 'path/to/example_files/train_split_example.tsv' --val-split-filepath 'path/to/example_files/val_split_example.tsv' --save-dir 'path/to/save/ckpt/' --epoch 100 --learning-rate 0.001 --batch-size 4 --n-layer 1 --n-head 1 --n-emb 128 --mutation-sampling-size 5000
+muat train from-scratch --mutation-type 'snv' --use-motif --use-position --use-ges --train-split-filepath 'path/to/example_files/train_split_example.tsv' --val-split-filepath 'path/to/example_files/val_split_example.tsv' --save-dir 'path/to/save/ckpt/' --epoch 100 --learning-rate 0.001 --batch-size 4 --n-layer 1 --n-head 1 --n-emb 128 --mutation-sampling-size 5000
 ```
 
 ## From checkpoint (example for MuAt2 fine-tuning on GEL data)
 ```bash
-python -m muat train from-checkpoint --ckpt-filepath 'path/to/ckpt/model.pthx' --mutation-type 'snv+mnv' --train-split-filepath 'path/to/example_files/train_split_2labels_example.tsv' --val-split-filepath 'path/to/example_files/val_split_example.tsv' --save-dir 'path/to/save/ckpt/' --epoch 5
+muat train from-checkpoint --ckpt-filepath 'path/to/ckpt/model.pthx' --mutation-type 'snv+mnv' --train-split-filepath 'path/to/example_files/train_split_2labels_example.tsv' --val-split-filepath 'path/to/example_files/val_split_example.tsv' --save-dir 'path/to/save/ckpt/' --epoch 5
 ```
 
