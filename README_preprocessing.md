@@ -10,7 +10,7 @@ The preprocessing steps for MuAt input consist of two main stages:
    - Output extension: `.gc.genic.exonic.cs.tsv.gz`
    
 2. **Tokenizing the Three Information Types for MuAt Input**
-   - Output extension: `.token.gc.genic.exonic.cs.tsv.gz`
+   - Output extension: c
 
 ## Step-by-Step Instructions
 

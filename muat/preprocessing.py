@@ -138,8 +138,8 @@ def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,tmp_dir,dic
             os.makedirs(tmp_dir + samp,exist_ok=True)
             persamp_path = ensure_dirpath(tmp_dir + samp)
             persamp.to_csv(persamp_path + get_sample_name(x) + '.tsv',sep='\t',index=False)
-            os.remove(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
-            os.remove(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+    #os.remove(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+    #os.remove(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
 
 def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,tmp_dir,dict_motif,dict_pos,dict_ges):
     '''
