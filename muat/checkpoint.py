@@ -9,7 +9,7 @@ import os
 
 def load_and_check_checkpoint(ckpt_path,save=False):
 
-    checkpoint = torch.load(ckpt_path,map_location=torch.device('cpu'))
+    checkpoint = torch.load(ckpt_path,map_location=torch.device('cpu'),weights_only=False)
 
     if isinstance(checkpoint, dict):
         if 'target_handler' in checkpoint.keys():
@@ -166,7 +166,7 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
     
     if '11111' in ckpt_path: 
         new_name.append('snv+mnv+indel+svmei+neg')
-        mutation_type = 'snv+mnvindel+svmei+neg'
+        mutation_type = 'snv+mnv+indel+svmei+neg'
 
     #check model
     model_name = ckpt_path.split('/')[-2].split('_')[3]

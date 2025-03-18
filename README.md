@@ -52,15 +52,13 @@ You will see:
 Mutation Attention Tool
 
 positional arguments:
-  {download,preprocessing,predict,train}
+  {download,preprocessing,predict,train,benchmark}
                         Available commands
     download            Download the dataset.
     preprocessing       Preprocess the dataset.
     predict             Predict samples.
     train               Train the MuAt model.
-
-options:
-  -h, --help            show this help message and exit
+    benchmark           Run the prediction using the best MuAt ensemble models
 ```
 
 ## Quick Test

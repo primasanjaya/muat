@@ -67,6 +67,8 @@ def main():
                 zip_ref.extractall(path=pkg_ckpt)
             os.remove(checkpoint_file) 
 
+    #pdb.set_trace()
+
     if args.command == 'download':
 
         files_to_download = ['PCAWG/consensus_snv_indel/README.md',
@@ -424,6 +426,114 @@ def main():
         trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
         trainer.batch_train()
 
+
+    if args.command == 'muat-wgs' or args.command=='muat-wes':
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        genome_reference_path_hg19 = args.hg19
+        genome_reference_path_hg38 = args.hg38
+
+        #benchmark_ckpt = resource_filename('muat', 'pkg_ckpt')
+        benchmark_ckpt = '/csc/epitkane/projects/github/muat/data/benchmark_wgs/'
+        benchmark_ckpt = ensure_dirpath(benchmark_ckpt)
+
+        check_pth = glob.glob(benchmark_ckpt + args.mutation_type + '/*.pthx')
+        if len(check_pth)==0:
+            print('need to download benchmark models')
+
+        print('running prediction of ensemble models')
+        for i_fold in range(len(check_pth)):
+            pth_file = check_pth[i_fold]
+
+            fold = pth_file.split('fold')[-1].split('.pthx')[0]
+            load_ckpt_path = pth_file
+            print('prediction from {}'.format(pth_file))
+            #pdb.set_trace()
+            checkpoint = load_and_check_checkpoint(load_ckpt_path)
+            model_name = checkpoint['model_name']
+
+            dict_motif,dict_pos,dict_ges = load_token_dict(checkpoint)
+            vcf_files = multifiles_handler(args.input_filepath)
+            tmp_dir = check_tmp_dir(args)
+
+            if args.hg19 is not None:
+                if i_fold == 0:
+                    genome_reference_path_hg19 = args.hg19
+                    preprocessing_vcf_tokenizing(vcf_file=vcf_files,
+                                            genome_reference_path=genome_reference_path_hg19,
+                                            tmp_dir=tmp_dir,
+                                            dict_motif=dict_motif,
+                                            dict_pos=dict_pos,
+                                            dict_ges=dict_ges)
+                    print('preprocessed data saved in ' + tmp_dir)
+                predict_ready_files = []
+                for x in vcf_files:
+                    if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
+                        predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+
+                pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+            if args.hg38 is not None:
+                genome_reference_path_hg38 = args.hg38
+                preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
+                                        genome_reference_38_path=genome_reference_path_hg38,
+                                        tmp_dir=tmp_dir,
+                                        dict_motif=dict_motif,
+                                        dict_pos=dict_pos,
+                                        dict_ges=dict_ges)
+                print('preprocessed data saved in ' + tmp_dir)
+
+                predict_ready_files = []
+                for x in vcf_files:
+                    if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
+                        predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+
+                pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+
+            if args.no_preprocessing:
+                if i_fold == 0:
+                    predict_ready_files = vcf_files
+                    pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+            
+            target_handler = load_target_handler(checkpoint)
+
+            dataloader_config = checkpoint['dataloader_config']
+            #pdb.set_trace()
+            test_dataloader = MuAtDataloader(pd_predict,dataloader_config)
+
+            #pdb.set_trace()
+            model_name = checkpoint['model_name']
+            model = get_model(model_name,checkpoint['model_config'])
+            model = model.to(device)
+            model.load_state_dict(checkpoint['weight'])
+
+            result_dir = ensure_dirpath(args.result_dir)
+            predict_config = PredictorConfig(max_epochs=1, batch_size=1,result_dir=result_dir,target_handler=target_handler)
+            predict_config.prefix = 'fold' + str(fold) + '_'
+            predictor = Predictor(model, test_dataloader, predict_config)
+            predictor.batch_predict()
+
+        all_fold = glob.glob(result_dir + 'fold*')
+        pd_allfold = pd.DataFrame()
+        for i_f in all_fold:
+            pd_perfold = pd.read_csv(i_f,sep='\t',low_memory=False)
+            fold = i_f.split('fold')[1].split('_')[0]
+            pd_perfold['fold'] = fold
+            pd_allfold = pd.concat([pd_allfold,pd_perfold])
+            os.remove(i_f)
+        pd_logits = pd_allfold.drop(columns=['prediction'])
+
+        all_samples = pd_logits['sample'].unique()
+        pd_mean = pd.DataFrame()
+        for x in all_samples:
+            pd_persamp = pd_logits.loc[pd_logits['sample']==x]
+            pd_logit = pd_persamp.drop(columns=['fold'])
+            #pdb.set_trace()
+            samp_mean = pd_logit.groupby(['sample']).mean()
+            samp_mean['prediction'] = samp_mean.idxmax(axis='columns').values[0]
+            samp_mean = samp_mean.reset_index()
+            pd_mean = pd.concat([pd_mean,samp_mean],ignore_index=True)
+        pd_mean.to_csv(result_dir + 'ensemble_prediction.tsv',sep='\t',index=False)
+            
 
 '''
 def main_old():

@@ -7,6 +7,7 @@ from muat.util import get_sample_name
 import traceback
 import pandas as pd
 from muat.util import *
+import torch.nn.functional as F
 
 class PredictorConfig:
     # optimization parameters
@@ -15,6 +16,7 @@ class PredictorConfig:
     result_dir = None
     target_handler = None
     get_features = False
+    prefix = ''
 
     def __init__(self, **kwargs):
         for k,v in kwargs.items():
@@ -59,6 +61,7 @@ class Predictor:
                     predicted_string = ''
                     for nk, lk in enumerate(logit_keys):
                         logit = logits[lk]
+                        logit = F.softmax(logit, dim=-1)
                         _, predicted = torch.max(logit.data, 1)
                         predicted_cpu = predicted.detach().cpu().numpy().flatten()
 
@@ -66,7 +69,7 @@ class Predictor:
                         target_name = target_handler.inverse_transform(predicted_cpu)[0]
 
                         logits_cpu =logit.detach().cpu().numpy()
-                        logit_filename = 'prediction_{}.tsv'.format(lk)
+                        logit_filename = '{}prediction_{}.tsv'.format(self.config.prefix,lk)
                         
                         if i==0:
                             f = open(self.result_dir + logit_filename, 'w+') 
@@ -83,7 +86,7 @@ class Predictor:
                             f.write('\n')
                             logits_cpu_flat = logits_cpu.flatten()
                             logits_cpu_list = logits_cpu_flat.tolist()
-                            write_logits = [f'{i:.8f}' for i in logits_cpu_list]
+                            write_logits = [f'{i:.4f}' for i in logits_cpu_list]
                             write_logits.append(str(target_name))
                             write_logits.append(get_sample_name(sample_path))
                             write_header = "\t".join(write_logits)
@@ -98,7 +101,7 @@ class Predictor:
                             f.write('\n')
                             logits_cpu_flat = logits_cpu.flatten()
                             logits_cpu_list = logits_cpu_flat.tolist()
-                            write_logits = [f'{i:.8f}' for i in logits_cpu_list]
+                            write_logits = [f'{i:.4f}' for i in logits_cpu_list]
                             write_logits.append(str(target_name))
                             write_logits.append(get_sample_name(sample_path))
                             write_header = "\t".join(write_logits)

@@ -90,6 +90,7 @@ class ModelConfig:
         
 
     def get_mut_ratio(self,mutation_type):
+        #pdb.set_trace()
         if mutation_type == 'snv':
             mutation_type_ratio = {'snv': 1,'mnv': 0,'indel': 0,'sv_mei': 0,'neg': 0}
         elif mutation_type == 'snv+mnv':
@@ -157,7 +158,10 @@ class MuAtMotif(nn.Module):
         loss = None
         if targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
-        return logits, loss
+
+        logits_feats = {'first_logits': logits}
+                        
+        return logits_feats, loss
 
 class MuAtMotifF(nn.Module):
     """
@@ -335,7 +339,9 @@ class MuAtMotifPosition(nn.Module):
         if targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
-        return logits, loss
+        logits_feats = {'first_logits': logits}
+                        
+        return logits_feats, loss
 
 class MuAtMotifPositionF(nn.Module):
     """
