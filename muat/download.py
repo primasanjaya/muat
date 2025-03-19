@@ -11,6 +11,33 @@ from botocore.client import Config
 from pathlib import Path
 import pdb
 import urllib.request
+import zipfile
+from pkg_resources import resource_filename
+from muat.util import *
+
+# Function to download and extract the checkpoint
+def download_checkpoint(url,name):
+    checkpoint_url = url  # Replace with your checkpoint URL
+    checkpoint_dir = resource_filename('muat', 'pkg_ckpt')
+    checkpoint_dir = ensure_dirpath(checkpoint_dir)
+
+    # Ensure the checkpoint directory exists
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+
+    checkpoint_file = os.path.join(checkpoint_dir, name)
+
+    # Download the checkpoint if it doesn't already exist
+    print("Downloading checkpoint..." + checkpoint_url)
+    urllib.request.urlretrieve(checkpoint_url, checkpoint_file)
+
+    # Optionally extract if it's a zip file
+    
+    with zipfile.ZipFile(checkpoint_file, 'r') as zip_ref:
+        zip_ref.extractall(path=checkpoint_dir)
+    print(f"Checkpoint downloaded and extracted to {checkpoint_dir}")
+    os.remove(checkpoint_file)  
+    
 
 def download_icgc_object_storage(data_path, bucket_name="icgc25k-open", endpoint_url="https://object.genomeinformatics.org", files_to_download=None):
     """Download specific ICGC 25K Open data from object storage."""

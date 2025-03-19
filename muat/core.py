@@ -434,14 +434,24 @@ def main():
         genome_reference_path_hg38 = args.hg38
 
         #benchmark_ckpt = resource_filename('muat', 'pkg_ckpt')
-        benchmark_ckpt = '/csc/epitkane/projects/github/muat/data/benchmark_wgs/'
-        benchmark_ckpt = ensure_dirpath(benchmark_ckpt)
+        if args.command == 'muat-wgs':
+            benchmark_ckpt = resource_filename('muat', 'pkg_ckpt')
+            benchmark_ckpt = ensure_dirpath(benchmark_ckpt) + 'benchmark_wgs/'
+            url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip"
 
+        if args.command == 'muat-wes':
+            benchmark_ckpt = resource_filename('muat', 'pkg_ckpt')
+            benchmark_ckpt = ensure_dirpath(benchmark_ckpt) + 'benchmark_wes/'
+            url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip"
+
+        #pdb.set_trace()
         check_pth = glob.glob(benchmark_ckpt + args.mutation_type + '/*.pthx')
         if len(check_pth)==0:
-            print('need to download benchmark models')
+            download_checkpoint(url,'my_checkpoint.zip')
+            check_pth = glob.glob(benchmark_ckpt + args.mutation_type + '/*.pthx')
 
         print('running prediction of ensemble models')
+        #pdb.set_trace()
         for i_fold in range(len(check_pth)):
             pth_file = check_pth[i_fold]
 
@@ -520,6 +530,7 @@ def main():
             pd_perfold['fold'] = fold
             pd_allfold = pd.concat([pd_allfold,pd_perfold])
             os.remove(i_f)
+        #pdb.set_trace()
         pd_logits = pd_allfold.drop(columns=['prediction'])
 
         all_samples = pd_logits['sample'].unique()
@@ -527,14 +538,13 @@ def main():
         for x in all_samples:
             pd_persamp = pd_logits.loc[pd_logits['sample']==x]
             pd_logit = pd_persamp.drop(columns=['fold'])
-            #pdb.set_trace()
             samp_mean = pd_logit.groupby(['sample']).mean()
+            samp_mean = samp_mean.round(4)
             samp_mean['prediction'] = samp_mean.idxmax(axis='columns').values[0]
             samp_mean = samp_mean.reset_index()
             pd_mean = pd.concat([pd_mean,samp_mean],ignore_index=True)
-        pd_mean.to_csv(result_dir + 'ensemble_prediction.tsv',sep='\t',index=False)
+        pd_mean.to_csv(result_dir + 'ensemble_prediction.tsv',sep='\t',float_format='%.4f',index=False)
             
-
 '''
 def main_old():
     args = get_main_args()
