@@ -77,9 +77,9 @@ shell_scripts = [os.path.join('muat/pkg_shell', f) for f in os.listdir('muat/pkg
                 if f.endswith('.sh')]
 
 # Call download_checkpoint function to download the checkpoint during installation
-download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip",'pcawg_wgs.zip',True)
+#download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip",'pcawg_wgs.zip',True)
 download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip",'tcga_wes.zip',True)
-download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip",'benchmark_wgs.zip',True)
+#download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip",'benchmark_wgs.zip',True)
 download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip",'benchmark_wes.zip',True)
 
 #download genome reference and unzip 
