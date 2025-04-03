@@ -55,6 +55,6 @@ For MuAt2e models where the prediction heads are combined type/typesubtype you c
 
 
 2. **Run MuAt2 Using the MuAt1 Pretrained Model Finetuned on GEL**<br>
-```bash
-muat train wgs 
+```bash 
+muat train from-checkpoint --ckpt-filepath 'checkpoint.pthx' --mutation-type 'snv+mnv' --train-split-filepath 'train_split_2labels_example.tsv' --val-split-filepath 'val_split_2labels_example.tsv' --save-dir /save_dir/ --epoch 5 --batch-size 4
 ```

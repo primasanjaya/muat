@@ -51,7 +51,7 @@ def download_reference(genome_reference_path="./data/genome_reference/"):
             
 
 # Function to download and extract the checkpoint
-def download_checkpoint(url,name):
+def download_checkpoint(url,name,extract=False):
     checkpoint_url = url  # Replace with your checkpoint URL
     checkpoint_dir = os.path.join('muat', 'pkg_ckpt')  # Directory where checkpoint will be stored
 
@@ -66,29 +66,26 @@ def download_checkpoint(url,name):
     urllib.request.urlretrieve(checkpoint_url, checkpoint_file)
 
     # Optionally extract if it's a zip file
-    '''
-    with zipfile.ZipFile(checkpoint_file, 'r') as zip_ref:
-        zip_ref.extractall(path=checkpoint_dir)
-    print(f"Checkpoint downloaded and extracted to {checkpoint_dir}")
-    os.remove(checkpoint_file)  
-    '''
+    if extract:
+        with zipfile.ZipFile(checkpoint_file, 'r') as zip_ref:
+            zip_ref.extractall(path=checkpoint_dir)
+        print(f"Checkpoint downloaded and extracted to {checkpoint_dir}")
+        os.remove(checkpoint_file)  
 
 # Get list of shell scripts
 shell_scripts = [os.path.join('muat/pkg_shell', f) for f in os.listdir('muat/pkg_shell') 
                 if f.endswith('.sh')]
 
-# Call download_checkpoint function to download the checkpoint during installation
-download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip",'pcawg_wgs.zip')
-download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip",'tcga_wes.zip')
+download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip",'tcga_wes.zip',False)
+download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes_slim.zip",'benchmark_wes_slim.zip',False)
+
 #download genome reference and unzip 
 path = os.path.dirname(os.path.abspath(__file__)) + '/'
 #download_reference(genome_reference_path=path + 'muat/genome_reference/')
 
-#pdb.set_trace()
-
 setup(
     name="muat",
-    version="0.1.6",
+    version="0.1.7",
     packages=find_packages(),
     package_data={
         'muat': [

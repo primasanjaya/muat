@@ -140,12 +140,6 @@ def get_main_args():
                     help='Learning rate (default: 6e-4).')
     from_checkpoint.add_argument('--batch-size', type=int, default=2,
                     help='Batch size (default: 2).')
-    from_checkpoint.add_argument('--n-layer', type=int, default=1,
-                    help='Number of attention layers (default: 1).')
-    from_checkpoint.add_argument('--n-head', type=int, default=8,
-                    help='Number of attention heads (default: 8).')
-    from_checkpoint.add_argument('--n-emb', type=int, default=128,
-                    help='Embedding dimension (default: 128).') 
     from_checkpoint.add_argument('--mutation-sampling-size', type=int, default=5000,
                     help='Maximum number of mutations to fetch for the model (default: 5000).')
 
