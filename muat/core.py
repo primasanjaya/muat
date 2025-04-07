@@ -451,7 +451,7 @@ def main():
             check_pth = glob.glob(benchmark_ckpt + args.mutation_type + '/*.pthx')
 
         if len(check_pth) == 0:
-            raise ValueError('cant find benchmark model in ' + benchmark_ckpt + args.mutation_type '. Download benchmark model from '+url+' and extract to this path.') 
+            raise ValueError('cant find benchmark model in ' + benchmark_ckpt + args.mutation_type + '. Download benchmark model from ' + url + ' and extract to this path.')
 
         print('running prediction of ensemble models')
         #pdb.set_trace()
