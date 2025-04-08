@@ -81,7 +81,7 @@ To predict using VCF files written with hg38, run:
 (muat-env)$ muat predict wgs --hg38 '/path/to/genome_reference/hg38.fa' --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
 ```
 
-### Predicting preprocessed data samples (read preprocessing steps [here](README_preprocessing.md))
+### Predicting preprocessed data samples (read preprocessing steps [here](https://github.com/primasanjaya/muat/blob/main/documentation/README_preprocessing.md)
 ```bash
 (muat-env)$ muat predict wgs --no-preprocessing --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.token.gc.genic.exonic.cs.tsv.gz' --result-dir 'path/to/result_dir/'
 ```
