@@ -18,7 +18,7 @@ ENV PATH="/opt/conda/envs/muat-env/bin:$PATH"
 COPY . .
 
 # Install muat package (triggers checkpoint download) within the Conda environment
-RUN conda run -n muat-env python setup_ican.py install
+RUN conda run -n muat-env python setup.py install
 
 # Set the default command to run the CLI (muat) within the environment
 ENTRYPOINT ["conda", "run", "-n", "muat-env", "muat"]
