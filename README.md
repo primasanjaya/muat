@@ -93,8 +93,8 @@ Example cli to predict samples using the best MuAt ensemble models:
 ```
 
 ## Additional Resources
-- **Download PCAWG:** Read [https://github.com/primasanjaya/muat/blob/main/documentation/README_download.md](README_download.md) for details on downloading PCAWG Dataset.
-- **Preprocessing:** Read [https://github.com/primasanjaya/muat/blob/main/documentation/README_preprocessing.md](README_preprocessing.md) for details on preprocessing.
-- **General Training:** Read [https://github.com/primasanjaya/muat/blob/main/documentation/README_MuAtTraining.md](README_MuAtTraining.md) for general training instructions.
-- **Full Training of PCAWG Dataset:** Read [https://github.com/primasanjaya/muat/blob/main/documentation/README_PCAWG.md](README_PCAWG.md) for full training instructions on the PCAWG dataset.
-- **Training and Predicting Genomics England Dataset:** Read [https://github.com/primasanjaya/muat/blob/main/documentation/README_GEL.md](README_GEL.md) for complete training and prediction instructions on the Genomics England dataset.
+- **Download PCAWG:** Read [README_download.md](https://github.com/primasanjaya/muat/blob/main/documentation/README_download.md) for details on downloading PCAWG Dataset.
+- **Preprocessing:** Read [README_preprocessing.md](https://github.com/primasanjaya/muat/blob/main/documentation/README_preprocessing.md) for details on preprocessing.
+- **General Training:** Read [README_MuAtTraining.md](https://github.com/primasanjaya/muat/blob/main/documentation/README_MuAtTraining.md) for general training instructions.
+- **Full Training of PCAWG Dataset:** Read [README_PCAWG.md](https://github.com/primasanjaya/muat/blob/main/documentation/README_PCAWG.md) for full training instructions on the PCAWG dataset.
+- **Training and Predicting Genomics England Dataset:** Read [README_GEL.md](https://github.com/primasanjaya/muat/blob/main/documentation/README_GEL.md) for complete training and prediction instructions on the Genomics England dataset.
