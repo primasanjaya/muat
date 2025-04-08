@@ -59,14 +59,7 @@ def main():
 
     pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
     pkg_ckpt = ensure_dirpath(pkg_ckpt)
-
-    all_zip = glob.glob(pkg_ckpt+'*.zip')
-    if len(all_zip)>0:
-        for checkpoint_file in all_zip:
-            with zipfile.ZipFile(checkpoint_file, 'r') as zip_ref:
-                zip_ref.extractall(path=pkg_ckpt)
-            os.remove(checkpoint_file) 
-
+    unziping_from_package_installation()
     #pdb.set_trace()
 
     if args.command == 'download':
@@ -97,8 +90,22 @@ def main():
         if args.mutation_type is not None:
             if args.command=='wgs':
                 wgs_wes = 'wgs'
+                benchmark_ckpt = resource_filename('muat', 'pkg_ckpt')
+                benchmark_ckpt = ensure_dirpath(benchmark_ckpt) + 'pcawg_wgs/'
+                url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip"
             else:
                 wgs_wes = 'wes'
+                benchmark_ckpt = resource_filename('muat', 'pkg_ckpt')
+                benchmark_ckpt = ensure_dirpath(benchmark_ckpt) + 'tcga_wes/'
+                url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip"
+
+            check_pth = glob.glob(benchmark_ckpt + args.mutation_type + '/*.pthx')
+            if len(check_pth)==0:
+                print('cant find model in ' + benchmark_ckpt + args.mutation_type + '. Downloading model from ' + url )
+                download_checkpoint(url,'my_checkpoint.zip')
+                check_pth = glob.glob(benchmark_ckpt + args.mutation_type + '/*.pthx')
+            if len(check_pth) == 0:
+                raise ValueError('cant find benchmark model in ' + benchmark_ckpt + args.mutation_type + '. Download benchmark model from ' + url + ' and extract to this path.')
 
             load_ckpt_path = mut_type_checkpoint_handler(args.mutation_type,wgs_wes)
         else:

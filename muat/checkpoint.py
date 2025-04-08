@@ -6,6 +6,19 @@ import pandas as pd
 from muat.util import *
 import shutil
 import os
+import glob
+import zipfile
+
+def unziping_from_package_installation():
+    pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
+    pkg_ckpt = ensure_dirpath(pkg_ckpt)
+
+    all_zip = glob.glob(pkg_ckpt+'*.zip')
+    if len(all_zip)>0:
+        for checkpoint_file in all_zip:
+            with zipfile.ZipFile(checkpoint_file, 'r') as zip_ref:
+                zip_ref.extractall(path=pkg_ckpt)
+            os.remove(checkpoint_file) 
 
 def load_and_check_checkpoint(ckpt_path,save=False):
 
