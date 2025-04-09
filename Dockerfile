@@ -21,4 +21,4 @@ COPY . .
 RUN conda run -n muat-env python setup.py install
 
 # Set the default command to run the CLI (muat) within the environment
-ENTRYPOINT ["conda", "run", "-n", "muat-env", "muat"]
+ENTRYPOINT ["conda", "run", "-n", "muat-env"]
