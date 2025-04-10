@@ -345,7 +345,6 @@ def main():
         checkpoint = load_and_check_checkpoint(load_ckpt_filepath)
 
         #pdb.set_trace()
-        checkpoint['model_config']
         model_config_muttype = checkpoint['model_config'].mutation_type
         if model_config_muttype != args.mutation_type:
             raise ValueError('You selected a different mutation type from the checkpoint. The checkpoint mutation type is ' + model_config_muttype + ', which is different from --mutation-type ' + args.mutation_type + '. Please select the correct checkpoint.')

@@ -13,6 +13,7 @@ import pandas as pd
 from muat.dataloader import *
 from muat.trainer import *
 import csv
+import json
 
 def get_main_args():
     parser = argparse.ArgumentParser(description='Mutation Attention Tool')
@@ -341,17 +342,16 @@ def get_model(arch,model_config=None):
         raise ValueError(f"Unsupported architecture: {arch}")
 
 class LabelEncoderFromCSV:
-    def __init__(self, csv_file,class_name_col,class_index_col):
-        """Initialise the encoder by loading class mappings from a CSV file."""
-        self.class_to_idx = {}
-        self.idx_to_class = {}
-        self._load_class_mapping(csv_file,class_name_col,class_index_col)
-        self.classes_ = list(self.class_to_idx.keys())
+    def __init__(self, csv_file=None, class_name_col=None, class_index_col=None):
+        if csv_file is not None:
+            self.class_to_idx = {}
+            self.idx_to_class = {}
+            self._load_class_mapping(csv_file, class_name_col, class_index_col)
+            self.classes_ = list(self.class_to_idx.keys())
 
-    def _load_class_mapping(self, csv_file,class_name_col,class_index_col):
-        """Load class mappings from a CSV file."""
+    def _load_class_mapping(self, csv_file, class_name_col, class_index_col):
         with open(csv_file, mode='r') as file:
-            reader = csv.DictReader(file,delimiter='\t')
+            reader = csv.DictReader(file, delimiter='\t')
             for row in reader:
                 class_name = row[class_name_col]
                 class_idx = int(row[class_index_col])
@@ -359,12 +359,20 @@ class LabelEncoderFromCSV:
                 self.idx_to_class[class_idx] = class_name
 
     def fit_transform(self, labels):
-        """Encode a list of labels into their corresponding indices."""
         return [self.class_to_idx[label] for label in labels]
 
     def inverse_transform(self, encoded_labels):
-        """Decode a list of indices back into their corresponding labels."""
         return [self.idx_to_class[idx] for idx in encoded_labels]
+
+    @classmethod
+    def from_json(cls, json_file):
+        with open(json_file, "r") as f:
+            data = json.load(f)
+        obj = cls.__new__(cls)  # create an instance without calling __init__
+        obj.class_to_idx = data["class_to_idx"]
+        obj.idx_to_class = {int(k): v for k, v in data["idx_to_class"].items()}
+        obj.classes_ = data["classes_"]
+        return obj
 
 def multifiles_handler(file):
     if isinstance(file, str):

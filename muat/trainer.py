@@ -7,6 +7,7 @@ import pdb
 import logging
 import numpy as np
 from muat.util import *
+from muat.checkpoint import *
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,6 @@ class Trainer:
 
             train_corr = []
 
-            num_iterations = 30  # Set limit
             for batch_idx, (data, target, sample_path) in enumerate(trainloader):
 
                 string_data = target
@@ -217,7 +217,8 @@ class Trainer:
                     'motif_dict':self.model.config.dict_motif,
                     'pos_dict':self.model.config.dict_pos,
                     'ges_dict':self.model.config.dict_ges}
-            torch.save(save_ckpt_params, self.config.save_ckpt_dir + 'running_epoch_ckpt.pthx')
+            torch.save(save_ckpt_params, self.config.save_ckpt_dir + 'running_epoch_ckpt_v2.pthx')
+            convert_checkpoint_v2tov3(self.config.save_ckpt_dir + 'running_epoch_ckpt.pthx', self.config.save_ckpt_dir)
 
             if test_acc > self.global_acc:
                 self.global_acc = test_acc
@@ -226,4 +227,4 @@ class Trainer:
                     logit_filename = 'val_{}.tsv'.format(lk)
                     shutil.copyfile(self.complete_save_dir + logit_filename, self.complete_save_dir + 'best_' + logit_filename)
                     os.remove(self.complete_save_dir + logit_filename)
-                torch.save(save_ckpt_params, self.config.save_ckpt_dir + 'best_ckpt.pthx')
+                shutil.copyfile(self.config.save_ckpt_dir + 'running_epoch_ckpt.pthx', self.config.save_ckpt_dir + 'best_ckpt.pthx')
