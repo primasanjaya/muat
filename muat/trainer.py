@@ -7,6 +7,7 @@ import pdb
 import logging
 import numpy as np
 from muat.util import *
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,18 @@ class Trainer:
         valloader = torch.utils.data.DataLoader(self.test_dataset, batch_size=self.config.batch_size, shuffle=False)
 
         self.global_acc = 0
+
+        save_ckpt_params = {'weight':model.module.state_dict(),
+                    'target_handler':self.config.target_handler,
+                    'model_config':self.model.config,
+                    'trainer_config':self.config,
+                    'dataloader_config':self.train_dataset.config,
+                    'model_name':self.model.__class__.__name__,
+                    'motif_dict':self.model.config.dict_motif,
+                    'pos_dict':self.model.config.dict_pos,
+                    'ges_dict':self.model.config.dict_ges}
+            #torch.save(save_ckpt_params, self.config.save_ckpt_dir + 'running_epoch_ckpt_v2.pthx')
+        self.convert_checkpoint_v2tov3(self.config.save_ckpt_dir + 'running_epoch_ckpt.pthx', self.config.save_ckpt_dir,save_ckpt_params)
 
         for e in range(self.config.max_epochs):
             running_loss = 0
@@ -216,8 +229,8 @@ class Trainer:
                     'motif_dict':self.model.config.dict_motif,
                     'pos_dict':self.model.config.dict_pos,
                     'ges_dict':self.model.config.dict_ges}
-            torch.save(save_ckpt_params, self.config.save_ckpt_dir + 'running_epoch_ckpt_v2.pthx')
-            #convert_checkpoint_v2tov3(self.config.save_ckpt_dir + 'running_epoch_ckpt.pthx', self.config.save_ckpt_dir)
+            #torch.save(save_ckpt_params, self.config.save_ckpt_dir + 'running_epoch_ckpt_v2.pthx')
+            convert_checkpoint_v2tov3(self.config.save_ckpt_dir + 'running_epoch_ckpt.pthx', self.config.save_ckpt_dir,save_ckpt_params)
 
             if test_acc > self.global_acc:
                 self.global_acc = test_acc
@@ -227,3 +240,192 @@ class Trainer:
                     shutil.copyfile(self.complete_save_dir + logit_filename, self.complete_save_dir + 'best_' + logit_filename)
                     os.remove(self.complete_save_dir + logit_filename)
                 shutil.copyfile(self.config.save_ckpt_dir + 'running_epoch_ckpt.pthx', self.config.save_ckpt_dir + 'best_ckpt.pthx')
+
+
+    def unziping_from_package_installation(self):
+        pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
+        pkg_ckpt = ensure_dirpath(pkg_ckpt)
+
+        all_zip = glob.glob(pkg_ckpt+'*.zip')
+        if len(all_zip)>0:
+            for checkpoint_file in all_zip:
+                with zipfile.ZipFile(checkpoint_file, 'r') as zip_ref:
+                    zip_ref.extractall(path=pkg_ckpt)
+                os.remove(checkpoint_file) 
+
+    def make_json_serializable(self,obj):
+        if isinstance(obj, pd.DataFrame):
+            return obj.to_dict(orient="records")  # List of row dicts
+        elif isinstance(obj, pd.Series):
+            return obj.to_dict()
+        elif isinstance(obj, set):
+            return list(obj)
+        else:
+            return obj
+
+    def save_model_config_to_json(self,config, filepath: str):
+        serialisable_dict = {
+            k: self.make_json_serializable(v)
+            for k, v in config.__dict__.items()
+        }
+        with open(filepath, "w") as f:
+            json.dump(serialisable_dict,f)
+
+    def save_dict_to_json(self,data, filepath: str):
+        """Helper function to save dictionary data to JSON file."""
+        with open(filepath, 'w') as f:
+            json.dump(data, f)
+
+    def save_dataframe_to_json(self,df, filepath: str):
+        """Helper function to save pandas DataFrame to JSON file."""
+        data = df.to_dict(orient="records")
+        self.save_dict_to_json(data, filepath)
+
+    def convert_checkpoint_v2tov3(self,ckpt_path, save_dir,checkpoint=None):
+
+        if checkpoint is None:
+            # Load the old checkpoint
+            checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
+        
+        # Create save directory if it doesn't exist
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # Save weights
+        weights_path = os.path.join(save_dir, 'weight.pth')
+        torch.save(checkpoint['weight'], weights_path)
+
+        # Save target handlers
+        for idx, handler in enumerate(checkpoint['target_handler']):
+            filepath = os.path.join(save_dir, f'target_handler_{idx+1}.json')
+            self.save_dict_to_json({
+                "class_to_idx": handler.class_to_idx,
+                "idx_to_class": handler.idx_to_class,
+                "classes_": handler.classes_
+            }, filepath)
+
+        # Save configs
+        configs = {
+            'model_config': checkpoint['model_config'],
+            'dataloader_config': checkpoint['dataloader_config']
+        }
+        
+        for name, config in configs.items():
+            filepath = os.path.join(save_dir, f'{name}.json')
+            self.save_model_config_to_json(config, filepath)
+
+        #'trainer_config': checkpoint['trainer_config'],
+
+        # Save model name
+        self.save_dict_to_json(checkpoint['model_name'], os.path.join(save_dir, 'model_name.json'))
+
+        # Save dictionaries
+        dicts = {
+            'motif_dict': checkpoint['motif_dict'],
+            'pos_dict': checkpoint['pos_dict'],
+            'ges_dict': checkpoint['ges_dict']
+        }
+        
+        for name, df in dicts.items():
+            filepath = os.path.join(save_dir, f'{name}.json')
+            self.save_dataframe_to_json(df, filepath)
+
+        # Reload all JSON files into a new checkpoint dictionary
+        new_checkpoint = {}
+        
+        # Load weights
+        new_checkpoint['weight'] = torch.load(weights_path, map_location=torch.device('cpu'), weights_only=True)
+
+        new_checkpoint['target_handler'] = []
+        target_handler_files = [f for f in os.listdir(save_dir) if f.startswith('target_handler_')]
+        for file in sorted(target_handler_files):
+            filepath = os.path.join(save_dir, file)
+            handler = LabelEncoderFromCSV.from_json(filepath)
+            new_checkpoint['target_handler'].append(handler)
+        
+        # Load configs and reconstruct classes
+        with open(os.path.join(save_dir, 'model_config.json'), 'r') as f:
+            model_config_data = json.load(f)
+            # Convert DataFrames back from records
+            model_config_data['dict_motif'] = pd.DataFrame(model_config_data['dict_motif'])
+            model_config_data['dict_pos'] = pd.DataFrame(model_config_data['dict_pos'])
+            model_config_data['dict_ges'] = pd.DataFrame(model_config_data['dict_ges'])
+            model_config_data['n_class'] = model_config_data['num_class']
+            model_config_data['n_emb'] = model_config_data['n_embd']
+            new_checkpoint['model_config'] = ModelConfig(**model_config_data)
+        
+        with open(os.path.join(save_dir, 'trainer_config.json'), 'r') as f:
+            trainer_config_data = json.load(f)
+            new_checkpoint['trainer_config'] = TrainerConfig(**trainer_config_data)
+        
+        with open(os.path.join(save_dir, 'dataloader_config.json'), 'r') as f:
+            dataloader_config_data = json.load(f)
+            new_checkpoint['dataloader_config'] = DataloaderConfig(**dataloader_config_data)
+        
+        # Load model name
+        with open(os.path.join(save_dir, 'model_name.json'), 'r') as f:
+            new_checkpoint['model_name'] = json.load(f)
+        
+        # Load dictionaries
+        for name in ['motif_dict', 'pos_dict', 'ges_dict']:
+            with open(os.path.join(save_dir, f'{name}.json'), 'r') as f:
+                new_checkpoint[name] = pd.DataFrame(json.load(f))
+
+        # Compare checkpoints
+        print("\nComparing checkpoints:")
+        for key in checkpoint.keys():
+            ck_val = checkpoint[key]
+            new_ck_val = new_checkpoint[key]
+            
+            if key == 'weight':
+                # For OrderedDict of tensors, compare each tensor
+                if isinstance(ck_val, dict) and isinstance(new_ck_val, dict):
+                    is_equal = True
+                    for k in ck_val.keys():
+                        if k not in new_ck_val:
+                            is_equal = False
+                            break
+                        if not torch.equal(ck_val[k], new_ck_val[k]):
+                            is_equal = False
+                            break
+                else:
+                    is_equal = False
+                print(f"{key}: {'✓' if is_equal else '✗'}")
+            elif key in ['motif_dict', 'pos_dict', 'ges_dict']:
+                # For DataFrames, compare values
+                is_equal = ck_val.equals(new_ck_val)
+                print(f"{key}: {'✓' if is_equal else '✗'}")
+            elif key == 'target_handler':
+                # For target handlers, compare their attributes
+                is_equal = all(
+                    h1.class_to_idx == h2.class_to_idx and
+                    h1.idx_to_class == h2.idx_to_class and
+                    h1.classes_ == h2.classes_
+                    for h1, h2 in zip(ck_val, new_ck_val)
+                )
+                print(f"{key}: {'✓' if is_equal else '✗'}")
+            else:
+                try:
+                    all_ck_keys = ck_val.__dict__.keys()
+                    if len(all_ck_keys) > 0:
+                        for x in all_ck_keys:
+                            cval = vars(ck_val)[x]
+                            cnval = vars(new_ck_val)[x]
+
+                            if isinstance(cval, pd.DataFrame):
+                                # For DataFrames, use equals() method
+                                is_equal = cval.equals(cnval)
+                            else:
+                                # For other types, use direct comparison
+                                is_equal = cval == cnval
+                            
+                        print(f"{key}: {'✓' if is_equal else '✗'}")
+                except:
+                    is_equal = True
+                    print(f"{key}: {'✓' if is_equal else '✗'}")
+
+        #pdb.set_trace()
+        # Create zip file
+        zipfile = ckpt_path.split('/')[-1]
+        zip_checkpoint_files(save_dir,zipfile)
+        
+        return new_checkpoint

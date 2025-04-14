@@ -130,7 +130,18 @@ class Predictor:
                             write_header.append('sample')
                             write_header = "\t".join(write_header)
                             f.write(write_header)
+                            f.close()                    #pdb.set_trace()
+
+                            f = open(self.result_dir + feat_filename, 'w+')
+                            f.write('\n')
+                            feat_cpu_flat = feat_cpu.flatten()
+                            feat_cpu_list = feat_cpu_flat.tolist()
+                            write_feat = [f'{i:.8f}' for i in feat_cpu_list]
+                            write_feat.append(get_sample_name(sample_path))
+                            write_feat = "\t".join(write_feat)
+                            f.write(write_feat)
                             f.close()
+
                         else:
                             #write features
                             f = open(self.result_dir + feat_filename, 'a+')

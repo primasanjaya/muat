@@ -10,6 +10,7 @@ import glob
 import subprocess
 import pandas as pd
 import gzip
+from muat.download import download_reference
 
 def combine_somagg_chunks_to_platekey(sample_folder,tmp_dir):
     '''
@@ -165,6 +166,7 @@ def preprocessing_tsv38(tsv_file,genome_reference_38_path,tmp_dir,verbose=True):
     '''
     genome_ref38 = read_reference(genome_reference_38_path, verbose=verbose)
     fns = multifiles_handler(tsv_file)
+    fns = [resolve_path(x) for x in fns]
 
     for i, fn in enumerate(fns):
         digits = int(np.ceil(np.log10(len(fns))))
@@ -182,14 +184,15 @@ def preprocessing_vcf38(vcf_file,genome_reference_38_path,tmp_dir,verbose=True):
     '''
 
     if not os.path.exists(genome_reference_38_path):
-        raise FileNotFoundError(
-            "Reference files not found. Please download from:\n"
-            "- GRCh38/hg38: http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa\n"
-            f"and place them in: --hg38"
-        )
+        print('reference file not found')
+        genome_reference_dir = os.path.dirname(genome_reference_38_path)
+        print('Downloading reference file to ' + genome_reference_dir)
+        download_reference(genome_reference_dir,hg19=False,hg38=True)
+        genome_reference_38_path = ensure_dirpath(genome_reference_dir) + 'hg38.fa.gz'
 
     genome_ref38 = read_reference(genome_reference_38_path, verbose=verbose)
     fns = multifiles_handler(vcf_file)
+    fns = [resolve_path(x) for x in fns]
 
     for i, fn in enumerate(fns):
         digits = int(np.ceil(np.log10(len(fns))))
@@ -201,6 +204,8 @@ def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_mot
     Preprocess vcf file and tokenize the motif, pos, and ges
     '''
     vcf_file = multifiles_handler(vcf_file)
+    vcf_file = [resolve_path(x) for x in vcf_file]
+
     preprocessing_vcf(vcf_file,genome_reference_path,tmp_dir)
     #pdb.set_trace()
     all_preprocessed_vcf = []
@@ -251,17 +256,17 @@ def preprocessing_vcf(vcf_file,genome_reference_path,tmp_dir,info_column=None,ve
 
     # Check if reference files exist
     if not os.path.exists(genome_reference_path):
-        raise FileNotFoundError(
-            "Reference files not found. Please download from:\n"
-            "- GRCh37/hg19: https://ftp.sanger.ac.uk/pub/project/PanCancer/genomehg19.fa.gz\n"
-            "- GRCh38/hg38: http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa\n"
-            f"and place them in: genome_reference_path"
-        )
+        print('reference file not found')
+        genome_reference_dir = os.path.dirname(genome_reference_path)
+        print('downloading reference file to ' + genome_reference_dir)
+        download_reference(genome_reference_dir,hg19=True,hg38=False)
+        genome_reference_path = ensure_dirpath(genome_reference_dir) + 'hg19.fa.gz'
 
     genome_ref = read_reference(genome_reference_path,verbose=verbose)   
 
     fns = multifiles_handler(vcf_file)
-
+    fns = [resolve_path(x) for x in fns]
+    #pdb.set_trace()
     tmp_dir = ensure_dirpath(tmp_dir)
 
     for i,fn in enumerate(fns):

@@ -200,7 +200,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
         if liftover:
             if variant.chrom not in genome_ref38 and variant.chrom != VariantReader.EOF:
                 if warned_invalid_chrom == False:
-                    sys.stderr.write('Warning: a chromosome found in data not present in reference: {}\n'.format(variant.chrom))
+                    sys.stderr.write('Warning: a chromosome found in data not present in reference: {}\nCheck your reference and vcf file compatibility'.format(variant.chrom))
                     warned_invalid_chrom = True
                     #pdb.set_trace()
                 n_invalid_chrom += 1
@@ -208,12 +208,10 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
         else:
             if variant.chrom not in ref_genome and variant.chrom != VariantReader.EOF:
                 if warned_invalid_chrom == False:
-                    sys.stderr.write('Warning: a chromosome found in data not present in reference: {}\n'.format(variant.chrom))
+                    sys.stderr.write('Warning: a chromosome found in data not present in reference: {}\nCheck your reference and vcf file compatibility'.format(variant.chrom))
                     warned_invalid_chrom = True
                 n_invalid_chrom += 1
                 continue
-
-        #pdb.set_trace()
 
         while len(next_buf) > 0 and (next_buf[0].chrom != variant.chrom or next_buf[0].pos < variant.pos - context):
             while len(prev_buf) > 0 and prev_buf[0].pos < next_buf[0].pos - context:

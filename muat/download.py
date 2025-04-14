@@ -81,7 +81,7 @@ def download_icgc_object_storage(data_path, bucket_name="icgc25k-open", endpoint
     
     print("Download completed.")
 
-def download_reference(genome_reference_path="./data/genome_reference/"):
+def download_reference(genome_reference_path,hg19=True,hg38=True):
     """
     Download reference genome files from UCSC
     
@@ -96,6 +96,11 @@ def download_reference(genome_reference_path="./data/genome_reference/"):
         'hg19': 'https://ftp.sanger.ac.uk/pub/project/PanCancer/genome.fa.gz',
         'hg38': 'https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
     }
+
+    if hg19:
+        references['hg19'] = 'https://ftp.sanger.ac.uk/pub/project/PanCancer/genome.fa.gz'
+    if hg38:
+        references['hg38'] = 'https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
     
     for genome_build, url in references.items():
         output_file = os.path.join(genome_reference_path, f"{genome_build}.fa.gz")
@@ -104,7 +109,7 @@ def download_reference(genome_reference_path="./data/genome_reference/"):
         if os.path.exists(output_file):
             print(f"{genome_build} reference already exists at {output_file}")
             continue
-            
+                    
         print(f"Downloading {genome_build} reference...")
         try:
             urllib.request.urlretrieve(url, output_file)

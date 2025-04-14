@@ -68,6 +68,9 @@ or you can access the prebuild one from [https://biocontainers.pro/tools/muat](h
 ## Quick Test
 The example of SNV,MNV vcf file is in `example_files/0a6be23a-d5a0-4e95-ada2-a61b2b5d9485.consensus.20160830.somatic.snv_mnv.vcf.gz`.<br>
 This file was written with hg19. To run prediction on this file, first download genome ref hg19:
+
+⚠️ **Warning**: Always use absolute paths (not relative paths) for filepath and directories to ensure successful execution.
+
 1. **Download genome reference**
 ```python
 from muat.download import download_reference
