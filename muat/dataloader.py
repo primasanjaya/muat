@@ -15,6 +15,9 @@ from sklearn.utils import shuffle
 class DataloaderConfig:
 
     def __init__(self, **kwargs):
+        # Set default value for sampling_replacement
+        self.sampling_replacement = False
+        # Update with any provided values
         for k,v in kwargs.items():
             setattr(self, k, v)
 
@@ -26,6 +29,7 @@ class MuAtDataloader(Dataset):
         self.mutation_type_ratio = config.mutation_type_ratio
         self.mutation_sampling_size = config.mutation_sampling_size
         self.same_sampling = same_sampling
+        self.sampling_replacement = config.sampling_replacement
 
     def __len__(self):
         return len(self.data_split_tsv)
@@ -127,21 +131,26 @@ class MuAtDataloader(Dataset):
                 pd_sampling = pd.concat([pd_sampling, pd_samp], ignore_index=True)
         
         # Handle padding
-        np_triplettoken = pd_sampling.to_numpy()
-        is_padding = len(pd_sampling) < self.mutation_sampling_size
-        mins = self.mutation_sampling_size - len(np_triplettoken) if is_padding else 0
+        if self.sampling_replacement:
+            np_triplettoken = pd_sampling.to_numpy()
+            mins = self.mutation_sampling_size - len(np_triplettoken)
+            pd_rest_sampling = pd_sampling.sample(n=mins, replace=True)
+            pd_sampling = pd.concat([pd_sampling, pd_rest_sampling], ignore_index=True)
+            datanumeric = torch.tensor(pd_sampling.to_numpy().T, dtype=torch.long)
+        else:
+            np_triplettoken = pd_sampling.to_numpy()
+            is_padding = len(pd_sampling) < self.mutation_sampling_size
+            mins = self.mutation_sampling_size - len(np_triplettoken) if is_padding else 0
 
-        datanumeric = []
-        for col in pd_sampling.columns:
-            np_data = pd_sampling[col].to_numpy()
-            if is_padding:
-                np_data = np.pad(np_data, (0, mins), mode='constant', constant_values=0)
-            np_data = np.asarray(np_data[:self.mutation_sampling_size], dtype=int)
-            datanumeric.append(torch.tensor(np_data, dtype=torch.long))
-
-        # Ensure datanumeric is valid
-        datanumeric = torch.stack(datanumeric)
-
+            datanumeric = []
+            for col in pd_sampling.columns:
+                np_data = pd_sampling[col].to_numpy()
+                if is_padding:
+                    np_data = np.pad(np_data, (0, mins), mode='constant', constant_values=0)
+                np_data = np.asarray(np_data[:self.mutation_sampling_size], dtype=int)
+                datanumeric.append(torch.tensor(np_data, dtype=torch.long))
+            # Ensure datanumeric is valid
+            datanumeric = torch.stack(datanumeric)
         # Ensure no None values in data_targets
         data_targets = {
             "class_index": idx_class if idx_class is not None else [],

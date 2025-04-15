@@ -265,8 +265,18 @@ def load_and_check_checkpoint(ckpt_path,save=False):
             checkpoint = load_checkpoint_v3(ckpt_path)
             return checkpoint
         except:
-            print('this checkpoint v.2 is depricated, convert this version to v.3 using convert_checkpoint_v2tov3 function')
-    
+            print('this checkpoint v.2 is depricated, convert this version to v.3 using from muat.checkpoint import convert_checkpoint_v2tov3 function')
+            print('Downloading the latest checkpoint from https://huggingface.co/primasanjaya/muat-checkpoint/') 
+            url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip'
+            download_checkpoint(url,'my_checkpoint.zip')
+            url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip'
+            download_checkpoint(url,'my_checkpoint.zip')
+            url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip'
+            download_checkpoint(url,'my_checkpoint.zip')
+            url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip'
+            download_checkpoint(url,'my_checkpoint.zip')
+            checkpoint = load_checkpoint_v3(ckpt_path)
+            return checkpoint
 
 def convert_checkpoint_version1(checkpoint,ckpt_path,save=False):
     print('convert checkpoint v.1')

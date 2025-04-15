@@ -132,7 +132,7 @@ class Predictor:
                             f.write(write_header)
                             f.close()                    #pdb.set_trace()
 
-                            f = open(self.result_dir + feat_filename, 'w+')
+                            f = open(self.result_dir + feat_filename, 'a+')
                             f.write('\n')
                             feat_cpu_flat = feat_cpu.flatten()
                             feat_cpu_list = feat_cpu_flat.tolist()

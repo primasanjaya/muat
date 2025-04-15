@@ -31,9 +31,24 @@ def validate_checkpoint(trainer_config):
                          "Please provide these values via command-line arguments (--epoch, --batch-size, --learning-rate).")
 
 def load_data(train_path, val_path):
-            train_split = pd.read_csv(train_path, sep='\t', low_memory=False)
-            test_split = pd.read_csv(val_path, sep='\t', low_memory=False)
-            return train_split, test_split
+    train_split = pd.read_csv(train_path, sep='\t', low_memory=False)
+    test_split = pd.read_csv(val_path, sep='\t', low_memory=False)
+    
+    # Handle missing class_index in train_split
+    if 'class_index' not in train_split.columns and 'class_name' in train_split.columns:
+        label_1 = train_split[['class_name']].drop_duplicates()
+        label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
+        label_1['class_index'] = np.arange(len(label_1))
+        train_split['class_index'] = train_split['class_name'].map(label_1.set_index('class_name')['class_index'])
+    
+    # Handle missing class_index in test_split
+    if 'class_index' not in test_split.columns and 'class_name' in test_split.columns:
+        label_1 = test_split[['class_name']].drop_duplicates()
+        label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
+        label_1['class_index'] = np.arange(len(label_1))
+        test_split['class_index'] = test_split['class_name'].map(label_1.set_index('class_name')['class_index'])
+    
+    return train_split, test_split
 
 def initialize_label_encoders(target_path, subtarget_path=None):
     target_handler = [LabelEncoderFromCSV(csv_file=target_path, class_name_col='class_name', class_index_col='class_index')]
@@ -243,16 +258,29 @@ def main():
 
         train_split, test_split = load_data(resolve_path(args.train_split_filepath), resolve_path(args.val_split_filepath))
         all_split = pd.concat([train_split, test_split], ignore_index=True)
-        label_1 = all_split[['class_name','class_index']].drop_duplicates()
-        label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)   
+        columns = all_split.columns
+
+        if 'class_index' in columns:
+            label_1 = all_split[['class_name','class_index']].drop_duplicates()
+            label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)
+        else:
+            label_1 = all_split[['class_name']].drop_duplicates()
+            label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
+            label_1['class_index'] = np.arange(len(label_1))
+
         save_label_1 = save_dir+'/label_1.tsv'
         label_1.to_csv(save_label_1,sep='\t',index=False)
-        
+
         label_2 = None
         save_label_2 = None
-        if 'subclass_name' in all_split.columns:
-            label_2 = all_split[['subclass_name','subclass_index']].drop_duplicates()
-            label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True) 
+        if 'subclass_name' in columns:
+            if 'subclass_index' in columns:
+                label_2 = all_split[['subclass_name','subclass_index']].drop_duplicates()
+                label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True)
+            else:
+                label_2 = all_split[['subclass_name']].drop_duplicates()
+                label_2 = label_2.sort_values(by=['subclass_name']).reset_index(drop=True)
+                label_2['subclass_index'] = np.arange(len(label_2))
             save_label_2 = save_dir+'/label_2.tsv'
             label_2.to_csv(save_label_2,sep='\t',index=False)
 
@@ -302,15 +330,18 @@ def main():
 
         model = get_model(arch, model_config)
 
+        # Create dataloader configurations using model config and command line args
         train_dataloader_config = DataloaderConfig(
             model_input=model_config.model_input,
             mutation_type_ratio=model_config.mutation_type_ratio,
-            mutation_sampling_size=args.mutation_sampling_size
+            mutation_sampling_size=args.mutation_sampling_size,
+            sampling_replacement=args.sampling_replacement
         )
         test_dataloader_config = DataloaderConfig(
             model_input=model_config.model_input,
             mutation_type_ratio=model_config.mutation_type_ratio,
-            mutation_sampling_size=args.mutation_sampling_size
+            mutation_sampling_size=args.mutation_sampling_size,
+            sampling_replacement=args.sampling_replacement
         )
 
         train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
@@ -326,8 +357,6 @@ def main():
         checkpoint = load_and_check_checkpoint(load_ckpt_filepath)
 
         model_config_muttype = checkpoint['model_config'].mutation_type
-        if model_config_muttype != args.mutation_type:
-            raise ValueError('You selected a different mutation type from the checkpoint. The checkpoint mutation type is ' + model_config_muttype + ', which is different from --mutation-type ' + args.mutation_type + '. Please select the correct checkpoint.')
 
         dataloader_config = checkpoint['dataloader_config']
         model_config = checkpoint['model_config']
@@ -337,16 +366,29 @@ def main():
 
         train_split, test_split = load_data(resolve_path(args.train_split_filepath), resolve_path(args.val_split_filepath))
         all_split = pd.concat([train_split, test_split], ignore_index=True)
-        label_1 = all_split[['class_name','class_index']].drop_duplicates()
-        label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)   
+        columns = all_split.columns
+
+        if 'class_index' in columns:
+            label_1 = all_split[['class_name','class_index']].drop_duplicates()
+            label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)
+        else:
+            label_1 = all_split[['class_name']].drop_duplicates()
+            label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
+            label_1['class_index'] = np.arange(len(label_1))
+
         save_label_1 = save_dir+'/label_1.tsv'
         label_1.to_csv(save_label_1,sep='\t',index=False)
-        
+
         label_2 = None
         save_label_2 = None
-        if 'subclass_name' in all_split.columns:
-            label_2 = all_split[['subclass_name','subclass_index']].drop_duplicates()
-            label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True) 
+        if 'subclass_name' in columns:
+            if 'subclass_index' in columns:
+                label_2 = all_split[['subclass_name','subclass_index']].drop_duplicates()
+                label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True)
+            else:
+                label_2 = all_split[['subclass_name']].drop_duplicates()
+                label_2 = label_2.sort_values(by=['subclass_name']).reset_index(drop=True)
+                label_2['subclass_index'] = np.arange(len(label_2))
             save_label_2 = save_dir+'/label_2.tsv'
             label_2.to_csv(save_label_2,sep='\t',index=False)
 
@@ -369,6 +411,20 @@ def main():
 
         model = get_model(arch, model_config)
         model = initialize_pretrained_weight(arch,model_config,checkpoint)
+
+        # Create dataloader configurations using model config and command line args
+        train_dataloader_config = DataloaderConfig(
+            model_input=model_config.model_input,
+            mutation_type_ratio=model_config.mutation_type_ratio,
+            mutation_sampling_size=args.mutation_sampling_size,
+            sampling_replacement=args.sampling_replacement
+        )
+        test_dataloader_config = DataloaderConfig(
+            model_input=model_config.model_input,
+            mutation_type_ratio=model_config.mutation_type_ratio,
+            mutation_sampling_size=args.mutation_sampling_size,
+            sampling_replacement=args.sampling_replacement
+        )
 
         train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
         test_dataloader = MuAtDataloader(test_split, test_dataloader_config)

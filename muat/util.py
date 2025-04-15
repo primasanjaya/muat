@@ -118,7 +118,7 @@ def get_main_args():
                     help='Embedding dimension (default: 128).') 
     from_scratch.add_argument('--mutation-sampling-size', type=int, default=5000,
                     help='Maximum number of mutations to fetch for the model (default: 5000).')
-    from_scratch.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement.")
+    from_scratch.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement. Default is False")
 
     from_scratch.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Absolut Path to the motif dictionary (.tsv).')
     from_scratch.add_argument('--position-dictionary-filepath', type=str, default=None, help='Absolut Path to the genomic position dictionary (.tsv).')
@@ -145,7 +145,7 @@ def get_main_args():
                     help='Batch size (default: 2).')
     from_checkpoint.add_argument('--mutation-sampling-size', type=int, default=5000,
                     help='Maximum number of mutations to fetch for the model (default: 5000).')
-    from_checkpoint.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement.")
+    from_checkpoint.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement.  Default is False")
 
     # Predict subparser
     benchmark_parser = subparsers.add_parser('benchmark', help='Run the prediction using the best MuAt ensemble models')
@@ -207,8 +207,6 @@ def mut_type_checkpoint_handler(mutation_type,wgs_wes):
             load_ckpt_filepath = ensure_dirpath(ckptdir+'/tcga_wes/snv+mnv+indel/') +'tcga-wes-snv+mnv+indel-MuAtMotifPositionGESF.pthx'
     print('load from ckpt ' + load_ckpt_filepath)
     return load_ckpt_filepath
-
-
 
 
 def get_main_args_old():
