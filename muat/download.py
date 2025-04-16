@@ -92,10 +92,7 @@ def download_reference(genome_reference_path,hg19=True,hg38=True):
     os.makedirs(genome_reference_path, exist_ok=True)
     
     # Define URLs for reference files
-    references = {
-        'hg19': 'https://ftp.sanger.ac.uk/pub/project/PanCancer/genome.fa.gz',
-        'hg38': 'https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz'
-    }
+    references = {}
 
     if hg19:
         references['hg19'] = 'https://ftp.sanger.ac.uk/pub/project/PanCancer/genome.fa.gz'
@@ -110,7 +107,7 @@ def download_reference(genome_reference_path,hg19=True,hg38=True):
             print(f"{genome_build} reference already exists at {output_file}")
             continue
                     
-        print(f"Downloading {genome_build} reference...")
+        print(f"Downloading {genome_build} reference from {url} ...")
         try:
             urllib.request.urlretrieve(url, output_file)
             print(f"Successfully downloaded {genome_build} to {output_file}")

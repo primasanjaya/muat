@@ -77,7 +77,7 @@ def get_main_args():
     mut_type_loadckpt = wes.add_mutually_exclusive_group(required=True)
     mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
                         help='Mutation type; only {snv, snv+mnv, snv+mnv+indel} can be applied.')
-    mut_type_loadckpt.add_argument("--load-ckpt-filepath", type=str, default=None,
+    mut_type_loadckpt.add_argument("--ckpt-filepath", type=str, default=None,
                         help='Complete file Absolut Path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
 
     wes.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) or .token.gc.genic.exonic.cs.tsv.gz for no preprocessing")
