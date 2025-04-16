@@ -9,6 +9,7 @@ import os
 import glob
 import zipfile
 import json
+from muat.download import download_checkpoint
 
 def unziping_from_package_installation():
     pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
@@ -49,9 +50,11 @@ def save_dataframe_to_json(df, filepath: str):
     data = df.to_dict(orient="records")
     save_dict_to_json(data, filepath)
 
-def convert_checkpoint_v2tov3(ckpt_path, save_dir):
+def convert_checkpoint_v2tov3(ckpt_path, save_dir,checkpoint = None, save = True):
+    print('convert checkpoint v.3')
     # Load the old checkpoint
-    checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
+    if checkpoint is None:
+        checkpoint = torch.load(ckpt_path, map_location=torch.device('cpu'))
     
     # Create save directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
@@ -135,63 +138,64 @@ def convert_checkpoint_v2tov3(ckpt_path, save_dir):
         with open(os.path.join(save_dir, f'{name}.json'), 'r') as f:
             new_checkpoint[name] = pd.DataFrame(json.load(f))
 
-    # Compare checkpoints
-    print("\nComparing checkpoints:")
-    for key in checkpoint.keys():
-        ck_val = checkpoint[key]
-        new_ck_val = new_checkpoint[key]
-        
-        if key == 'weight':
-            # For OrderedDict of tensors, compare each tensor
-            if isinstance(ck_val, dict) and isinstance(new_ck_val, dict):
-                is_equal = True
-                for k in ck_val.keys():
-                    if k not in new_ck_val:
-                        is_equal = False
-                        break
-                    if not torch.equal(ck_val[k], new_ck_val[k]):
-                        is_equal = False
-                        break
-            else:
-                is_equal = False
-            print(f"{key}: {'✓' if is_equal else '✗'}")
-        elif key in ['motif_dict', 'pos_dict', 'ges_dict']:
-            # For DataFrames, compare values
-            is_equal = ck_val.equals(new_ck_val)
-            print(f"{key}: {'✓' if is_equal else '✗'}")
-        elif key == 'target_handler':
-            # For target handlers, compare their attributes
-            is_equal = all(
-                h1.class_to_idx == h2.class_to_idx and
-                h1.idx_to_class == h2.idx_to_class and
-                h1.classes_ == h2.classes_
-                for h1, h2 in zip(ck_val, new_ck_val)
-            )
-            print(f"{key}: {'✓' if is_equal else '✗'}")
-        else:
-            try:
-                all_ck_keys = ck_val.__dict__.keys()
-                if len(all_ck_keys) > 0:
-                    for x in all_ck_keys:
-                        cval = vars(ck_val)[x]
-                        cnval = vars(new_ck_val)[x]
-
-                        if isinstance(cval, pd.DataFrame):
-                            # For DataFrames, use equals() method
-                            is_equal = cval.equals(cnval)
-                        else:
-                            # For other types, use direct comparison
-                            is_equal = cval == cnval
-                        
-                    print(f"{key}: {'✓' if is_equal else '✗'}")
-            except:
-                is_equal = True
+    if save:
+        # Compare checkpoints
+        print("\nComparing checkpoints:")
+        for key in checkpoint.keys():
+            ck_val = checkpoint[key]
+            new_ck_val = new_checkpoint[key]
+            
+            if key == 'weight':
+                # For OrderedDict of tensors, compare each tensor
+                if isinstance(ck_val, dict) and isinstance(new_ck_val, dict):
+                    is_equal = True
+                    for k in ck_val.keys():
+                        if k not in new_ck_val:
+                            is_equal = False
+                            break
+                        if not torch.equal(ck_val[k], new_ck_val[k]):
+                            is_equal = False
+                            break
+                else:
+                    is_equal = False
                 print(f"{key}: {'✓' if is_equal else '✗'}")
+            elif key in ['motif_dict', 'pos_dict', 'ges_dict']:
+                # For DataFrames, compare values
+                is_equal = ck_val.equals(new_ck_val)
+                print(f"{key}: {'✓' if is_equal else '✗'}")
+            elif key == 'target_handler':
+                # For target handlers, compare their attributes
+                is_equal = all(
+                    h1.class_to_idx == h2.class_to_idx and
+                    h1.idx_to_class == h2.idx_to_class and
+                    h1.classes_ == h2.classes_
+                    for h1, h2 in zip(ck_val, new_ck_val)
+                )
+                print(f"{key}: {'✓' if is_equal else '✗'}")
+            else:
+                try:
+                    all_ck_keys = ck_val.__dict__.keys()
+                    if len(all_ck_keys) > 0:
+                        for x in all_ck_keys:
+                            cval = vars(ck_val)[x]
+                            cnval = vars(new_ck_val)[x]
 
-    #pdb.set_trace()
-    # Create zip file
-    zipfile = ckpt_path.split('/')[-1]
-    zip_checkpoint_files(save_dir,zipfile)
+                            if isinstance(cval, pd.DataFrame):
+                                # For DataFrames, use equals() method
+                                is_equal = cval.equals(cnval)
+                            else:
+                                # For other types, use direct comparison
+                                is_equal = cval == cnval
+                            
+                        print(f"{key}: {'✓' if is_equal else '✗'}")
+                except:
+                    is_equal = True
+                    print(f"{key}: {'✓' if is_equal else '✗'}")
+
+        #pdb.set_trace()
+        # Create zip file
+        zipfile = ckpt_path.split('/')[-1].split('.')[0] + 'v3.pthx'
+        zip_checkpoint_files(save_dir,zipfile)
     
     return new_checkpoint
 
@@ -265,18 +269,19 @@ def load_and_check_checkpoint(ckpt_path,save=False):
             checkpoint = load_checkpoint_v3(ckpt_path)
             return checkpoint
         except:
-            print('this checkpoint v.2 is depricated, convert this version to v.3 using from muat.checkpoint import convert_checkpoint_v2tov3 function')
+            print('this checkpoint v.2 is deprecated, convert this version to v.3 using from muat.checkpoint import convert_checkpoint_v2tov3 function')
             print('Downloading the latest checkpoint from https://huggingface.co/primasanjaya/muat-checkpoint/') 
             url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip'
-            download_checkpoint(url,'my_checkpoint.zip')
+            download_checkpoint(url,'my_checkpoint.zip',resolve_path(os.getcwd()) + '/downloaded_checkpoint/')
             url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip'
-            download_checkpoint(url,'my_checkpoint.zip')
+            download_checkpoint(url,'my_checkpoint.zip',resolve_path(os.getcwd()) + '/downloaded_checkpoint/')      
             url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip'
-            download_checkpoint(url,'my_checkpoint.zip')
+            download_checkpoint(url,'my_checkpoint.zip',resolve_path(os.getcwd()) + '/downloaded_checkpoint/')
             url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip'
-            download_checkpoint(url,'my_checkpoint.zip')
-            checkpoint = load_checkpoint_v3(ckpt_path)
-            return checkpoint
+            download_checkpoint(url,'my_checkpoint.zip',resolve_path(os.getcwd()) + '/downloaded_checkpoint/')
+            
+            string_path = resolve_path(os.getcwd()) + '/downloaded_checkpoint/'
+            raise ValueError('The checkpoint you provided is deprecated. Convert with the following function: from muat.checkpoint import convert_checkpoint_v2tov3. Or choose any from the downloaded checkpoint here: ' + string_path)
 
 def convert_checkpoint_version1(checkpoint,ckpt_path,save=False):
     print('convert checkpoint v.1')
@@ -388,6 +393,7 @@ def convert_checkpoint_version1(checkpoint,ckpt_path,save=False):
     weight_newformat = [checkpoint,args,1]
 
     checkpoint = convert_checkpoint_version2(weight_newformat,ckpt_path,save)
+
     return checkpoint
 
 def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
@@ -531,9 +537,10 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
                     'motif_dict':dict_motif,
                     'pos_dict':dict_pos,
                     'ges_dict':dict_ges}
+    
+    old_dir = ensure_dirpath(os.path.dirname(ckpt_path))
 
     if save:
-        old_dir = ensure_dirpath(os.path.dirname(ckpt_path))
         filename = '-'.join(new_name) + '.pthx'
         #pdb.set_trace()
         path = old_dir + filename
@@ -541,8 +548,9 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
         torch.save(save_ckpt_params,path)
         print('the latest checkpoint version has been saved in ' + path + '. Previous checkpoint version is deprecated, use this new version instead!')
         return save_ckpt_params, path
-    else:
-        return save_ckpt_params
+
+    checkpoint_v3 = convert_checkpoint_v2tov3(ckpt_path,old_dir,save_ckpt_params,True)
+    return checkpoint_v3
 
 def zip_checkpoint_files(directory: str, zip_name: str) -> str:
     """

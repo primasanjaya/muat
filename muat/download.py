@@ -16,10 +16,12 @@ from pkg_resources import resource_filename
 from muat.util import *
 
 # Function to download and extract the checkpoint
-def download_checkpoint(url,name):
+def download_checkpoint(url,name,checkpoint_dir=None):
     checkpoint_url = url  # Replace with your checkpoint URL
-    checkpoint_dir = resource_filename('muat', 'pkg_ckpt')
-    checkpoint_dir = ensure_dirpath(checkpoint_dir)
+
+    if checkpoint_dir is None:
+        checkpoint_dir = resource_filename('muat', 'pkg_ckpt')
+        checkpoint_dir = ensure_dirpath(checkpoint_dir)
 
     # Ensure the checkpoint directory exists
     if not os.path.exists(checkpoint_dir):
@@ -41,6 +43,8 @@ def download_checkpoint(url,name):
             zip_ref.extractall(path=checkpoint_dir)
         print(f"Checkpoint downloaded and extracted to {checkpoint_dir}")
         os.remove(checkpoint_file) 
+
+    
 
 def download_icgc_object_storage(data_path, bucket_name="icgc25k-open", endpoint_url="https://object.genomeinformatics.org", files_to_download=None):
     """Download specific ICGC 25K Open data from object storage."""
