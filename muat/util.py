@@ -31,15 +31,15 @@ def get_main_args():
     vcf_somagg_tsv.add_argument("--somagg", action="store_true", help="Preprocess SomAgg VCF files.")
     vcf_somagg_tsv.add_argument("--tsv", action="store_true", help="Preprocess TSV files.")
     hg19_hg38 = preprocessing.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Absolut Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Absolut Path to GRCh38/hg38 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg38 (.fa or .fa.gz)")
     
     preprocessing.add_argument("--input-filepath", nargs="+", help="Input file paths.", required=True)
 
     preprocessing.add_argument("--tmp-dir", type=str, default=None, help='Directory for storing preprocessed files.')
-    preprocessing.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Absolut Path to the motif dictionary (.tsv).')
-    preprocessing.add_argument('--position-dictionary-filepath', type=str, default=None, help='Absolut Path to the genomic position dictionary (.tsv).')
-    preprocessing.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Absolut Path to the genic exonic strand dictionary (.tsv).')
+    preprocessing.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
+    preprocessing.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
+    preprocessing.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
 
     #preprocessing.add_argument('--hg19-filepath', type=str, default=None, help='Absolut Path to GRCh37/hg19 (.fa or .fa.gz)',required=True)
     #preprocessing.add_argument('--hg38-filepath', type=str, default=None, help='Absolut Path to GRCh38/hg38 (.fa or .fa.gz)',required=True)
@@ -50,15 +50,15 @@ def get_main_args():
 
     wgs = predict_subparser.add_parser('wgs', help='Whole Genome Sequence.')
     hg19_hg38 = wgs.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Absolut Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Absolut Path to GRCh38/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg19 (.fa or .fa.gz)")
     hg19_hg38.add_argument("--no-preprocessing", action="store_true", help="Predict directly from preprocessed data (.token.gc.genic.exonic.cs.tsv.gz)")
 
     mut_type_loadckpt = wgs.add_mutually_exclusive_group(required=True)
     mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
                         help='Mutation type; only {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg} can be applied.')
     mut_type_loadckpt.add_argument("--ckpt-filepath", type=str, default=None,
-                        help='Complete file Absolut Path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
+                        help='Path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
 
     wgs.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .token.gc.genic.exonic.cs.tsv.gz for no preprocessing")
     wgs.add_argument("--result-dir", type=str, default=None, required=True,
@@ -70,15 +70,15 @@ def get_main_args():
 
     wes = predict_subparser.add_parser('wes', help='Whole Exome Sequence.')
     hg19_hg38 = wes.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Absolut Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Absolut Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
     hg19_hg38.add_argument("--no-preprocessing", action="store_true", help="Predict from preprocessed data (.token.gc.genic.exonic.cs.tsv.gz)")
 
     mut_type_loadckpt = wes.add_mutually_exclusive_group(required=True)
     mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
                         help='Mutation type; only {snv, snv+mnv, snv+mnv+indel} can be applied.')
     mut_type_loadckpt.add_argument("--ckpt-filepath", type=str, default=None,
-                        help='Complete file Absolut Path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
+                        help='Absolut Path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
 
     wes.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) or .token.gc.genic.exonic.cs.tsv.gz for no preprocessing")
     wes.add_argument("--result-dir", type=str, default=None, required=True,
@@ -120,13 +120,13 @@ def get_main_args():
                     help='Maximum number of mutations to fetch for the model (default: 5000).')
     from_scratch.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement. Default is False")
 
-    from_scratch.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Absolut Path to the motif dictionary (.tsv).')
-    from_scratch.add_argument('--position-dictionary-filepath', type=str, default=None, help='Absolut Path to the genomic position dictionary (.tsv).')
-    from_scratch.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Absolut Path to the genic exonic strand dictionary (.tsv).')
+    from_scratch.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
+    from_scratch.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
+    from_scratch.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
 
     from_checkpoint = train_subparsers.add_parser('from-checkpoint', help='Train from a checkpoint.')
     from_checkpoint.add_argument("--ckpt-filepath", type=str, default=None, required=True,
-                        help='Complete file Absolut Path to load the checkpoint (.pthx).')
+                        help='Path to load the checkpoint (.pthx).')
     from_checkpoint.add_argument("--mutation-type", type=str, default=None, required=True,
                         help='Mutation type; choose from {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg}.')
     
@@ -153,8 +153,8 @@ def get_main_args():
     
     wgs = benchmark_subparser.add_parser('muat-wgs', help='MuAt Whole Genome Sequence.')
     hg19_hg38 = wgs.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Absolut Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Absolut Path to GRCh38/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg19 (.fa or .fa.gz)")
     hg19_hg38.add_argument("--no-preprocessing", action="store_true", help="Predict directly from preprocessed data (.token.gc.genic.exonic.cs.tsv.gz)")
 
     wgs.add_argument("--mutation-type", type=str, default=None,required=True,
@@ -167,8 +167,8 @@ def get_main_args():
 
     wes = benchmark_subparser.add_parser('muat-wes', help='MuAt Whole Exome Sequence.')
     hg19_hg38 = wes.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Absolut Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Absolut Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
     hg19_hg38.add_argument("--no-preprocessing", action="store_true", help="Predict from preprocessed data (.token.gc.genic.exonic.cs.tsv.gz)")
 
     wes.add_argument("--mutation-type", type=str, default=None,required=True,
