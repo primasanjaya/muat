@@ -1,0 +1,1 @@
+nextflow run main.nf --input_vcf absolute_path/example_files/0a6be23a-d5a0-4e95-ada2-a61b2b5d9485.consensus.20160830.somatic.snv_mnv.vcf.gz --reference absolute_path/data/genome_reference/hg19.fa --result_dir results
