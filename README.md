@@ -92,7 +92,7 @@ To predict using VCF files written with hg38, run:
 ## Run MuAt benchmark models
 Example cli to predict samples using the best MuAt ensemble models:
 ```bash
-(muat-env)$ muat benchmark muat-wgs --hg19 '/path/to/genome_reference/hg19.fa' --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
+(muat-env)$ muat predict-ensemble muat-wgs --hg19 '/path/to/genome_reference/hg19.fa' --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
 ```
 
 ## Additional Resources
