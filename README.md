@@ -55,10 +55,10 @@ positional arguments:
   {download,preprocessing,predict,train,benchmark}
                         Available commands
     download            Download the dataset.
-    preprocessing       Preprocess the dataset.
+    preprocess          Preprocess the dataset.
     predict             Predict samples.
     train               Train the MuAt model.
-    benchmark           Run the prediction using the best MuAt ensemble models
+    predict-ensemble    Run the prediction using the best MuAt ensemble models
 ```
 
 ## Docker container installation
