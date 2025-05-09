@@ -11,7 +11,7 @@ To run MuAt2 prediction, execute the command below, pointing to the pretrained c
 (muat-env)$ muat predict wgs --hg19 '/re_gecip/machine_learning/muat/genome_ref/ref' --ckpt-filepath 'path/to/checkpoint.pthx' --input-filepath 'sample1.vcf.gz' --result-dir 'path/to/result_dir/' 
 ```
 
-## Quick Inference from Preprocessed Data (.token.gc.genic.exonic.cs.tsv.gz)
+## Quick Inference from Preprocessed Data (.token.gc.genic.exonic.cs.tsv.gz / muat.tsv)
 ```bash
 (muat-env)$ muat predict wgs --no-preprocessing --ckpt-filepath 'path/to/checkpoint.pthx' --input-filepath 'sample1.token.gc.genic.exonic.cs.tsv.gz' --result-dir 'path/to/result_dir/' 
 ```

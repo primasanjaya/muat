@@ -14,12 +14,12 @@ The preprocessing steps for MuAt input consist of two main stages:
 
 #### For VCF Files Written with hg19
 ```bash
-(muat-env)$ muat preprocessing --vcf --hg19 'path/to/hg19.fa' -input-filepath 'path/to/sample.vcf.gz' 
+(muat-env)$ muat preprocess --vcf --hg19 'path/to/hg19.fa' -input-filepath 'path/to/sample.vcf.gz' 
 ```
 
 #### For VCF Files Written with hg38
 ```bash
-(muat-env)$ muat preprocessing --vcf --hg38 'path/to/hg38.fa' -input-filepath 'path/to/sample.vcf.gz' 
+(muat-env)$ muat preprocess --vcf --hg38 'path/to/hg38.fa' -input-filepath 'path/to/sample.vcf.gz' 
 ```
 
 ## Final Output
