@@ -101,7 +101,11 @@ class MuAtDataloader(Dataset):
 
     def get_data(self, idx):
         instances = self.data_split_tsv.iloc[idx]
-        pd_row = pd.read_csv(instances['prep_path'], sep='\t', compression='gzip', low_memory=False)
+        if instances['prep_path'].endswith('.gz'):
+            pd_row = pd.read_csv(instances['prep_path'], sep='\t', compression='gzip', low_memory=False)
+        else:
+            pd_row = pd.read_csv(instances['prep_path'], sep='\t', low_memory=False)
+
         sample_path = instances['prep_path']
         
         # Get idx_class and idx_subclass if they exist

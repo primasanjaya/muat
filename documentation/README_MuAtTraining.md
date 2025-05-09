@@ -1,7 +1,7 @@
 # How to train MuAt models
 
 ## Assumption
-You should have the preprocessed data (.token.gc.genic.exonic.cs.tsv.gz) to train MuAt. Read the preprocessing steps [here](README_preprocessing.md).
+You should have the preprocessed data (.muat.tsv) to train MuAt. Read the preprocessing steps [here](README_preprocessing.md).
 
 ## Overview
 To train the MuAt model, you need to specify the train/test split in the TSV file. <br>

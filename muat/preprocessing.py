@@ -29,7 +29,7 @@ def combine_somagg_chunks_to_platekey(sample_folder,tmp_dir):
             pd_read = pd.read_csv(perchunk,sep='\t',low_memory=False)
             pd_persample = pd.concat([pd_persample,pd_read])
         samp_id = pd_persample['sample'].iloc[0]
-        pd_persample.to_csv(tmp_dir + get_sample_name(samp_id) + '.token.gc.genic.exonic.cs.tsv.gz', sep='\t',compression='gzip')
+        pd_persample.to_csv(tmp_dir + get_sample_name(samp_id) + '.muat.tsv', sep='\t')
 
 def filtering_somagg_vcf(all_somagg_chunks,tmp_dir):
     '''
@@ -126,8 +126,8 @@ def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,tmp_dir,dic
     #pdb.set_trace()
     all_tokenized = []
     for x in all_preprocessed_vcf:
-        if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
-            all_tokenized.append(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.muat.tsv'):
+            all_tokenized.append(tmp_dir + get_sample_name(x) + '.muat.tsv')
     
     for x in all_tokenized:
         pd_file = pd.read_csv(x,sep='\t',low_memory=False)
@@ -358,5 +358,5 @@ def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,tmp_dir,pos_b
             df = df.merge(dict_pos, left_on='chrompos', right_on='chrompos', how='left')
             df = df.merge(dict_ges, left_on='ges', right_on='ges', how='left')
 
-            token_file = ensure_dirpath(tmp_dir) + get_sample_name(path) + '.token.gc.genic.exonic.cs.tsv.gz'
-            df.to_csv(token_file, sep='\t',compression='gzip',index=False)
+            token_file = ensure_dirpath(tmp_dir) + get_sample_name(path) + '.muat.tsv'
+            df.to_csv(token_file, sep='\t',index=False)

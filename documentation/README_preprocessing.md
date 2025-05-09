@@ -10,7 +10,7 @@ The preprocessing steps for MuAt input consist of two main stages:
    - Output extension: `.gc.genic.exonic.cs.tsv.gz`
    
 2. **Tokenizing the Three Information Types for MuAt Input**
-   - Output extension: `.token.gc.genic.exonic.cs.tsv.gz`
+   - Output extension: `.muat.tsv`
 
 #### For VCF Files Written with hg19
 ```bash
@@ -23,9 +23,9 @@ The preprocessing steps for MuAt input consist of two main stages:
 ```
 
 ## Final Output
-After completing all the steps, you will receive the preprocessed and tokenized files in the specified `tmp_dir` with the extension `.token.gc.genic.exonic.cs.tsv.gz`. 
+After completing all the steps, you will receive the preprocessed and tokenized files in the specified `tmp_dir` with the extension `.muat.tsv`. 
 
-**Note:** These `.token.gc.genic.exonic.cs.tsv.gz` files will be used as input for MuAt, so all training, validation, and test splits will be based on these files.
+**Note:** These `.muat.tsv` files will be used as input for MuAt, so all training, validation, and test splits will be based on these files.
 
 ## Additional Information
 To learn how to train MuAt models, please refer to `README_PCAWG.md`.

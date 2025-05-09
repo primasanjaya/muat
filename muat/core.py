@@ -140,8 +140,8 @@ def main():
             print('preprocessed data saved in ' + tmp_dir)
             predict_ready_files = []
             for x in vcf_files:
-                if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
-                    predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+                if os.path.exists(tmp_dir + get_sample_name(x) + '.muat.tsv'):
+                    predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.muat.tsv')
 
             pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
         if args.hg38 is not None:
@@ -156,12 +156,12 @@ def main():
 
             predict_ready_files = []
             for x in vcf_files:
-                if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
-                    predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+                if os.path.exists(tmp_dir + get_sample_name(x) + '.muat.tsv'):
+                    predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.muat.tsv')
 
             pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
 
-        if args.no_preprocessing:
+        if args.no_preprocess:
             predict_ready_files = vcf_files
             pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
         
@@ -180,7 +180,7 @@ def main():
         predictor = Predictor(model, test_dataloader, predict_config)
         predictor.batch_predict()
         
-    if args.command == 'preprocessing':
+    if args.command == 'preprocess':
         genome_reference_path_hg19 = resolve_path(args.hg19)
         genome_reference_path_hg38 = resolve_path(args.hg38)
 
@@ -482,28 +482,29 @@ def main():
                     print('preprocessed data saved in ' + tmp_dir)
                 predict_ready_files = []
                 for x in vcf_files:
-                    if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
-                        predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+                    if os.path.exists(tmp_dir + get_sample_name(x) + '.muat.tsv'):
+                        predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.muat.tsv')
 
                 pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
             if args.hg38 is not None:
-                genome_reference_path_hg38 = resolve_path(args.hg38)
-                preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
-                                        genome_reference_38_path=genome_reference_path_hg38,
-                                        tmp_dir=tmp_dir,
-                                        dict_motif=dict_motif,
-                                        dict_pos=dict_pos,
-                                        dict_ges=dict_ges)
-                print('preprocessed data saved in ' + tmp_dir)
+                if i_fold == 0:
+                    genome_reference_path_hg38 = resolve_path(args.hg38)
+                    preprocessing_vcf38_tokenizing(vcf_file=vcf_files,
+                                            genome_reference_38_path=genome_reference_path_hg38,
+                                            tmp_dir=tmp_dir,
+                                            dict_motif=dict_motif,
+                                            dict_pos=dict_pos,
+                                            dict_ges=dict_ges)
+                    print('preprocessed data saved in ' + tmp_dir)
 
                 predict_ready_files = []
                 for x in vcf_files:
-                    if os.path.exists(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz'):
-                        predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
+                    if os.path.exists(tmp_dir + get_sample_name(x) + '.muat.tsv'):
+                        predict_ready_files.append(tmp_dir + '/' + get_sample_name(x) + '.muat.tsv')
 
                 pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
 
-            if args.no_preprocessing:
+            if args.no_preprocess:
                 if i_fold == 0:
                     predict_ready_files = vcf_files
                     pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
@@ -532,6 +533,8 @@ def main():
             pd_perfold['fold'] = fold
             pd_allfold = pd.concat([pd_allfold,pd_perfold])
             os.remove(i_f)
+        
+        #pdb.set_trace()
         pd_logits = pd_allfold.drop(columns=['prediction'])
 
         all_samples = pd_logits['sample'].unique()
