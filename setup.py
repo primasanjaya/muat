@@ -76,8 +76,8 @@ def download_checkpoint(url,name,extract=False):
 shell_scripts = [os.path.join('muat/pkg_shell', f) for f in os.listdir('muat/pkg_shell') 
                 if f.endswith('.sh')]
 
-download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip",'best_wgs_pcawg.zip',False)
-download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes_slim.zip",'benchmark_wes_slim.zip',False)
+#download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip",'best_wgs_pcawg.zip',False)
+#download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes_slim.zip",'benchmark_wes_slim.zip',False)
 
 #download genome reference and unzip 
 path = os.path.dirname(os.path.abspath(__file__)) + '/'
