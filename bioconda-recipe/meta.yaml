@@ -1,5 +1,5 @@
 {% set name = "muat" %}
-{% set version = "0.1.14" %}
+{% set version = "0.1.15" %}
 
 package:
   name: {{ name|lower }}
@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://github.com/primasanjaya/muat/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: 
+  sha256: f13c0f23f91251ea9af968e4447f652dc2aa7dc396d0b0100ab9201742e4dfec
 build:
   number: 0
   noarch: python
