@@ -1,7 +1,5 @@
 __version__ = '0.1.17'
 
-from .core import main
-
 '''
 # Import specific functions you want to expose
 from .preprocessing import (

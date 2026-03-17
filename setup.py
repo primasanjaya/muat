@@ -73,8 +73,14 @@ def download_checkpoint(url,name,extract=False):
         os.remove(checkpoint_file)  
 
 # Get list of shell scripts
-shell_scripts = [os.path.join('muat/pkg_shell', f) for f in os.listdir('muat/pkg_shell') 
-                if f.endswith('.sh')]
+shell_dir = os.path.join("muat", "pkg_shell")
+shell_scripts = []
+if os.path.isdir(shell_dir):
+    shell_scripts = [
+        os.path.join(shell_dir, f)
+        for f in os.listdir(shell_dir)
+        if f.endswith(".sh")
+    ]
 
 #download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip",'best_wgs_pcawg.zip',False)
 #download_checkpoint("https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes_slim.zip",'benchmark_wes_slim.zip',False)
