@@ -1,7 +1,5 @@
 name: muat-env
 channels:
-  - anaconda
-  - defaults
   - conda-forge
   - bioconda
 dependencies:
@@ -14,7 +12,7 @@ dependencies:
   - boto3
   - openpyxl
   - scikit-learn
-  - pytorch
+  - pytorch-cpu
   - pyliftover
   - bcftools
   - bedops
