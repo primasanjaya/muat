@@ -74,7 +74,9 @@ def main():
 
     pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
     pkg_ckpt = ensure_dirpath(pkg_ckpt)
-    unziping_from_package_installation()
+
+    if args.command in ['wgs', 'wes', 'muat-wgs', 'muat-wes']:
+        unziping_from_package_installation()
 
     if args.command == 'download':
         files_to_download = ['PCAWG/consensus_snv_indel/README.md',

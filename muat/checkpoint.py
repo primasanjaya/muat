@@ -11,6 +11,13 @@ import zipfile
 import json
 from muat.download import download_checkpoint
 
+import tempfile
+
+from muat.model import ModelConfig
+from muat.trainer import TrainerConfig
+from muat.dataloader import DataloaderConfig
+from muat.util import LabelEncoderFromCSV
+
 def unziping_from_package_installation():
     pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
     pkg_ckpt = ensure_dirpath(pkg_ckpt)
@@ -200,88 +207,136 @@ def convert_checkpoint_v2tov3(ckpt_path, save_dir,checkpoint = None, save = True
     return new_checkpoint
 
 def load_checkpoint_v3(ckpt_path):
-    folder_name = ckpt_path.split('.pthx')[0]
-    #pdb.set_trace()
-    unzip_checkpoint_files(ckpt_path,folder_name)
-    # Reload all JSON files into a new checkpoint dictionary
-    new_checkpoint = {}
+    if not os.path.exists(ckpt_path):
+        raise FileNotFoundError(f"Checkpoint file not found: {ckpt_path}")
 
-    save_dir = ensure_dirpath(folder_name)
-    weights_path = save_dir + 'weight.pth'
-    # Load weights
-    new_checkpoint['weight'] = torch.load(weights_path, map_location=torch.device('cpu'), weights_only=True)
-    
-    # Load target handlers using the new from_json method
-    new_checkpoint['target_handler'] = []
-    target_handler_files = [f for f in os.listdir(save_dir) if f.startswith('target_handler_')]
-    for file in sorted(target_handler_files):
-        filepath = os.path.join(save_dir, file)
-        handler = LabelEncoderFromCSV.from_json(filepath)
-        new_checkpoint['target_handler'].append(handler)
-    
-    # Load configs and reconstruct classes
-    with open(os.path.join(save_dir, 'model_config.json'), 'r') as f:
-        model_config_data = json.load(f)
-        # Convert DataFrames back from records
-        model_config_data['dict_motif'] = pd.DataFrame(model_config_data['dict_motif'])
-        model_config_data['dict_pos'] = pd.DataFrame(model_config_data['dict_pos'])
-        model_config_data['dict_ges'] = pd.DataFrame(model_config_data['dict_ges'])
-        model_config_data['n_class'] = model_config_data['num_class']
-        model_config_data['n_emb'] = model_config_data['n_embd']
-        new_checkpoint['model_config'] = ModelConfig(**model_config_data)
-    
-    with open(os.path.join(save_dir, 'trainer_config.json'), 'r') as f:
-        trainer_config_data = json.load(f)
-        new_checkpoint['trainer_config'] = TrainerConfig(**trainer_config_data)
-    
-    with open(os.path.join(save_dir, 'dataloader_config.json'), 'r') as f:
-        dataloader_config_data = json.load(f)
-        new_checkpoint['dataloader_config'] = DataloaderConfig(**dataloader_config_data)
-    
-    # Load model name
-    with open(os.path.join(save_dir, 'model_name.json'), 'r') as f:
-        new_checkpoint['model_name'] = json.load(f)
-    # Load dictionaries
-    for name in ['motif_dict', 'pos_dict', 'ges_dict']:
-        with open(os.path.join(save_dir, f'{name}.json'), 'r') as f:
-            new_checkpoint[name] = pd.DataFrame(json.load(f))
+    if not zipfile.is_zipfile(ckpt_path):
+        raise ValueError(f"Checkpoint is not a valid .pthx zip file: {ckpt_path}")
 
-    return new_checkpoint
-
-def load_and_check_checkpoint(ckpt_path,save=False):
+    tmp_dir = tempfile.mkdtemp(prefix="muat_ckpt_")
 
     try:
-        checkpoint = torch.load(ckpt_path,map_location=torch.device('cpu'),weights_only=False)
+        with zipfile.ZipFile(ckpt_path, "r") as zip_ref:
+            zip_ref.extractall(tmp_dir)
+
+        required_files = [
+            "weight.pth",
+            "model_config.json",
+            "trainer_config.json",
+            "dataloader_config.json",
+            "model_name.json",
+            "motif_dict.json",
+            "pos_dict.json",
+            "ges_dict.json",
+        ]
+
+        for fname in required_files:
+            fpath = os.path.join(tmp_dir, fname)
+            if not os.path.exists(fpath):
+                raise ValueError(f"Checkpoint is incomplete. Missing file: {fname}")
+
+        new_checkpoint = {}
+
+        weights_path = os.path.join(tmp_dir, "weight.pth")
+        new_checkpoint["weight"] = torch.load(
+            weights_path,
+            map_location=torch.device("cpu"),
+            weights_only=False
+        )
+
+        new_checkpoint["target_handler"] = []
+        target_handler_files = sorted(
+            f for f in os.listdir(tmp_dir) if f.startswith("target_handler_")
+        )
+
+        if len(target_handler_files) == 0:
+            raise ValueError("Checkpoint does not contain any target_handler_*.json files.")
+
+        for file in target_handler_files:
+            filepath = os.path.join(tmp_dir, file)
+            handler = LabelEncoderFromCSV.from_json(filepath)
+            new_checkpoint["target_handler"].append(handler)
+
+        with open(os.path.join(tmp_dir, "motif_dict.json"), "r") as f:
+            motif_dict = pd.DataFrame(json.load(f))
+        with open(os.path.join(tmp_dir, "pos_dict.json"), "r") as f:
+            pos_dict = pd.DataFrame(json.load(f))
+        with open(os.path.join(tmp_dir, "ges_dict.json"), "r") as f:
+            ges_dict = pd.DataFrame(json.load(f))
+
+        new_checkpoint["motif_dict"] = motif_dict
+        new_checkpoint["pos_dict"] = pos_dict
+        new_checkpoint["ges_dict"] = ges_dict
+
+        with open(os.path.join(tmp_dir, "model_config.json"), "r") as f:
+            model_config_data = json.load(f)
+
+        model_config_data["dict_motif"] = motif_dict
+        model_config_data["dict_pos"] = pos_dict
+        model_config_data["dict_ges"] = ges_dict
+
+        new_checkpoint["model_config"] = ModelConfig(**model_config_data)
+
+        with open(os.path.join(tmp_dir, "trainer_config.json"), "r") as f:
+            trainer_config_data = json.load(f)
+        new_checkpoint["trainer_config"] = TrainerConfig(**trainer_config_data)
+
+        with open(os.path.join(tmp_dir, "dataloader_config.json"), "r") as f:
+            dataloader_config_data = json.load(f)
+        new_checkpoint["dataloader_config"] = DataloaderConfig(**dataloader_config_data)
+
+        with open(os.path.join(tmp_dir, "model_name.json"), "r") as f:
+            new_checkpoint["model_name"] = json.load(f)
+
+        metadata_path = os.path.join(tmp_dir, "metadata.json")
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r") as f:
+                new_checkpoint["metadata"] = json.load(f)
+
+        return new_checkpoint
+
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+def load_and_check_checkpoint(ckpt_path, save=False):
+    if not ckpt_path:
+        raise ValueError("No checkpoint path was provided.")
+
+    ckpt_path = resolve_path(ckpt_path)
+
+    if not os.path.exists(ckpt_path):
+        raise FileNotFoundError(f"Checkpoint file not found: {ckpt_path}")
+
+    try:
+        checkpoint = torch.load(
+            ckpt_path,
+            map_location=torch.device("cpu"),
+            weights_only=False
+        )
 
         if isinstance(checkpoint, dict):
-            if 'target_handler' in checkpoint.keys():
+            if "target_handler" in checkpoint:
                 return checkpoint
-            else:
-                checkpoint = convert_checkpoint_version1(checkpoint,ckpt_path,save=save)
-                return checkpoint
-        else:
-            if isinstance(checkpoint, list): #version 2 with args
-                if len(checkpoint) == 3:
-                    checkpoint = convert_checkpoint_version2(checkpoint,ckpt_path,save=save)
-                    return checkpoint
-    except:
+            checkpoint = convert_checkpoint_version1(checkpoint, ckpt_path, save=save)
+            return checkpoint
+
+        if isinstance(checkpoint, list) and len(checkpoint) == 3:
+            checkpoint = convert_checkpoint_version2(checkpoint, ckpt_path, save=save)
+            return checkpoint
+
+        raise ValueError(f"Unsupported legacy checkpoint structure in: {ckpt_path}")
+
+    except Exception as legacy_error:
         try:
             checkpoint = load_checkpoint_v3(ckpt_path)
             return checkpoint
-        except:
-            print('this checkpoint v.2 is deprecated, convert this version to v.3 using from muat.checkpoint import convert_checkpoint_v2tov3 function')
-            print('Downloading the latest checkpoint from https://huggingface.co/primasanjaya/muat-checkpoint/') 
-            url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip'
-            download_checkpoint(url,'my_checkpoint.zip',resolve_path(os.getcwd()) + '/downloaded_checkpoint/')
-            url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip'
-            download_checkpoint(url,'my_checkpoint.zip',resolve_path(os.getcwd()) + '/downloaded_checkpoint/')      
-            url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip'
-            download_checkpoint(url,'my_checkpoint.zip',resolve_path(os.getcwd()) + '/downloaded_checkpoint/')
-            url = 'https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip'
-            download_checkpoint(url,'my_checkpoint.zip',resolve_path(os.getcwd()) + '/downloaded_checkpoint/')
-            
-            string_path = resolve_path(os.getcwd()) + '/downloaded_checkpoint/'
-            raise ValueError('The checkpoint you provided is deprecated. Convert with the following function: from muat.checkpoint import convert_checkpoint_v2tov3. Or choose any from the downloaded checkpoint here: ' + string_path)
+        except Exception as v3_error:
+            raise ValueError(
+                f"Failed to load checkpoint: {ckpt_path}\n"
+                f"Legacy loader error: {legacy_error}\n"
+                f"V3 loader error: {v3_error}\n"
+                "The checkpoint may be corrupted, incomplete, or incompatible."
+            )
 
 def convert_checkpoint_version1(checkpoint,ckpt_path,save=False):
     print('convert checkpoint v.1')

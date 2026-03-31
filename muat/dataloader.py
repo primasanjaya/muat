@@ -13,13 +13,28 @@ import random
 from sklearn.utils import shuffle
 
 class DataloaderConfig:
+    def __init__(
+        self,
+        model_input=None,
+        mutation_type_ratio=None,
+        mutation_sampling_size=None,
+        sampling_replacement=False,
+        **kwargs
+    ):
+        self.model_input = model_input
+        self.mutation_type_ratio = mutation_type_ratio
+        self.mutation_sampling_size = mutation_sampling_size
+        self.sampling_replacement = sampling_replacement
 
-    def __init__(self, **kwargs):
-        # Set default value for sampling_replacement
-        self.sampling_replacement = False
-        # Update with any provided values
-        for k,v in kwargs.items():
+        for k, v in kwargs.items():
             setattr(self, k, v)
+
+        if self.model_input is None:
+            raise ValueError("DataloaderConfig requires model_input.")
+        if self.mutation_type_ratio is None:
+            raise ValueError("DataloaderConfig requires mutation_type_ratio.")
+        if self.mutation_sampling_size is None:
+            raise ValueError("DataloaderConfig requires mutation_sampling_size.")
 
 class MuAtDataloader(Dataset):
     def __init__(self, data_split_tsv,config,same_sampling=False):
