@@ -176,7 +176,7 @@ def get_context(v, prev_buf, next_buf, ref_genome,
         return None
     return seq[3:6]
 
-def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover=False,verbose=True,context=8):
+def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover=False,hg38_native=False,verbose=True,context=8):
     """A sweepline algorithm to insert mutations into the sequence flanking the focal mutation."""
 
     infotag = ''
@@ -197,12 +197,11 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
         n_var += 1
         if report_interval > 0 and (n_var % report_interval) == 0:
             status('{} variants processed'.format(n_var), True)
-        if liftover:
+        if liftover or hg38_native:
             if variant.chrom not in genome_ref38 and variant.chrom != VariantReader.EOF:
                 if warned_invalid_chrom == False:
                     sys.stderr.write('Warning: a chromosome found in data not present in reference: {}\nCheck your reference and vcf file compatibility'.format(variant.chrom))
                     warned_invalid_chrom = True
-                    #pdb.set_trace()
                 n_invalid_chrom += 1
                 continue
         else:
@@ -216,7 +215,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
         while len(next_buf) > 0 and (next_buf[0].chrom != variant.chrom or next_buf[0].pos < variant.pos - context):
             while len(prev_buf) > 0 and prev_buf[0].pos < next_buf[0].pos - context:
                 prev_buf.pop(0)
-            if liftover:
+            if liftover or hg38_native:
                 ctx = get_context(next_buf[0], prev_buf, next_buf, genome_ref38,
                             mutation_code, reverse_code,context=context)
             else:
@@ -256,8 +255,8 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
 
         liftover_chain = resource_filename('muat', 'pkg_data/genomic_tracks/hg38ToHg19.over.chain.gz')
         lo = LiftOver(liftover_chain)
-        
-        pd_hg38 = pd.read_csv(output_file,sep='\t',low_memory=False) 
+
+        pd_hg38 = pd.read_csv(output_file,sep='\t',low_memory=False)
         chrom_pos = []
 
         for i in range(len(pd_hg38)):
@@ -269,7 +268,6 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
                 alt = row['alt']
                 sample = row['sample']
                 seq = row['seq']
-                #gc1kb = row['gc1kb']
                 hg19chrompos = lo.convert_coordinate(chrom_38, pos_38)
                 chrom = hg19chrompos[0][0][3:]
                 pos = hg19chrompos[0][1]
@@ -278,12 +276,17 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
                 print('cant be converted at pos ' +str(row['chrom']) +':'+ str(row['pos']))
         pd_hg19 = pd.DataFrame(chrom_pos)
 
-        #pdb.set_trace()
         pd_hg19.columns = ['chrom','pos','ref','alt','sample','seq','chrom_38','pos_38']
-        #natural sort
         pd_hg19 = pd_hg19.loc[pd_hg19['chrom'].isin(accepted_pos_h19)]
         pd_hg19 = pd_hg19.sort_values(by=['chrom','pos'], key=natsort_keygen())
         pd_hg19.to_csv(output_file,sep='\t',index=False, compression="gzip")
+
+    elif hg38_native:
+        pd_h38 = pd.read_csv(output_file, sep='\t', low_memory=False, compression='gzip')
+        pd_h38['chrom'] = pd_h38['chrom'].str.replace('^chr', '', regex=True)
+        pd_h38 = pd_h38.loc[pd_h38['chrom'].isin(accepted_pos_h19)]
+        pd_h38 = pd_h38.sort_values(by=['chrom', 'pos'], key=natsort_keygen())
+        pd_h38.to_csv(output_file, sep='\t', index=False, compression='gzip')
 
      #next gc content
     input_gc = output_file
@@ -297,7 +300,10 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     pd_sort.to_csv(output_gc,sep='\t',index=False, compression="gzip")
     process.append('gc')
 
-    genic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.genic.genomic.bed.gz')
+    if hg38_native:
+        genic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.genic.genomic.bed.gz')
+    else:
+        genic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.genic.genomic.bed.gz')
     annotate_with_bed_sh = resource_filename('muat', 'pkg_shell/annotate_mutations_with_bed.sh')
     # Make the shell script executable
     #os.chmod(annotate_with_bed_sh, 0o755)
@@ -324,7 +330,10 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
 
     #exon regions
     output_exon = tmp_dir + sample_name + '.gc.genic.exonic.tsv.gz'
-    exonic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.exons.genomic.bed.gz')
+    if hg38_native:
+        exonic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.exons.genomic.bed.gz')
+    else:
+        exonic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.exons.genomic.bed.gz')
 
     syntax_exonic = annotate_with_bed_sh + '\
     ' + output_genic + ' \
@@ -343,7 +352,10 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
 
     #strand
     output_cs = tmp_dir + sample_name + '.gc.genic.exonic.cs.tsv.gz'
-    annotation = resource_filename('muat', 'pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.transcript_directionality.bed.gz')
+    if hg38_native:
+        annotation = resource_filename('muat', 'pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.transcript_directionality.bed.gz')
+    else:
+        annotation = resource_filename('muat', 'pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.transcript_directionality.bed.gz')
 
     o = openz(output_cs, 'wt')
 
@@ -415,6 +427,8 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
        
         if liftover:
             base = genome_ref38[chrom_38][pos_38]
+        elif hg38_native:
+            base = genome_ref38['chr' + chrom][pos]
         else:
             base = ref_genome[chrom][pos]
         #pdb.set_trace()

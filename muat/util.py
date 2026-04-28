@@ -40,10 +40,13 @@ def get_main_args():
     preprocess.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
     preprocess.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
     preprocess.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
+    preprocess.add_argument('--liftover', action='store_true', default=False,
+                            help='Only valid with --hg38: liftover coordinates to GRCh37/hg19 before training. '
+                                 'Default (without this flag) trains natively in GRCh38.')
 
     # Predict subparser
     predict_parser = subparsers.add_parser('predict', help='Predict samples.')
-    predict_subparser = predict_parser.add_subparsers(dest='command', required=True, help='Available commands.')
+    predict_subparser = predict_parser.add_subparsers(dest='subcommand', required=True, help='Available commands.')
 
     wgs = predict_subparser.add_parser('wgs', help='Whole Genome Sequence.')
     hg19_hg38 = wgs.add_mutually_exclusive_group(required=True)
@@ -57,7 +60,9 @@ def get_main_args():
     mut_type_loadckpt.add_argument("--ckpt-filepath", type=str, default=None,
                         help='Path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
 
-    wgs.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .muat.tsv for no preprocess")
+    wgs_input = wgs.add_mutually_exclusive_group(required=True)
+    wgs_input.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .muat.tsv for no preprocess")
+    wgs_input.add_argument("--input-list", type=str, default=None, help="Path to a text file listing input file paths, one per line.")
     wgs.add_argument("--result-dir", type=str, default=None, required=True,
                         help='Result directory where the output will be written (.tsv).')
     wgs.add_argument("--tmp-dir", type=str, default=None,
@@ -75,14 +80,16 @@ def get_main_args():
     mut_type_loadckpt.add_argument("--ckpt-filepath", type=str, default=None,
                         help='Absolut Path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
 
-    wes.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) or .muat.tsv for no preprocess")
+    wes_input = wes.add_mutually_exclusive_group(required=True)
+    wes_input.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) or .muat.tsv for no preprocess")
+    wes_input.add_argument("--input-list", type=str, default=None, help="Path to a text file listing input file paths, one per line.")
     wes.add_argument("--result-dir", type=str, default=None, required=True,
                         help='Result directory where the output will be written (.tsv).')
     wes.add_argument("--tmp-dir", type=str, default=None,
                         help='Directory for storing preprocessed files.')
 
     train_parser = subparsers.add_parser('train', help='Train the MuAt model.')
-    train_subparsers = train_parser.add_subparsers(dest='command', required=True, help='Available commands.')
+    train_subparsers = train_parser.add_subparsers(dest='subcommand', required=True, help='Available commands.')
     from_scratch = train_subparsers.add_parser('from-scratch', help='Train from scratch.')
     from_scratch.add_argument('--mutation-type', type=str, default=None, required=True,
                     help='Mutation type; choose from {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg}.')
@@ -142,9 +149,9 @@ def get_main_args():
 
     # Predict subparser
     benchmark_parser = subparsers.add_parser('predict-ensemble', help='Run the prediction using the best MuAt ensemble models')
-    benchmark_subparser = benchmark_parser.add_subparsers(dest='command', required=True, help='Available commands.')
-    
-    wgs = benchmark_subparser.add_parser('muat-wgs', help='MuAt Whole Genome Sequence.')
+    benchmark_subparser = benchmark_parser.add_subparsers(dest='subcommand', required=True, help='Available commands.')
+
+    wgs = benchmark_subparser.add_parser('wgs', help='Whole Genome Sequence.')
     hg19_hg38 = wgs.add_mutually_exclusive_group(required=True)
     hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
     hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg19 (.fa or .fa.gz)")
@@ -152,13 +159,15 @@ def get_main_args():
 
     wgs.add_argument("--mutation-type", type=str, default=None,required=True,
                         help='Mutation type; only {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg} can be applied.')
-    wgs.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .muat.tsv for no preprocess")
+    muat_wgs_input = wgs.add_mutually_exclusive_group(required=True)
+    muat_wgs_input.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .muat.tsv for no preprocess")
+    muat_wgs_input.add_argument("--input-list", type=str, default=None, help="Path to a text file listing input file paths, one per line.")
     wgs.add_argument("--result-dir", type=str, default=None, required=True,
                         help='Result directory where the output will be written (.tsv).')
     wgs.add_argument("--tmp-dir", type=str, default=None,
                         help='Directory for storing preprocessed files.')
 
-    wes = benchmark_subparser.add_parser('muat-wes', help='MuAt Whole Exome Sequence.')
+    wes = benchmark_subparser.add_parser('wes', help='Whole Exome Sequence.')
     hg19_hg38 = wes.add_mutually_exclusive_group(required=True)
     hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
     hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
@@ -167,12 +176,14 @@ def get_main_args():
     wes.add_argument("--mutation-type", type=str, default=None,required=True,
                         help='Mutation type; only {snv, snv+mnv, snv+mnv+indel} can be applied.')
 
-    wes.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .muat.tsv for no preprocess")
+    muat_wes_input = wes.add_mutually_exclusive_group(required=True)
+    muat_wes_input.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .muat.tsv for no preprocess")
+    muat_wes_input.add_argument("--input-list", type=str, default=None, help="Path to a text file listing input file paths, one per line.")
     wes.add_argument("--result-dir", type=str, default=None, required=True,
                         help='Result directory where the output will be written (.tsv).')
     wes.add_argument("--tmp-dir", type=str, default=None,
                         help='Directory for storing preprocessed files.')
-        
+
     args = parser.parse_args()
 
     return args

@@ -197,7 +197,11 @@ def main():
         checkpoint = load_and_check_checkpoint(load_ckpt_path)
 
         dict_motif, dict_pos, dict_ges = load_token_dict(checkpoint)
-        vcf_files = multifiles_handler(args.input_filepath)
+        if getattr(args, 'input_list', None) is not None:
+            with open(resolve_path(args.input_list)) as f:
+                vcf_files = [line.strip() for line in f if line.strip()]
+        else:
+            vcf_files = multifiles_handler(args.input_filepath)
         tmp_dir = check_tmp_dir(args)
 
         if args.no_preprocess:
@@ -288,21 +292,62 @@ def main():
                 )
             elif args.hg38 is not None:
                 genome_reference_path_hg38 = resolve_path(args.hg38)
-                preprocessing_vcf38_tokenizing(
-                    vcf_file=vcf_files,
-                    genome_reference_38_path=genome_reference_path_hg38,
-                    tmp_dir=tmp_dir,
-                    dict_motif=dict_motif,
-                    dict_pos=dict_pos,
-                    dict_ges=dict_ges
-                )
+                if args.liftover:
+                    preprocessing_vcf38_tokenizing(
+                        vcf_file=vcf_files,
+                        genome_reference_38_path=genome_reference_path_hg38,
+                        tmp_dir=tmp_dir,
+                        dict_motif=dict_motif,
+                        dict_pos=dict_pos,
+                        dict_ges=dict_ges
+                    )
+                else:
+                    preprocessing_vcf38_native_tokenizing(
+                        vcf_file=vcf_files,
+                        genome_reference_38_path=genome_reference_path_hg38,
+                        tmp_dir=tmp_dir,
+                        dict_motif=dict_motif,
+                        dict_pos=dict_pos,
+                        dict_ges=dict_ges
+                    )
             else:
                 raise ValueError("For VCF preprocessing, please provide either --hg19 or --hg38.")
 
             print('preprocessed data saved in ' + tmp_dir)
 
         elif args.tsv:
-            print('todo')
+            if args.hg19 is not None:
+                genome_reference_path_hg19 = resolve_path(args.hg19)
+                preprocessing_tsv_tokenizing(
+                    vcf_files,
+                    genome_reference_path_hg19,
+                    tmp_dir,
+                    dict_motif,
+                    dict_pos,
+                    dict_ges
+                )
+            elif args.hg38 is not None:
+                genome_reference_path_hg38 = resolve_path(args.hg38)
+                if args.liftover:
+                    preprocessing_tsv38_tokenizing(
+                        vcf_files,
+                        genome_reference_path_hg38,
+                        tmp_dir,
+                        dict_motif,
+                        dict_pos,
+                        dict_ges
+                    )
+                else:
+                    preprocessing_tsv38_native_tokenizing(
+                        vcf_files,
+                        genome_reference_path_hg38,
+                        tmp_dir,
+                        dict_motif,
+                        dict_pos,
+                        dict_ges
+                    )
+            else:
+                raise ValueError("For TSV preprocessing, please provide either --hg19 or --hg38.")
 
         elif args.somagg:
             if args.hg19 is not None:
@@ -318,14 +363,24 @@ def main():
                     only_tsv = [y for y in all_tsv if y.endswith('.tsv')][0]
                     tsv_files.append(only_tsv)
 
-                preprocessing_tsv38_tokenizing(
-                    tsv_files,
-                    genome_reference_path_hg38,
-                    tmp_dir,
-                    dict_motif,
-                    dict_pos,
-                    dict_ges
-                )
+                if args.liftover:
+                    preprocessing_tsv38_tokenizing(
+                        tsv_files,
+                        genome_reference_path_hg38,
+                        tmp_dir,
+                        dict_motif,
+                        dict_pos,
+                        dict_ges
+                    )
+                else:
+                    preprocessing_tsv38_native_tokenizing(
+                        tsv_files,
+                        genome_reference_path_hg38,
+                        tmp_dir,
+                        dict_motif,
+                        dict_pos,
+                        dict_ges
+                    )
             else:
                 raise ValueError("For somagg preprocessing, please provide --hg38 or implement --hg19 branch.")
 
@@ -578,7 +633,7 @@ def main():
                 '. Download benchmark model from ' + url + ' and extract to this path.'
             )
 
-        print('running prediction of ensemble models')
+        print('running prediction of ensemble models') 
 
         result_dir = ensure_dirpath(resolve_path(args.result_dir))
         vcf_files = multifiles_handler(args.input_filepath)

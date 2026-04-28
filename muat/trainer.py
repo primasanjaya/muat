@@ -344,10 +344,8 @@ class Trainer:
     def save_model_config_to_json(self, config, filepath: str):
         serialisable_dict = self.recursive_serialize(self.config_to_dict(config))
 
-        if "save_ckpt_dir" in serialisable_dict:
-            serialisable_dict["save_ckpt_dir"] = ""
-        if "save_ckpt_path" in serialisable_dict:
-            serialisable_dict["save_ckpt_path"] = ""
+        for key in ("save_ckpt_dir", "save_ckpt_path", "target_handler", "args"):
+            serialisable_dict.pop(key, None)
 
         with open(filepath, "w") as f:
             json.dump(serialisable_dict, f, indent=2)

@@ -142,6 +142,55 @@ def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,tmp_dir,dic
     #os.remove(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
     #os.remove(tmp_dir + get_sample_name(x) + '.token.gc.genic.exonic.cs.tsv.gz')
 
+def preprocessing_tsv_tokenizing(tsv_file,genome_reference_path,tmp_dir,dict_motif,dict_pos,dict_ges):
+    '''
+    Preprocess tsv file with GRCh37/hg19 and tokenize the motif, pos, and ges
+    '''
+    tsv_file = multifiles_handler(tsv_file)
+    preprocessing_tsv(tsv_file,genome_reference_path,tmp_dir)
+
+    all_preprocessed_vcf = []
+
+    tmp_dir = ensure_dirpath(tmp_dir)
+
+    for x in tsv_file:
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
+            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+
+    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
+
+    all_tokenized = []
+    for x in all_preprocessed_vcf:
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.muat.tsv'):
+            all_tokenized.append(tmp_dir + get_sample_name(x) + '.muat.tsv')
+
+    for x in all_tokenized:
+        pd_file = pd.read_csv(x,sep='\t',low_memory=False)
+        all_samples = pd_file['sample'].unique().tolist()
+
+        for samp in all_samples:
+            persamp = pd_file.loc[pd_file['sample']==samp]
+            os.makedirs(tmp_dir + samp,exist_ok=True)
+            persamp_path = ensure_dirpath(tmp_dir + samp)
+            persamp.to_csv(persamp_path + get_sample_name(x) + '.tsv',sep='\t',index=False)
+
+def preprocessing_tsv(tsv_file,genome_reference_path,tmp_dir,verbose=True):
+    '''
+    Preprocess tsv file with GRCh37/hg19
+    '''
+    genome_ref = read_reference(genome_reference_path, verbose=verbose)
+    fns = multifiles_handler(tsv_file)
+    fns = [resolve_path(x) for x in fns]
+
+    for i, fn in enumerate(fns):
+        digits = int(np.ceil(np.log10(len(fns))))
+        fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
+        f, sample_name = open_stream(fn)
+        vr = SomAggTSVReader(f=f, pass_only=True, type_snvs=False)
+        status('Writing mutation sequences...', verbose)
+        process_input(vr, sample_name, genome_ref, tmp_dir, liftover=False, verbose=verbose)
+        f.close()
+
 def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,tmp_dir,dict_motif,dict_pos,dict_ges):
     '''
     Preprocess vcf file with GRCh38 and tokenize the motif, pos, and ges
@@ -199,6 +248,86 @@ def preprocessing_vcf38(vcf_file,genome_reference_38_path,tmp_dir,verbose=True):
         fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
         get_motif_pos_ges(fn, None, tmp_dir, genome_ref38=genome_ref38, liftover=True, verbose=verbose)
 
+def preprocessing_vcf38_native(vcf_file,genome_reference_38_path,tmp_dir,verbose=True):
+    '''
+    Preprocess VCF file with GRCh38, no liftover (native hg38 training)
+    '''
+    if not os.path.exists(genome_reference_38_path):
+        print('reference file not found')
+        genome_reference_dir = os.path.dirname(genome_reference_38_path)
+        print('Downloading reference file to ' + genome_reference_dir)
+        download_reference(genome_reference_dir,hg19=False,hg38=True)
+        genome_reference_38_path = ensure_dirpath(genome_reference_dir) + 'hg38.fa.gz'
+
+    genome_ref38 = read_reference(genome_reference_38_path, verbose=verbose)
+    fns = multifiles_handler(vcf_file)
+    fns = [resolve_path(x) for x in fns]
+
+    for i, fn in enumerate(fns):
+        digits = int(np.ceil(np.log10(len(fns))))
+        fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
+        get_motif_pos_ges(fn, None, tmp_dir, genome_ref38=genome_ref38, liftover=False, hg38_native=True, verbose=verbose)
+
+def preprocessing_vcf38_native_tokenizing(vcf_file,genome_reference_38_path,tmp_dir,dict_motif,dict_pos,dict_ges):
+    '''
+    Preprocess VCF file with GRCh38 and tokenize (native hg38, no liftover)
+    '''
+    vcf_file = multifiles_handler(vcf_file)
+    preprocessing_vcf38_native(vcf_file,genome_reference_38_path,tmp_dir)
+
+    all_preprocessed_vcf = []
+    tmp_dir = ensure_dirpath(tmp_dir)
+    for x in vcf_file:
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
+            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
+
+def preprocessing_tsv38_native(tsv_file,genome_reference_38_path,tmp_dir,verbose=True):
+    '''
+    Preprocess TSV file with GRCh38, no liftover (native hg38 training)
+    '''
+    genome_ref38 = read_reference(genome_reference_38_path, verbose=verbose)
+    fns = multifiles_handler(tsv_file)
+    fns = [resolve_path(x) for x in fns]
+
+    for i, fn in enumerate(fns):
+        digits = int(np.ceil(np.log10(len(fns))))
+        fmt = '{:' + str(digits) + 'd}/{:' + str(digits) + 'd} {}: '
+        f, sample_name = open_stream(fn)
+        vr = SomAggTSVReader(f=f, pass_only=True, type_snvs=False)
+        status('Writing mutation sequences...', verbose)
+        process_input(vr, sample_name, None, tmp_dir, genome_ref38=genome_ref38, liftover=False, hg38_native=True, verbose=verbose)
+        f.close()
+
+def preprocessing_tsv38_native_tokenizing(tsv_file,genome_reference_38_path,tmp_dir,dict_motif,dict_pos,dict_ges):
+    '''
+    Preprocess TSV file with GRCh38 and tokenize (native hg38, no liftover)
+    '''
+    tsv_file = multifiles_handler(tsv_file)
+    preprocessing_tsv38_native(tsv_file,genome_reference_38_path,tmp_dir)
+
+    all_preprocessed_vcf = []
+    tmp_dir = ensure_dirpath(tmp_dir)
+    for x in tsv_file:
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
+            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+
+    tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
+
+    all_tokenized = []
+    for x in all_preprocessed_vcf:
+        if os.path.exists(tmp_dir + get_sample_name(x) + '.muat.tsv'):
+            all_tokenized.append(tmp_dir + get_sample_name(x) + '.muat.tsv')
+
+    for x in all_tokenized:
+        pd_file = pd.read_csv(x,sep='\t',low_memory=False)
+        all_samples = pd_file['sample'].unique().tolist()
+        for samp in all_samples:
+            persamp = pd_file.loc[pd_file['sample']==samp]
+            os.makedirs(tmp_dir + samp,exist_ok=True)
+            persamp_path = ensure_dirpath(tmp_dir + samp)
+            persamp.to_csv(persamp_path + get_sample_name(x) + '.tsv',sep='\t',index=False)
+
 def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_motif,dict_pos,dict_ges):
     '''
     Preprocess vcf file and tokenize the motif, pos, and ges
@@ -218,7 +347,7 @@ def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_mot
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     
 
-def get_motif_pos_ges(fn,genome_ref,tmp_dir,genome_ref38=None,liftover=False,verbose=True):
+def get_motif_pos_ges(fn,genome_ref,tmp_dir,genome_ref38=None,liftover=False,hg38_native=False,verbose=True):
     """
     Preprocess to get the motif from the vcf file
     Args:
@@ -226,6 +355,7 @@ def get_motif_pos_ges(fn,genome_ref,tmp_dir,genome_ref38=None,liftover=False,ver
         genome_ref: reference genome variable from read_reference
         tmp_dir: str, path to temporary directory for storing preprocessed files
         liftover: bool, if True, liftover the vcf file from GRCh38 to GRCh37
+        hg38_native: bool, if True, process hg38 input without liftover (native hg38 training)
     """
 
     tmp_dir = ensure_dirpath(tmp_dir)
@@ -235,7 +365,7 @@ def get_motif_pos_ges(fn,genome_ref,tmp_dir,genome_ref38=None,liftover=False,ver
         f, sample_name = open_stream(fn)
         vr = get_reader(f)
         status('Writing mutation sequences...', verbose)
-        process_input(vr, sample_name, genome_ref,tmp_dir,genome_ref38=genome_ref38,liftover=liftover,verbose=verbose)
+        process_input(vr, sample_name, genome_ref,tmp_dir,genome_ref38=genome_ref38,liftover=liftover,hg38_native=hg38_native,verbose=verbose)
         f.close()
         return 1
     except Exception as e:
