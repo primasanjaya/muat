@@ -91,7 +91,7 @@ path = os.path.dirname(os.path.abspath(__file__)) + '/'
 
 setup(
     name="muat",
-    version="0.1.17",
+    version="0.1.18",
     packages=find_packages(),
     package_data={
         'muat': [
