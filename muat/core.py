@@ -71,11 +71,6 @@ def validate_checkpoint(trainer_config):
 
 
 def load_data(train_path, val_path):
-    """
-    Only load the splits.
-    Do not generate class_index independently here, because that can create
-    inconsistent label mapping between train and validation.
-    """
     train_split = pd.read_csv(train_path, sep='\t', low_memory=False)
     test_split = pd.read_csv(val_path, sep='\t', low_memory=False)
     return train_split, test_split
@@ -134,6 +129,232 @@ def _validate_no_preprocess_inputs(files):
         )
 
 
+def _run_predict(args, wgs_wes, device):
+    """Shared logic for muat predict wgs/wes."""
+
+    if args.mutation_type is not None:
+        if wgs_wes == 'wgs':
+            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'pcawg_wgs')
+            url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip"
+        else:
+            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'tcga_wes')
+            url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip"
+
+        check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
+        if len(check_pth) == 0:
+            print('cant find model in ' + os.path.join(benchmark_ckpt, args.mutation_type) + '. Downloading model from ' + url)
+            download_checkpoint(url, 'my_checkpoint.zip')
+            check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
+
+        if len(check_pth) == 0:
+            raise ValueError(
+                'cant find benchmark model in ' +
+                os.path.join(benchmark_ckpt, args.mutation_type) +
+                '. Download benchmark model from ' + url + ' and extract to this path.'
+            )
+
+        load_ckpt_path = mut_type_checkpoint_handler(args.mutation_type, wgs_wes)
+    else:
+        load_ckpt_path = resolve_path(args.ckpt_filepath)
+
+    checkpoint = load_and_check_checkpoint(load_ckpt_path)
+    dict_motif, dict_pos, dict_ges = load_token_dict(checkpoint)
+
+    if getattr(args, 'input_list', None) is not None:
+        with open(resolve_path(args.input_list)) as f:
+            vcf_files = [line.strip() for line in f if line.strip()]
+    else:
+        vcf_files = multifiles_handler(args.input_filepath)
+
+    tmp_dir = check_tmp_dir(args)
+
+    if args.no_preprocess:
+        _validate_no_preprocess_inputs(vcf_files)
+        predict_ready_files = vcf_files
+        pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+
+    elif args.hg19 is not None:
+        genome_reference_path_hg19 = resolve_path(args.hg19)
+        preprocessing_vcf_tokenizing(
+            vcf_file=vcf_files,
+            genome_reference_path=genome_reference_path_hg19,
+            tmp_dir=tmp_dir,
+            dict_motif=dict_motif,
+            dict_pos=dict_pos,
+            dict_ges=dict_ges
+        )
+        print('preprocessed data saved in ' + tmp_dir)
+        predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
+        pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+
+    elif args.hg38 is not None:
+        genome_reference_path_hg38 = resolve_path(args.hg38)
+        preprocessing_vcf38_tokenizing(
+            vcf_file=vcf_files,
+            genome_reference_38_path=genome_reference_path_hg38,
+            tmp_dir=tmp_dir,
+            dict_motif=dict_motif,
+            dict_pos=dict_pos,
+            dict_ges=dict_ges
+        )
+        print('preprocessed data saved in ' + tmp_dir)
+        predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
+        pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+
+    else:
+        raise ValueError("Please provide either --hg19, --hg38, or --no-preprocess.")
+
+    target_handler = load_target_handler(checkpoint)
+    dataloader_config = checkpoint['dataloader_config']
+    test_dataloader = MuAtDataloader(pd_predict, dataloader_config)
+
+    model_name = checkpoint['model_name']
+    model = get_model(model_name, checkpoint['model_config'])
+    model = model.to(device)
+    model.load_state_dict(checkpoint['weight'])
+
+    result_dir = ensure_dirpath(resolve_path(args.result_dir))
+    predict_config = PredictorConfig(
+        max_epochs=1,
+        batch_size=1,
+        result_dir=result_dir,
+        target_handler=target_handler
+    )
+    predictor = Predictor(model, test_dataloader, predict_config)
+    predictor.batch_predict()
+
+
+def _run_predict_ensemble(args, wgs_wes, device):
+    """Shared logic for muat predict-ensemble wgs/wes."""
+
+    if wgs_wes == 'wgs':
+        benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wgs')
+        url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip"
+    else:
+        benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wes')
+        url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip"
+
+    check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
+    if len(check_pth) == 0:
+        download_checkpoint(url, 'my_checkpoint.zip')
+        check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
+
+    if len(check_pth) == 0:
+        raise ValueError(
+            'cant find benchmark model in ' +
+            os.path.join(benchmark_ckpt, args.mutation_type) +
+            '. Download benchmark model from ' + url + ' and extract to this path.'
+        )
+
+    print('running prediction of ensemble models')
+
+    result_dir = ensure_dirpath(resolve_path(args.result_dir))
+
+    if getattr(args, 'input_list', None) is not None:
+        with open(resolve_path(args.input_list)) as f:
+            vcf_files = [line.strip() for line in f if line.strip()]
+    else:
+        vcf_files = multifiles_handler(args.input_filepath)
+
+    tmp_dir = check_tmp_dir(args)
+
+    for i_fold, pth_file in enumerate(check_pth):
+        fold = pth_file.split('fold')[-1].split('.pthx')[0]
+        print('prediction from {}'.format(pth_file))
+
+        checkpoint = load_and_check_checkpoint(pth_file)
+        dict_motif, dict_pos, dict_ges = load_token_dict(checkpoint)
+
+        if args.no_preprocess:
+            if i_fold == 0:
+                _validate_no_preprocess_inputs(vcf_files)
+                predict_ready_files = vcf_files
+                pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+
+        elif args.hg19 is not None:
+            if i_fold == 0:
+                genome_reference_path_hg19 = resolve_path(args.hg19)
+                preprocessing_vcf_tokenizing(
+                    vcf_file=vcf_files,
+                    genome_reference_path=genome_reference_path_hg19,
+                    tmp_dir=tmp_dir,
+                    dict_motif=dict_motif,
+                    dict_pos=dict_pos,
+                    dict_ges=dict_ges
+                )
+                print('preprocessed data saved in ' + tmp_dir)
+            predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
+            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+
+        elif args.hg38 is not None:
+            if i_fold == 0:
+                genome_reference_path_hg38 = resolve_path(args.hg38)
+                preprocessing_vcf38_tokenizing(
+                    vcf_file=vcf_files,
+                    genome_reference_38_path=genome_reference_path_hg38,
+                    tmp_dir=tmp_dir,
+                    dict_motif=dict_motif,
+                    dict_pos=dict_pos,
+                    dict_ges=dict_ges
+                )
+                print('preprocessed data saved in ' + tmp_dir)
+            predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
+            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
+
+        else:
+            raise ValueError("Please provide either --hg19, --hg38, or --no-preprocess.")
+
+        target_handler = load_target_handler(checkpoint)
+        dataloader_config = checkpoint['dataloader_config']
+        test_dataloader = MuAtDataloader(pd_predict, dataloader_config)
+
+        model_name = checkpoint['model_name']
+        model = get_model(model_name, checkpoint['model_config'])
+        model = model.to(device)
+        model.load_state_dict(checkpoint['weight'])
+
+        predict_config = PredictorConfig(
+            max_epochs=1,
+            batch_size=1,
+            result_dir=result_dir,
+            target_handler=target_handler
+        )
+        predict_config.prefix = 'fold' + str(fold) + '_'
+        predictor = Predictor(model, test_dataloader, predict_config)
+        predictor.batch_predict()
+
+    all_fold = glob.glob(os.path.join(result_dir, 'fold*'))
+    pd_allfold = pd.DataFrame()
+
+    for i_f in all_fold:
+        pd_perfold = pd.read_csv(i_f, sep='\t', low_memory=False)
+        fold = i_f.split('fold')[1].split('_')[0]
+        pd_perfold['fold'] = fold
+        pd_allfold = pd.concat([pd_allfold, pd_perfold], ignore_index=True)
+        os.remove(i_f)
+
+    pd_logits = pd_allfold.drop(columns=['prediction'])
+    all_samples = pd_logits['sample'].unique()
+    pd_mean = pd.DataFrame()
+
+    for x in all_samples:
+        pd_persamp = pd_logits.loc[pd_logits['sample'] == x]
+        pd_logit = pd_persamp.drop(columns=['fold'])
+        samp_mean = pd_logit.groupby(['sample']).mean()
+        samp_mean = samp_mean.round(4)
+        samp_mean['prediction'] = samp_mean.idxmax(axis='columns').values[0]
+        samp_mean = samp_mean.reset_index()
+        pd_mean = pd.concat([pd_mean, samp_mean], ignore_index=True)
+
+    pd_mean.to_csv(
+        os.path.join(result_dir, 'ensemble_prediction.tsv'),
+        sep='\t',
+        float_format='%.4f',
+        index=False
+    )
+    print('ensemble prediction saved to ' + os.path.join(result_dir, 'ensemble_prediction.tsv'))
+
+
 def main():
     args = get_main_args()
 
@@ -143,8 +364,7 @@ def main():
     pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
     pkg_ckpt = ensure_dirpath(pkg_ckpt)
 
-    # Only unzip packaged benchmark checkpoints for benchmark-style commands
-    if args.command in ['wgs', 'wes', 'muat-wgs', 'muat-wes']:
+    if args.command in ['predict-ensemble']:
         unziping_from_package_installation()
 
     if args.command == 'download':
@@ -159,106 +379,19 @@ def main():
             'PCAWG/data_releases/latest/pcawg_sample_sheet.2016-08-12.tsv',
             'PCAWG/clinical_and_histology/pcawg_specimen_histology_August2016_v9.xlsx'
         ]
-
         download_data_path = resolve_path(args.download_dir)
         download_icgc_object_storage(data_path=download_data_path, files_to_download=files_to_download)
         print("Download completed. Data saved in " + str(download_data_path))
-
-    elif args.command == 'wgs' or args.command == 'wes':
+        
+    if args.command == 'predict':
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        wgs_wes = args.subcommand  # 'wgs' or 'wes'
+        _run_predict(args, wgs_wes, device)
 
-        if args.mutation_type is not None:
-            if args.command == 'wgs':
-                wgs_wes = 'wgs'
-                benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'pcawg_wgs')
-                url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip"
-            else:
-                wgs_wes = 'wes'
-                benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'tcga_wes')
-                url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip"
-
-            check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
-            if len(check_pth) == 0:
-                print('cant find model in ' + os.path.join(benchmark_ckpt, args.mutation_type) + '. Downloading model from ' + url)
-                download_checkpoint(url, 'my_checkpoint.zip')
-                check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
-
-            if len(check_pth) == 0:
-                raise ValueError(
-                    'cant find benchmark model in ' +
-                    os.path.join(benchmark_ckpt, args.mutation_type) +
-                    '. Download benchmark model from ' + url + ' and extract to this path.'
-                )
-
-            load_ckpt_path = mut_type_checkpoint_handler(args.mutation_type, wgs_wes)
-        else:
-            load_ckpt_path = resolve_path(args.ckpt_filepath)
-
-        checkpoint = load_and_check_checkpoint(load_ckpt_path)
-
-        dict_motif, dict_pos, dict_ges = load_token_dict(checkpoint)
-        if getattr(args, 'input_list', None) is not None:
-            with open(resolve_path(args.input_list)) as f:
-                vcf_files = [line.strip() for line in f if line.strip()]
-        else:
-            vcf_files = multifiles_handler(args.input_filepath)
-        tmp_dir = check_tmp_dir(args)
-
-        if args.no_preprocess:
-            _validate_no_preprocess_inputs(vcf_files)
-            predict_ready_files = vcf_files
-            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-        elif args.hg19 is not None:
-            genome_reference_path_hg19 = resolve_path(args.hg19)
-            preprocessing_vcf_tokenizing(
-                vcf_file=vcf_files,
-                genome_reference_path=genome_reference_path_hg19,
-                tmp_dir=tmp_dir,
-                dict_motif=dict_motif,
-                dict_pos=dict_pos,
-                dict_ges=dict_ges
-            )
-            print('preprocessed data saved in ' + tmp_dir)
-            predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
-            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-        elif args.hg38 is not None:
-            genome_reference_path_hg38 = resolve_path(args.hg38)
-            preprocessing_vcf38_tokenizing(
-                vcf_file=vcf_files,
-                genome_reference_38_path=genome_reference_path_hg38,
-                tmp_dir=tmp_dir,
-                dict_motif=dict_motif,
-                dict_pos=dict_pos,
-                dict_ges=dict_ges
-            )
-            print('preprocessed data saved in ' + tmp_dir)
-            predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
-            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-        else:
-            raise ValueError("Please provide either --hg19, --hg38, or --no-preprocess.")
-
-        target_handler = load_target_handler(checkpoint)
-
-        dataloader_config = checkpoint['dataloader_config']
-        test_dataloader = MuAtDataloader(pd_predict, dataloader_config)
-
-        model_name = checkpoint['model_name']
-        model = get_model(model_name, checkpoint['model_config'])
-        model = model.to(device)
-        model.load_state_dict(checkpoint['weight'])
-
-        result_dir = ensure_dirpath(resolve_path(args.result_dir))
-        predict_config = PredictorConfig(
-            max_epochs=1,
-            batch_size=1,
-            result_dir=result_dir,
-            target_handler=target_handler
-        )
-        predictor = Predictor(model, test_dataloader, predict_config)
-        predictor.batch_predict()
+    elif args.command == 'predict-ensemble':
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        wgs_wes = args.subcommand  # 'wgs' or 'wes'
+        _run_predict_ensemble(args, wgs_wes, device)
 
     elif args.command == 'preprocess':
         tmp_dir = check_tmp_dir(args)
@@ -312,7 +445,6 @@ def main():
                     )
             else:
                 raise ValueError("For VCF preprocessing, please provide either --hg19 or --hg38.")
-
             print('preprocessed data saved in ' + tmp_dir)
 
         elif args.tsv:
@@ -384,360 +516,236 @@ def main():
             else:
                 raise ValueError("For somagg preprocessing, please provide --hg38 or implement --hg19 branch.")
 
-    elif args.command == 'from-scratch':
-        extdir = ensure_dirpath(resource_filename('muat', 'extfile'))
+    elif args.command == 'train':
+        if args.subcommand == 'from-scratch':
+            extdir = ensure_dirpath(resource_filename('muat', 'extfile'))
 
-        motif_path = resolve_path(args.motif_dictionary_filepath) or f"{extdir}/dictMutation.tsv"
-        pos_path = resolve_path(args.position_dictionary_filepath) or f"{extdir}/dictChpos.tsv"
-        ges_path = resolve_path(args.ges_dictionary_filepath) or f"{extdir}/dictGES.tsv"
+            motif_path = resolve_path(args.motif_dictionary_filepath) or f"{extdir}/dictMutation.tsv"
+            pos_path = resolve_path(args.position_dictionary_filepath) or f"{extdir}/dictChpos.tsv"
+            ges_path = resolve_path(args.ges_dictionary_filepath) or f"{extdir}/dictGES.tsv"
 
-        save_dir = ensure_dirpath(resolve_path(args.save_dir))
-        os.makedirs(save_dir, exist_ok=True)
+            save_dir = ensure_dirpath(resolve_path(args.save_dir))
+            os.makedirs(save_dir, exist_ok=True)
 
-        if (
-            args.motif_dictionary_filepath is None or
-            args.position_dictionary_filepath is None or
-            args.ges_dictionary_filepath is None
-        ):
-            warnings.warn(
-                f"Dictionary file paths were not defined and have been set automatically:\n"
-                f"--motif-dictionary-filepath: {motif_path}\n"
-                f"--position-dictionary-filepath: {pos_path}\n"
-                f"--ges-dictionary-filepath: {ges_path}\n"
-                "These dictionaries might be different from your preprocessed files!"
+            if (
+                args.motif_dictionary_filepath is None or
+                args.position_dictionary_filepath is None or
+                args.ges_dictionary_filepath is None
+            ):
+                warnings.warn(
+                    f"Dictionary file paths were not defined and have been set automatically:\n"
+                    f"--motif-dictionary-filepath: {motif_path}\n"
+                    f"--position-dictionary-filepath: {pos_path}\n"
+                    f"--ges-dictionary-filepath: {ges_path}\n"
+                    "These dictionaries might be different from your preprocessed files!"
+                )
+
+            dict_motif = pd.read_csv(motif_path, sep='\t')
+            dict_pos = pd.read_csv(pos_path, sep='\t')
+            dict_ges = pd.read_csv(ges_path, sep='\t')
+
+            train_split, test_split = load_data(
+                resolve_path(args.train_split_filepath),
+                resolve_path(args.val_split_filepath)
             )
 
-        dict_motif = pd.read_csv(motif_path, sep='\t')
-        dict_pos = pd.read_csv(pos_path, sep='\t')
-        dict_ges = pd.read_csv(ges_path, sep='\t')
+            all_split = pd.concat([train_split, test_split], ignore_index=True)
+            columns = all_split.columns
 
-        train_split, test_split = load_data(
-            resolve_path(args.train_split_filepath),
-            resolve_path(args.val_split_filepath)
-        )
-
-        all_split = pd.concat([train_split, test_split], ignore_index=True)
-        columns = all_split.columns
-
-        if 'class_index' in columns:
-            label_1 = all_split[['class_name', 'class_index']].drop_duplicates()
-            label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)
-        else:
-            label_1 = all_split[['class_name']].drop_duplicates()
-            label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
-            label_1['class_index'] = np.arange(len(label_1))
-
-        save_label_1 = os.path.join(save_dir, 'label_1.tsv')
-        label_1.to_csv(save_label_1, sep='\t', index=False)
-
-        label_2 = None
-        save_label_2 = None
-        if 'subclass_name' in columns:
-            if 'subclass_index' in columns:
-                label_2 = all_split[['subclass_name', 'subclass_index']].drop_duplicates()
-                label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True)
+            if 'class_index' in columns:
+                label_1 = all_split[['class_name', 'class_index']].drop_duplicates()
+                label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)
             else:
-                label_2 = all_split[['subclass_name']].drop_duplicates()
-                label_2 = label_2.sort_values(by=['subclass_name']).reset_index(drop=True)
-                label_2['subclass_index'] = np.arange(len(label_2))
+                label_1 = all_split[['class_name']].drop_duplicates()
+                label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
+                label_1['class_index'] = np.arange(len(label_1))
 
-            save_label_2 = os.path.join(save_dir, 'label_2.tsv')
-            label_2.to_csv(save_label_2, sep='\t', index=False)
+            save_label_1 = os.path.join(save_dir, 'label_1.tsv')
+            label_1.to_csv(save_label_1, sep='\t', index=False)
 
-        target_handler, n_class, n_subclass = initialize_label_encoders(save_label_1, save_label_2)
-        train_split, test_split = attach_label_indices(train_split, test_split, label_1, label_2)
+            label_2 = None
+            save_label_2 = None
+            if 'subclass_name' in columns:
+                if 'subclass_index' in columns:
+                    label_2 = all_split[['subclass_name', 'subclass_index']].drop_duplicates()
+                    label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True)
+                else:
+                    label_2 = all_split[['subclass_name']].drop_duplicates()
+                    label_2 = label_2.sort_values(by=['subclass_name']).reset_index(drop=True)
+                    label_2['subclass_index'] = np.arange(len(label_2))
 
-        if label_2 is None:
-            if args.use_motif and not args.use_position and not args.use_ges:
-                arch = 'MuAtMotifF'
-            elif args.use_motif and args.use_position and not args.use_ges:
-                arch = 'MuAtMotifPositionF'
-            elif args.use_motif and args.use_position and args.use_ges:
-                arch = 'MuAtMotifPositionGESF'
+                save_label_2 = os.path.join(save_dir, 'label_2.tsv')
+                label_2.to_csv(save_label_2, sep='\t', index=False)
+
+            target_handler, n_class, n_subclass = initialize_label_encoders(save_label_1, save_label_2)
+            train_split, test_split = attach_label_indices(train_split, test_split, label_1, label_2)
+
+            if label_2 is None:
+                if args.use_motif and not args.use_position and not args.use_ges:
+                    arch = 'MuAtMotifF'
+                elif args.use_motif and args.use_position and not args.use_ges:
+                    arch = 'MuAtMotifPositionF'
+                elif args.use_motif and args.use_position and args.use_ges:
+                    arch = 'MuAtMotifPositionGESF'
+                else:
+                    raise ValueError("Invalid combination of motif/position/ges flags.")
             else:
-                raise ValueError("Invalid combination of motif/position/ges flags.")
-        else:
-            if args.use_motif and not args.use_position and not args.use_ges:
-                arch = 'MuAtMotifF_2Labels'
-            elif args.use_motif and args.use_position and not args.use_ges:
-                arch = 'MuAtMotifPositionF_2Labels'
-            elif args.use_motif and args.use_position and args.use_ges:
-                arch = 'MuAtMotifPositionGESF_2Labels'
-            else:
-                raise ValueError("Invalid combination of motif/position/ges flags.")
+                if args.use_motif and not args.use_position and not args.use_ges:
+                    arch = 'MuAtMotifF_2Labels'
+                elif args.use_motif and args.use_position and not args.use_ges:
+                    arch = 'MuAtMotifPositionF_2Labels'
+                elif args.use_motif and args.use_position and args.use_ges:
+                    arch = 'MuAtMotifPositionGESF_2Labels'
+                else:
+                    raise ValueError("Invalid combination of motif/position/ges flags.")
 
-        model_config = ModelConfig(
-            model_name=arch,
-            dict_motif=dict_motif,
-            dict_pos=dict_pos,
-            dict_ges=dict_ges,
-            mutation_sampling_size=args.mutation_sampling_size,
-            n_layer=args.n_layer,
-            n_emb=args.n_emb,
-            n_head=args.n_head,
-            n_class=n_class,
-            mutation_type=args.mutation_type,
-            num_subclass=n_subclass
-        )
-
-        trainer_config = TrainerConfig(
-            max_epochs=args.epoch,
-            batch_size=args.batch_size,
-            learning_rate=args.learning_rate,
-            num_workers=1,
-            save_ckpt_dir=save_dir,
-            target_handler=target_handler
-        )
-
-        model = get_model(arch, model_config)
-
-        train_dataloader_config = DataloaderConfig(
-            model_input=model_config.model_input,
-            mutation_type_ratio=model_config.mutation_type_ratio,
-            mutation_sampling_size=args.mutation_sampling_size,
-            sampling_replacement=args.sampling_replacement
-        )
-        test_dataloader_config = DataloaderConfig(
-            model_input=model_config.model_input,
-            mutation_type_ratio=model_config.mutation_type_ratio,
-            mutation_sampling_size=args.mutation_sampling_size,
-            sampling_replacement=args.sampling_replacement
-        )
-
-        train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
-        test_dataloader = MuAtDataloader(test_split, test_dataloader_config)
-
-        trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
-        trainer.batch_train()
-
-    elif args.command == 'from-checkpoint':
-        save_dir = ensure_dirpath(resolve_path(args.save_dir))
-        os.makedirs(save_dir, exist_ok=True)
-
-        load_ckpt_filepath = resolve_path(args.ckpt_filepath)
-        checkpoint = load_and_check_checkpoint(load_ckpt_filepath)
-
-        model_config = checkpoint['model_config']
-        trainer_config = checkpoint['trainer_config']
-        dataloader_config = checkpoint['dataloader_config']
-
-        trainer_config.save_ckpt_dir = save_dir
-
-        validate_checkpoint(trainer_config)
-
-        train_split, test_split = load_data(
-            resolve_path(args.train_split_filepath),
-            resolve_path(args.val_split_filepath)
-        )
-
-        all_split = pd.concat([train_split, test_split], ignore_index=True)
-        columns = all_split.columns
-
-        if 'class_index' in columns:
-            label_1 = all_split[['class_name', 'class_index']].drop_duplicates()
-            label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)
-        else:
-            label_1 = all_split[['class_name']].drop_duplicates()
-            label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
-            label_1['class_index'] = np.arange(len(label_1))
-
-        save_label_1 = os.path.join(save_dir, 'label_1.tsv')
-        label_1.to_csv(save_label_1, sep='\t', index=False)
-
-        label_2 = None
-        save_label_2 = None
-        if 'subclass_name' in columns:
-            if 'subclass_index' in columns:
-                label_2 = all_split[['subclass_name', 'subclass_index']].drop_duplicates()
-                label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True)
-            else:
-                label_2 = all_split[['subclass_name']].drop_duplicates()
-                label_2 = label_2.sort_values(by=['subclass_name']).reset_index(drop=True)
-                label_2['subclass_index'] = np.arange(len(label_2))
-
-            save_label_2 = os.path.join(save_dir, 'label_2.tsv')
-            label_2.to_csv(save_label_2, sep='\t', index=False)
-
-        if label_2 is None:
-            arch = checkpoint['model_name']
-        else:
-            if checkpoint['model_name'] in ['MuAtMotifF', 'MuAtMotif']:
-                arch = 'MuAtMotifF_2Labels'
-            elif checkpoint['model_name'] in ['MuAtMotifPositionF', 'MuAtMotifPosition']:
-                arch = 'MuAtMotifPositionF_2Labels'
-            elif checkpoint['model_name'] in ['MuAtMotifPositionGESF', 'MuAtMotifPositionGES']:
-                arch = 'MuAtMotifPositionGESF_2Labels'
-            else:
-                raise ValueError(f"Unsupported checkpoint model for 2-label conversion: {checkpoint['model_name']}")
-
-        target_handler, n_class, n_subclass = initialize_label_encoders(save_label_1, save_label_2)
-        train_split, test_split = attach_label_indices(train_split, test_split, label_1, label_2)
-
-        model_config.num_class = n_class
-        model_config.n_class = n_class
-        if hasattr(model_config, 'n_embd'):
-            model_config.n_emb = model_config.n_embd
-
-        if n_subclass is not None:
-            model_config.num_subclass = n_subclass
-
-        trainer_config.target_handler = target_handler
-
-        model = get_model(arch, model_config)
-        model = initialize_pretrained_weight(arch, model_config, checkpoint)
-
-        mutation_sampling_size = getattr(args, 'mutation_sampling_size', None)
-        if mutation_sampling_size is None:
-            mutation_sampling_size = model_config.mutation_sampling_size
-
-        sampling_replacement = getattr(args, 'sampling_replacement', False)
-
-        train_dataloader_config = DataloaderConfig(
-            model_input=model_config.model_input,
-            mutation_type_ratio=model_config.mutation_type_ratio,
-            mutation_sampling_size=mutation_sampling_size,
-            sampling_replacement=sampling_replacement
-        )
-        test_dataloader_config = DataloaderConfig(
-            model_input=model_config.model_input,
-            mutation_type_ratio=model_config.mutation_type_ratio,
-            mutation_sampling_size=mutation_sampling_size,
-            sampling_replacement=sampling_replacement
-        )
-
-        train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
-        test_dataloader = MuAtDataloader(test_split, test_dataloader_config)
-
-        trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
-        trainer.batch_train()
-
-    elif args.command == 'muat-wgs' or args.command == 'muat-wes':
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        if args.command == 'muat-wgs':
-            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wgs')
-            url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip"
-        else:
-            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wes')
-            url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip"
-
-        check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
-        if len(check_pth) == 0:
-            download_checkpoint(url, 'my_checkpoint.zip')
-            check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
-
-        if len(check_pth) == 0:
-            raise ValueError(
-                'cant find benchmark model in ' +
-                os.path.join(benchmark_ckpt, args.mutation_type) +
-                '. Download benchmark model from ' + url + ' and extract to this path.'
+            model_config = ModelConfig(
+                model_name=arch,
+                dict_motif=dict_motif,
+                dict_pos=dict_pos,
+                dict_ges=dict_ges,
+                mutation_sampling_size=args.mutation_sampling_size,
+                n_layer=args.n_layer,
+                n_emb=args.n_emb,
+                n_head=args.n_head,
+                n_class=n_class,
+                mutation_type=args.mutation_type,
+                num_subclass=n_subclass
             )
 
-        print('running prediction of ensemble models') 
-
-        result_dir = ensure_dirpath(resolve_path(args.result_dir))
-        vcf_files = multifiles_handler(args.input_filepath)
-        tmp_dir = check_tmp_dir(args)
-
-        for i_fold, pth_file in enumerate(check_pth):
-            fold = pth_file.split('fold')[-1].split('.pthx')[0]
-            load_ckpt_path = pth_file
-
-            print('prediction from {}'.format(pth_file))
-            checkpoint = load_and_check_checkpoint(load_ckpt_path)
-
-            dict_motif, dict_pos, dict_ges = load_token_dict(checkpoint)
-
-            if args.no_preprocess:
-                if i_fold == 0:
-                    _validate_no_preprocess_inputs(vcf_files)
-                    predict_ready_files = vcf_files
-                    pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-            elif args.hg19 is not None:
-                if i_fold == 0:
-                    genome_reference_path_hg19 = resolve_path(args.hg19)
-                    preprocessing_vcf_tokenizing(
-                        vcf_file=vcf_files,
-                        genome_reference_path=genome_reference_path_hg19,
-                        tmp_dir=tmp_dir,
-                        dict_motif=dict_motif,
-                        dict_pos=dict_pos,
-                        dict_ges=dict_ges
-                    )
-                    print('preprocessed data saved in ' + tmp_dir)
-
-                predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
-                pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-            elif args.hg38 is not None:
-                if i_fold == 0:
-                    genome_reference_path_hg38 = resolve_path(args.hg38)
-                    preprocessing_vcf38_tokenizing(
-                        vcf_file=vcf_files,
-                        genome_reference_38_path=genome_reference_path_hg38,
-                        tmp_dir=tmp_dir,
-                        dict_motif=dict_motif,
-                        dict_pos=dict_pos,
-                        dict_ges=dict_ges
-                    )
-                    print('preprocessed data saved in ' + tmp_dir)
-
-                predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
-                pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-            else:
-                raise ValueError("Please provide either --hg19, --hg38, or --no-preprocess.")
-
-            target_handler = load_target_handler(checkpoint)
-
-            dataloader_config = checkpoint['dataloader_config']
-            test_dataloader = MuAtDataloader(pd_predict, dataloader_config)
-
-            model_name = checkpoint['model_name']
-            model = get_model(model_name, checkpoint['model_config'])
-            model = model.to(device)
-            model.load_state_dict(checkpoint['weight'])
-
-            predict_config = PredictorConfig(
-                max_epochs=1,
-                batch_size=1,
-                result_dir=result_dir,
+            trainer_config = TrainerConfig(
+                max_epochs=args.epoch,
+                batch_size=args.batch_size,
+                learning_rate=args.learning_rate,
+                num_workers=1,
+                save_ckpt_dir=save_dir,
                 target_handler=target_handler
             )
-            predict_config.prefix = 'fold' + str(fold) + '_'
-            predictor = Predictor(model, test_dataloader, predict_config)
-            predictor.batch_predict()
 
-        all_fold = glob.glob(os.path.join(result_dir, 'fold*'))
-        pd_allfold = pd.DataFrame()
+            model = get_model(arch, model_config)
 
-        for i_f in all_fold:
-            pd_perfold = pd.read_csv(i_f, sep='\t', low_memory=False)
-            fold = i_f.split('fold')[1].split('_')[0]
-            pd_perfold['fold'] = fold
-            pd_allfold = pd.concat([pd_allfold, pd_perfold], ignore_index=True)
-            os.remove(i_f)
+            train_dataloader_config = DataloaderConfig(
+                model_input=model_config.model_input,
+                mutation_type_ratio=model_config.mutation_type_ratio,
+                mutation_sampling_size=args.mutation_sampling_size,
+                sampling_replacement=args.sampling_replacement
+            )
+            test_dataloader_config = DataloaderConfig(
+                model_input=model_config.model_input,
+                mutation_type_ratio=model_config.mutation_type_ratio,
+                mutation_sampling_size=args.mutation_sampling_size,
+                sampling_replacement=args.sampling_replacement
+            )
 
-        pd_logits = pd_allfold.drop(columns=['prediction'])
+            train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
+            test_dataloader = MuAtDataloader(test_split, test_dataloader_config)
 
-        all_samples = pd_logits['sample'].unique()
-        pd_mean = pd.DataFrame()
-        for x in all_samples:
-            pd_persamp = pd_logits.loc[pd_logits['sample'] == x]
-            pd_logit = pd_persamp.drop(columns=['fold'])
-            samp_mean = pd_logit.groupby(['sample']).mean()
-            samp_mean = samp_mean.round(4)
-            samp_mean['prediction'] = samp_mean.idxmax(axis='columns').values[0]
-            samp_mean = samp_mean.reset_index()
-            pd_mean = pd.concat([pd_mean, samp_mean], ignore_index=True)
+            trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
+            trainer.batch_train()
 
-        pd_mean.to_csv(
-            os.path.join(result_dir, 'ensemble_prediction.tsv'),
-            sep='\t',
-            float_format='%.4f',
-            index=False
-        )
+        elif args.subcommand == 'from-checkpoint':
+            save_dir = ensure_dirpath(resolve_path(args.save_dir))
+            os.makedirs(save_dir, exist_ok=True)
+
+            load_ckpt_filepath = resolve_path(args.ckpt_filepath)
+            checkpoint = load_and_check_checkpoint(load_ckpt_filepath)
+
+            model_config = checkpoint['model_config']
+            trainer_config = checkpoint['trainer_config']
+            dataloader_config = checkpoint['dataloader_config']
+
+            trainer_config.save_ckpt_dir = save_dir
+
+            validate_checkpoint(trainer_config)
+
+            train_split, test_split = load_data(
+                resolve_path(args.train_split_filepath),
+                resolve_path(args.val_split_filepath)
+            )
+
+            all_split = pd.concat([train_split, test_split], ignore_index=True)
+            columns = all_split.columns
+
+            if 'class_index' in columns:
+                label_1 = all_split[['class_name', 'class_index']].drop_duplicates()
+                label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)
+            else:
+                label_1 = all_split[['class_name']].drop_duplicates()
+                label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
+                label_1['class_index'] = np.arange(len(label_1))
+
+            save_label_1 = os.path.join(save_dir, 'label_1.tsv')
+            label_1.to_csv(save_label_1, sep='\t', index=False)
+
+            label_2 = None
+            save_label_2 = None
+            if 'subclass_name' in columns:
+                if 'subclass_index' in columns:
+                    label_2 = all_split[['subclass_name', 'subclass_index']].drop_duplicates()
+                    label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True)
+                else:
+                    label_2 = all_split[['subclass_name']].drop_duplicates()
+                    label_2 = label_2.sort_values(by=['subclass_name']).reset_index(drop=True)
+                    label_2['subclass_index'] = np.arange(len(label_2))
+
+                save_label_2 = os.path.join(save_dir, 'label_2.tsv')
+                label_2.to_csv(save_label_2, sep='\t', index=False)
+
+            if label_2 is None:
+                arch = checkpoint['model_name']
+            else:
+                if checkpoint['model_name'] in ['MuAtMotifF', 'MuAtMotif']:
+                    arch = 'MuAtMotifF_2Labels'
+                elif checkpoint['model_name'] in ['MuAtMotifPositionF', 'MuAtMotifPosition']:
+                    arch = 'MuAtMotifPositionF_2Labels'
+                elif checkpoint['model_name'] in ['MuAtMotifPositionGESF', 'MuAtMotifPositionGES']:
+                    arch = 'MuAtMotifPositionGESF_2Labels'
+                else:
+                    raise ValueError(f"Unsupported checkpoint model for 2-label conversion: {checkpoint['model_name']}")
+
+            target_handler, n_class, n_subclass = initialize_label_encoders(save_label_1, save_label_2)
+            train_split, test_split = attach_label_indices(train_split, test_split, label_1, label_2)
+
+            model_config.num_class = n_class
+            model_config.n_class = n_class
+            if hasattr(model_config, 'n_embd'):
+                model_config.n_emb = model_config.n_embd
+
+            if n_subclass is not None:
+                model_config.num_subclass = n_subclass
+
+            trainer_config.target_handler = target_handler
+
+            model = get_model(arch, model_config)
+            model = initialize_pretrained_weight(arch, model_config, checkpoint)
+
+            mutation_sampling_size = getattr(args, 'mutation_sampling_size', None)
+            if mutation_sampling_size is None:
+                mutation_sampling_size = model_config.mutation_sampling_size
+
+            sampling_replacement = getattr(args, 'sampling_replacement', False)
+
+            train_dataloader_config = DataloaderConfig(
+                model_input=model_config.model_input,
+                mutation_type_ratio=model_config.mutation_type_ratio,
+                mutation_sampling_size=mutation_sampling_size,
+                sampling_replacement=sampling_replacement
+            )
+            test_dataloader_config = DataloaderConfig(
+                model_input=model_config.model_input,
+                mutation_type_ratio=model_config.mutation_type_ratio,
+                mutation_sampling_size=mutation_sampling_size,
+                sampling_replacement=sampling_replacement
+            )
+
+            train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
+            test_dataloader = MuAtDataloader(test_split, test_dataloader_config)
+
+            trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
+            trainer.batch_train()
+
+        else:
+            raise ValueError(f"Unknown train subcommand: {args.subcommand}")
 
     else:
         raise ValueError(f"Unknown command: {args.command}")
