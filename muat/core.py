@@ -395,7 +395,10 @@ def main():
 
     elif args.command == 'preprocess':
         tmp_dir = check_tmp_dir(args)
-        vcf_files = multifiles_handler(args.input_filepath)
+        vcf_files = [resolve_path(x) for x in multifiles_handler(args.input_filepath)]
+
+        if not args.annotated and args.hg19 is None and args.hg38 is None:
+            raise ValueError("--hg19 or --hg38 is required unless --annotated is set.")
 
         if (
             args.motif_dictionary_filepath is None or
@@ -412,7 +415,17 @@ def main():
             dict_pos = pd.read_csv(resolve_path(args.position_dictionary_filepath), sep='\t')
             dict_ges = pd.read_csv(resolve_path(args.ges_dictionary_filepath), sep='\t')
 
-        if args.vcf:
+        if args.annotated:
+            preprocessing_annotated_tokenizing(
+                input_files=vcf_files,
+                tmp_dir=tmp_dir,
+                dict_motif=dict_motif,
+                dict_pos=dict_pos,
+                dict_ges=dict_ges,
+            )
+            print('preprocessed data saved in ' + tmp_dir)
+
+        elif args.vcf:
             if args.hg19 is not None:
                 genome_reference_path_hg19 = resolve_path(args.hg19)
                 preprocessing_vcf_tokenizing(

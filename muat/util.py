@@ -30,9 +30,12 @@ def get_main_args():
     vcf_somagg_tsv.add_argument("--vcf", action="store_true", help="Preprocess VCF files.")
     vcf_somagg_tsv.add_argument("--somagg", action="store_true", help="Preprocess SomAgg VCF files.")
     vcf_somagg_tsv.add_argument("--tsv", action="store_true", help="Preprocess TSV files.")
-    hg19_hg38 = preprocess.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg38 (.fa or .fa.gz)")
+    vcf_somagg_tsv.add_argument("--annotated", action="store_true",
+                                help="Tokenize already-annotated files (.gc.genic.exonic.cs.tsv or .gc.genic.exonic.cs.tsv.gz). "
+                                     "Skips motif/annotation; --hg19/--hg38 not required.")
+    hg19_hg38 = preprocess.add_mutually_exclusive_group(required=False)
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz). Required unless --annotated.")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg38 (.fa or .fa.gz). Required unless --annotated.")
     
     preprocess.add_argument("--input-filepath", nargs="+", help="Input file paths.", required=True)
 
@@ -599,11 +602,13 @@ def ensure_dirpath(path, terminator="/"):
 
 def check_tmp_dir(args):
     if args.tmp_dir is None:
-        tmp_dir = ensure_dirpath(os.path.abspath(os.path.join(os.getcwd(), 'data/preprocessed_local'))) 
+        tmp_dir = ensure_dirpath(os.path.abspath(os.path.join(os.getcwd(), 'data/preprocessed_local')))
         print('--tmp-dir was not defined, --tmp-dir is set to ' + str(tmp_dir))
     else:
         tmp_dir = resolve_path(args.tmp_dir)
-    return ensure_dirpath(tmp_dir)
+    tmp_dir = ensure_dirpath(tmp_dir)
+    os.makedirs(tmp_dir, exist_ok=True)
+    return tmp_dir
 
 def get_checkpoint_args():
     args = argparse.Namespace(

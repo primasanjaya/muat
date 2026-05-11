@@ -471,22 +471,50 @@ def create_dictionary(prep_path,pos_bin_size=1000000,save_dict_path=None):
 
 def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,tmp_dir,pos_bin_size=1000000):
     '''
-    Tokenizing the motif, pos, and ges
+    Tokenizing the motif, pos, and ges. Accepts both .tsv and .tsv.gz inputs
+    (compression inferred from the file extension).
     '''
+    tmp_dir = ensure_dirpath(resolve_path(tmp_dir))
+    os.makedirs(tmp_dir, exist_ok=True)
+
     for path in tqdm(all_preprocessed_vcf, desc="Tokenizing", unit="file"):
+        path = resolve_path(path)
+        if not os.path.exists(path):
+            continue
 
-        if os.path.exists(path):
-            df = pd.read_csv(path, sep='\t',compression='gzip',low_memory=False)
+        df = pd.read_csv(path, sep='\t', compression='infer', low_memory=False)
 
-            ps = (df['pos'] / pos_bin_size).apply(np.floor).astype(int).astype(str)
-            chrom = df['chrom'].astype(str)
-            chrompos = chrom + '_' + ps
-            df['chrompos'] = chrompos        
-            df['ges'] = df['genic'].astype(str) + '_' + df['exonic'].astype(str) + '_' + df['strand'].astype(str)
-    
-            df = df.merge(dict_motif, left_on='seq', right_on='seq', how='left')
-            df = df.merge(dict_pos, left_on='chrompos', right_on='chrompos', how='left')
-            df = df.merge(dict_ges, left_on='ges', right_on='ges', how='left')
+        ps = (df['pos'] / pos_bin_size).apply(np.floor).astype(int).astype(str)
+        chrom = df['chrom'].astype(str)
+        chrompos = chrom + '_' + ps
+        df['chrompos'] = chrompos
+        df['ges'] = df['genic'].astype(str) + '_' + df['exonic'].astype(str) + '_' + df['strand'].astype(str)
 
-            token_file = ensure_dirpath(tmp_dir) + get_sample_name(path) + '.muat.tsv'
-            df.to_csv(token_file, sep='\t',index=False)
+        df = df.merge(dict_motif, left_on='seq', right_on='seq', how='left')
+        df = df.merge(dict_pos, left_on='chrompos', right_on='chrompos', how='left')
+        df = df.merge(dict_ges, left_on='ges', right_on='ges', how='left')
+
+        token_file = os.path.join(tmp_dir, get_sample_name(path) + '.muat.tsv')
+        df.to_csv(token_file, sep='\t', index=False)
+
+def preprocessing_annotated_tokenizing(input_files, tmp_dir, dict_motif, dict_pos, dict_ges):
+    '''
+    Tokenize files that are already annotated with motif/genic/exonic/strand.
+    Expected input: *.gc.genic.exonic.cs.tsv or *.gc.genic.exonic.cs.tsv.gz.
+    Skips the motif/annotation stage; runs only the tokenizer.
+    '''
+    input_files = multifiles_handler(input_files)
+    input_files = [resolve_path(x) for x in input_files]
+
+    valid_suffixes = ('.gc.genic.exonic.cs.tsv', '.gc.genic.exonic.cs.tsv.gz')
+    for path in input_files:
+        if not os.path.exists(path):
+            raise FileNotFoundError(path)
+        if not path.endswith(valid_suffixes):
+            print('Warning: {} does not match expected suffix {}; proceeding anyway.'.format(
+                path, valid_suffixes))
+
+    tmp_dir = ensure_dirpath(resolve_path(tmp_dir))
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    tokenizing(dict_motif, dict_pos, dict_ges, input_files, tmp_dir)
