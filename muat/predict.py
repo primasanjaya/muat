@@ -44,9 +44,16 @@ class Predictor:
         model.train(False)
         #pdb.set_trace()
 
-        ensure_dir_exists(self.result_dir)
+        os.makedirs(self.result_dir, exist_ok=True)
 
-        for i in range(len(self.test_dataset)):
+        n_samples = len(self.test_dataset)
+        if n_samples == 0:
+            print('WARNING: no input samples to predict; nothing was written to {}.'.format(self.result_dir))
+            return
+
+        #pdb.set_trace()
+
+        for i in range(n_samples):
             data, target, sample_path = self.test_dataset.__getitem__(i)
             numeric_data = data.unsqueeze(0)
             numeric_data = numeric_data.to(self.device)
@@ -112,7 +119,7 @@ class Predictor:
                             predicted_string = predicted_string + str(target_name)
                         else:
                             predicted_string = predicted_string + '/' + str(target_name)
-
+                    #pdb.set_trace()
                     print(get_sample_name(sample_path) + ' is predicted to be ' + str(predicted_string))
 
                     #write all features

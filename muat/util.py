@@ -37,7 +37,10 @@ def get_main_args():
     hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz). Required unless --annotated.")
     hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg38 (.fa or .fa.gz). Required unless --annotated.")
     
-    preprocess.add_argument("--input-filepath", nargs="+", help="Input file paths.", required=True)
+    preprocess_input = preprocess.add_mutually_exclusive_group(required=True)
+    preprocess_input.add_argument("--input-filepath", nargs="+", default=None, help="Input file paths.")
+    preprocess_input.add_argument("--input-list", type=str, default=None,
+                                  help="Path to a text file listing input file paths, one per line.")
 
     preprocess.add_argument("--tmp-dir", type=str, default=None, help='Directory for storing preprocessed files.')
     preprocess.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
@@ -48,48 +51,63 @@ def get_main_args():
                                  'Default (without this flag) trains natively in GRCh38.')
 
     # Predict subparser
-    predict_parser = subparsers.add_parser('predict', help='Predict samples.')
-    predict_subparser = predict_parser.add_subparsers(dest='subcommand', required=True, help='Available commands.')
+    # Shared input/output args used by both predict and predict-ensemble.
+    # Preprocessing mode is inferred from input file suffix; see _validate_predict_inputs.
+    def _add_common_predict_args(p):
+        ref = p.add_mutually_exclusive_group()
+        ref.add_argument("--hg19", type=str, default=None,
+                         help="Path to GRCh37/hg19 (.fa or .fa.gz). "
+                              "Required when inputs are raw (.vcf/.maf/.tsv).")
+        ref.add_argument("--hg38", type=str, default=None,
+                         help="Path to GRCh38/hg38 (.fa or .fa.gz). "
+                              "Required when inputs are raw (.vcf/.maf/.tsv).")
 
-    wgs = predict_subparser.add_parser('wgs', help='Whole Genome Sequence.')
-    hg19_hg38 = wgs.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--no-preprocess", action="store_true", help="Predict directly from preprocessed data (.muat.tsv)")
+        inp = p.add_mutually_exclusive_group(required=True)
+        inp.add_argument("--input-filepath", nargs="+",
+                         help="Input paths. Accepted: .vcf{,.gz}, .maf{,.gz}, .tsv (preprocessed first), "
+                              "or .muat.tsv{,.gz} (already preprocessed). All inputs must be the same kind.")
+        inp.add_argument("--input-list", type=str, default=None,
+                         help="Text file listing input paths, one per line. Same suffix rules.")
+        p.add_argument("--result-dir", type=str, default=None, required=True,
+                       help='Result directory where the output will be written (.tsv).')
+        p.add_argument("--tmp-dir", type=str, default=None,
+                       help='Directory for storing preprocessed files (used only for raw inputs).')
 
-    mut_type_loadckpt = wgs.add_mutually_exclusive_group(required=True)
-    mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
-                        help='Mutation type; only {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg} can be applied.')
-    mut_type_loadckpt.add_argument("--ckpt-filepath", type=str, default=None,
-                        help='Path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
+    # predict: single-model prediction.
+    # Two sources: 'pretrained' (downloads benchmark) and 'from-checkpoint' (user .pthx).
+    predict_parser = subparsers.add_parser('predict', help='Predict samples with a single model.')
+    predict_source = predict_parser.add_subparsers(
+        dest='source', required=True,
+        help='Model source: pretrained benchmark, or your own checkpoint.')
 
-    wgs_input = wgs.add_mutually_exclusive_group(required=True)
-    wgs_input.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .muat.tsv for no preprocess")
-    wgs_input.add_argument("--input-list", type=str, default=None, help="Path to a text file listing input file paths, one per line.")
-    wgs.add_argument("--result-dir", type=str, default=None, required=True,
-                        help='Result directory where the output will be written (.tsv).')
-    wgs.add_argument("--tmp-dir", type=str, default=None,
-                        help='Directory for storing preprocessed files.')
+    # pretrained: benchmark checkpoint auto-downloaded from HuggingFace.
+    pre = predict_source.add_parser(
+        'pretrained',
+        help='Use benchmark checkpoint (auto-downloaded from HuggingFace).')
+    pre_assay = pre.add_subparsers(
+        dest='assay', required=True,
+        help='Assay type for the benchmark.')
 
-    wes = predict_subparser.add_parser('wes', help='Whole Exome Sequence.')
-    hg19_hg38 = wes.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--no-preprocess", action="store_true", help="Predict from preprocessed data (.muat.tsv)")
+    pre_wgs = pre_assay.add_parser('wgs', help='Whole Genome Sequence benchmark.')
+    pre_wgs.add_argument("--mutation-type", type=str, required=True,
+                         choices=['snv', 'snv+mnv', 'snv+mnv+indel',
+                                  'snv+mnv+indel+svmei', 'snv+mnv+indel+svmei+neg'],
+                         help='Selects which benchmark checkpoint to download/use.')
+    _add_common_predict_args(pre_wgs)
 
-    mut_type_loadckpt = wes.add_mutually_exclusive_group(required=True)
-    mut_type_loadckpt.add_argument("--mutation-type", type=str, default=None,
-                        help='Mutation type; only {snv, snv+mnv, snv+mnv+indel} can be applied.')
-    mut_type_loadckpt.add_argument("--ckpt-filepath", type=str, default=None,
-                        help='Absolut Path to load the checkpoint (.pthx). The mutation type will be adjusted accordingly when loading from the checkpoint.')
+    pre_wes = pre_assay.add_parser('wes', help='Whole Exome Sequence benchmark.')
+    pre_wes.add_argument("--mutation-type", type=str, required=True,
+                         choices=['snv', 'snv+mnv', 'snv+mnv+indel'],
+                         help='Selects which benchmark checkpoint to download/use.')
+    _add_common_predict_args(pre_wes)
 
-    wes_input = wes.add_mutually_exclusive_group(required=True)
-    wes_input.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) or .muat.tsv for no preprocess")
-    wes_input.add_argument("--input-list", type=str, default=None, help="Path to a text file listing input file paths, one per line.")
-    wes.add_argument("--result-dir", type=str, default=None, required=True,
-                        help='Result directory where the output will be written (.tsv).')
-    wes.add_argument("--tmp-dir", type=str, default=None,
-                        help='Directory for storing preprocessed files.')
+    # from-checkpoint: user-supplied checkpoint; assay is inferred from the .pthx.
+    fc = predict_source.add_parser(
+        'from-checkpoint',
+        help='Use your own checkpoint (.pthx); assay is inferred from the checkpoint.')
+    fc.add_argument("--ckpt-filepath", type=str, required=True,
+                    help='Path to load the checkpoint (.pthx).')
+    _add_common_predict_args(fc)
 
     train_parser = subparsers.add_parser('train', help='Train the MuAt model.')
     train_subparsers = train_parser.add_subparsers(dest='subcommand', required=True, help='Available commands.')
@@ -150,46 +168,114 @@ def get_main_args():
                     help='Maximum number of mutations to fetch for the model (default: 5000).')
     from_checkpoint.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement.  Default is False")
 
-    # Predict subparser
-    benchmark_parser = subparsers.add_parser('predict-ensemble', help='Run the prediction using the best MuAt ensemble models')
-    benchmark_subparser = benchmark_parser.add_subparsers(dest='subcommand', required=True, help='Available commands.')
+    # predict-ensemble: averages logits across fold checkpoints.
+    # Two sources: 'pretrained' (downloads benchmark bundle) and 'from-checkpoint' (user .pthx files).
+    ensemble_parser = subparsers.add_parser(
+        'predict-ensemble',
+        help='Run ensemble prediction (averages logits across fold checkpoints).')
+    ensemble_source = ensemble_parser.add_subparsers(
+        dest='source', required=True,
+        help='Model source: pretrained benchmark bundle, or your own checkpoints.')
 
-    wgs = benchmark_subparser.add_parser('wgs', help='Whole Genome Sequence.')
-    hg19_hg38 = wgs.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--no-preprocess", action="store_true", help="Predict directly from preprocessed data (.muat.tsv)")
+    # pretrained: benchmark bundle auto-downloaded from HuggingFace.
+    ens_pre = ensemble_source.add_parser(
+        'pretrained',
+        help='Use benchmark ensemble (auto-downloaded from HuggingFace).')
+    ens_pre_assay = ens_pre.add_subparsers(
+        dest='assay', required=True,
+        help='Assay type for the benchmark bundle.')
 
-    wgs.add_argument("--mutation-type", type=str, default=None,required=True,
-                        help='Mutation type; only {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg} can be applied.')
-    muat_wgs_input = wgs.add_mutually_exclusive_group(required=True)
-    muat_wgs_input.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .muat.tsv for no preprocess")
-    muat_wgs_input.add_argument("--input-list", type=str, default=None, help="Path to a text file listing input file paths, one per line.")
-    wgs.add_argument("--result-dir", type=str, default=None, required=True,
-                        help='Result directory where the output will be written (.tsv).')
-    wgs.add_argument("--tmp-dir", type=str, default=None,
-                        help='Directory for storing preprocessed files.')
+    ens_pre_wgs = ens_pre_assay.add_parser('wgs', help='Whole Genome Sequence benchmark.')
+    ens_pre_wgs.add_argument("--mutation-type", type=str, required=True,
+                             choices=['snv', 'snv+mnv', 'snv+mnv+indel',
+                                      'snv+mnv+indel+svmei', 'snv+mnv+indel+svmei+neg'],
+                             help='Selects which benchmark bundle to download/use.')
+    _add_common_predict_args(ens_pre_wgs)
 
-    wes = benchmark_subparser.add_parser('wes', help='Whole Exome Sequence.')
-    hg19_hg38 = wes.add_mutually_exclusive_group(required=True)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz)")
-    hg19_hg38.add_argument("--no-preprocess", action="store_true", help="Predict directly from preprocessed data (.muat.tsv)")
+    ens_pre_wes = ens_pre_assay.add_parser('wes', help='Whole Exome Sequence benchmark.')
+    ens_pre_wes.add_argument("--mutation-type", type=str, required=True,
+                             choices=['snv', 'snv+mnv', 'snv+mnv+indel'],
+                             help='Selects which benchmark bundle to download/use.')
+    _add_common_predict_args(ens_pre_wes)
 
-    wes.add_argument("--mutation-type", type=str, default=None,required=True,
-                        help='Mutation type; only {snv, snv+mnv, snv+mnv+indel} can be applied.')
-
-    muat_wes_input = wes.add_mutually_exclusive_group(required=True)
-    muat_wes_input.add_argument("--input-filepath", nargs="+", help="Input file paths (.vcf or .vcf.gz) / .muat.tsv for no preprocess")
-    muat_wes_input.add_argument("--input-list", type=str, default=None, help="Path to a text file listing input file paths, one per line.")
-    wes.add_argument("--result-dir", type=str, default=None, required=True,
-                        help='Result directory where the output will be written (.tsv).')
-    wes.add_argument("--tmp-dir", type=str, default=None,
-                        help='Directory for storing preprocessed files.')
+    # from-checkpoint: user-supplied ensemble; assay is inferred from each checkpoint.
+    ens_fc = ensemble_source.add_parser(
+        'from-checkpoint',
+        help='Use your own ensemble checkpoints (.pthx); assay is inferred from each checkpoint.')
+    ens_fc.add_argument("--ckpt-filepath", nargs="+", required=True,
+                        help='One .pthx per fold; logits are averaged across them.')
+    _add_common_predict_args(ens_fc)
 
     args = parser.parse_args()
+    _validate_predict_inputs(parser, args)
 
     return args
+
+
+# Input-suffix whitelist for muat predict / predict-ensemble.
+PREPROCESSED_SUFFIXES = ('.muat.tsv', '.muat.tsv.gz')
+RAW_SUFFIXES = ('.vcf', '.vcf.gz', '.maf', '.maf.gz', '.tsv')
+
+
+def _classify_input(path):
+    """Return 'preprocessed', 'raw', or None for an unsupported suffix.
+    Preprocessed match is checked first because '.muat.tsv' also ends in '.tsv'."""
+    if path.endswith(PREPROCESSED_SUFFIXES):
+        return 'preprocessed'
+    if path.endswith(RAW_SUFFIXES):
+        return 'raw'
+    return None
+
+
+def _validate_predict_inputs(parser, args):
+    """Post-parse validation for predict / predict-ensemble.
+
+    Rules:
+    - All inputs must share the same kind ('raw' or 'preprocessed'); mixed batches rejected.
+    - Each input must match the whitelist suffixes.
+    - --hg19/--hg38 required iff kind == 'raw'; rejected if kind == 'preprocessed'.
+
+    Sets args.needs_preprocessing on success."""
+    if getattr(args, 'command', None) not in ('predict', 'predict-ensemble'):
+        return
+
+    if args.input_list is not None:
+        try:
+            with open(resolve_path(args.input_list)) as f:
+                paths = [line.strip() for line in f if line.strip()]
+        except OSError as e:
+            parser.error("could not read --input-list {!r}: {}".format(args.input_list, e))
+        if not paths:
+            parser.error("--input-list {!r} is empty.".format(args.input_list))
+    else:
+        paths = list(args.input_filepath)
+
+    kinds = {_classify_input(p): None for p in paths}
+    bad = [p for p in paths if _classify_input(p) is None]
+    if bad:
+        parser.error(
+            "unsupported input suffix(es): " + ", ".join(bad[:3])
+            + (" ..." if len(bad) > 3 else "")
+            + ". Accepted: .vcf{,.gz}, .maf{,.gz}, .tsv (raw) or .muat.tsv{,.gz} (preprocessed).")
+
+    kinds = {_classify_input(p) for p in paths}
+    if len(kinds) > 1:
+        parser.error(
+            "mixed input kinds are not allowed: all inputs must be either raw "
+            "(.vcf/.maf/.tsv) or preprocessed (.muat.tsv).")
+
+    kind = kinds.pop()
+    has_ref = bool(args.hg19 or args.hg38)
+
+    if kind == 'raw' and not has_ref:
+        parser.error("--hg19 or --hg38 is required because inputs are raw "
+                     "(.vcf/.maf/.tsv) and need preprocessing.")
+    if kind == 'preprocessed' and has_ref:
+        parser.error("--hg19/--hg38 was given, but all inputs are already preprocessed "
+                     "(.muat.tsv). Drop the reference flag.")
+
+    args.needs_preprocessing = (kind == 'raw')
+
 
 def mut_type_checkpoint_handler(mutation_type,wgs_wes):
     ckptdir = resource_filename('muat','pkg_ckpt')

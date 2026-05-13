@@ -120,20 +120,11 @@ def _collect_preprocessed_files(vcf_files, tmp_dir):
     return predict_ready_files
 
 
-def _validate_no_preprocess_inputs(files):
-    bad = [f for f in files if not f.endswith('.muat.tsv')]
-    if len(bad) > 0:
-        raise ValueError(
-            "--no-preprocess expects preprocessed .muat.tsv files. "
-            f"Found invalid inputs such as: {bad[:3]}"
-        )
+def _run_predict(args, device):
+    """Shared logic for muat predict {pretrained|from-checkpoint}."""
 
-
-def _run_predict(args, wgs_wes, device):
-    """Shared logic for muat predict wgs/wes."""
-
-    if args.mutation_type is not None:
-        if wgs_wes == 'wgs':
+    if args.source == 'pretrained':
+        if args.assay == 'wgs':
             benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'pcawg_wgs')
             url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip"
         else:
@@ -153,7 +144,7 @@ def _run_predict(args, wgs_wes, device):
                 '. Download benchmark model from ' + url + ' and extract to this path.'
             )
 
-        load_ckpt_path = mut_type_checkpoint_handler(args.mutation_type, wgs_wes)
+        load_ckpt_path = mut_type_checkpoint_handler(args.mutation_type, args.assay)
     else:
         load_ckpt_path = resolve_path(args.ckpt_filepath)
 
@@ -166,43 +157,32 @@ def _run_predict(args, wgs_wes, device):
     else:
         vcf_files = multifiles_handler(args.input_filepath)
 
-    tmp_dir = check_tmp_dir(args)
-
-    if args.no_preprocess:
-        _validate_no_preprocess_inputs(vcf_files)
-        predict_ready_files = vcf_files
+    if not args.needs_preprocessing:
+        predict_ready_files = [resolve_path(x) for x in vcf_files]
         pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-    elif args.hg19 is not None:
-        genome_reference_path_hg19 = resolve_path(args.hg19)
-        preprocessing_vcf_tokenizing(
-            vcf_file=vcf_files,
-            genome_reference_path=genome_reference_path_hg19,
-            tmp_dir=tmp_dir,
-            dict_motif=dict_motif,
-            dict_pos=dict_pos,
-            dict_ges=dict_ges
-        )
-        print('preprocessed data saved in ' + tmp_dir)
-        predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
-        pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-    elif args.hg38 is not None:
-        genome_reference_path_hg38 = resolve_path(args.hg38)
-        preprocessing_vcf38_tokenizing(
-            vcf_file=vcf_files,
-            genome_reference_38_path=genome_reference_path_hg38,
-            tmp_dir=tmp_dir,
-            dict_motif=dict_motif,
-            dict_pos=dict_pos,
-            dict_ges=dict_ges
-        )
-        print('preprocessed data saved in ' + tmp_dir)
-        predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
-        pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
     else:
-        raise ValueError("Please provide either --hg19, --hg38, or --no-preprocess.")
+        tmp_dir = check_tmp_dir(args)
+        if args.hg19 is not None:
+            preprocessing_vcf_tokenizing(
+                vcf_file=vcf_files,
+                genome_reference_path=resolve_path(args.hg19),
+                tmp_dir=tmp_dir,
+                dict_motif=dict_motif,
+                dict_pos=dict_pos,
+                dict_ges=dict_ges
+            )
+        else:
+            preprocessing_vcf38_tokenizing(
+                vcf_file=vcf_files,
+                genome_reference_38_path=resolve_path(args.hg38),
+                tmp_dir=tmp_dir,
+                dict_motif=dict_motif,
+                dict_pos=dict_pos,
+                dict_ges=dict_ges
+            )
+        print('preprocessed data saved in ' + tmp_dir)
+        predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
+        pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
 
     target_handler = load_target_handler(checkpoint)
     dataloader_config = checkpoint['dataloader_config']
@@ -224,27 +204,33 @@ def _run_predict(args, wgs_wes, device):
     predictor.batch_predict()
 
 
-def _run_predict_ensemble(args, wgs_wes, device):
-    """Shared logic for muat predict-ensemble wgs/wes."""
+def _run_predict_ensemble(args, device):
+    """Shared logic for muat predict-ensemble {pretrained|from-checkpoint}."""
 
-    if wgs_wes == 'wgs':
-        benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wgs')
-        url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip"
+    if args.source == 'from-checkpoint':
+        check_pth = [resolve_path(p) for p in args.ckpt_filepath]
+        missing = [p for p in check_pth if not os.path.exists(p)]
+        if missing:
+            raise ValueError('checkpoint(s) not found: ' + ', '.join(missing))
     else:
-        benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wes')
-        url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip"
+        if args.assay == 'wgs':
+            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wgs')
+            url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip"
+        else:
+            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wes')
+            url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip"
 
-    check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
-    if len(check_pth) == 0:
-        download_checkpoint(url, 'my_checkpoint.zip')
         check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
+        if len(check_pth) == 0:
+            download_checkpoint(url, 'my_checkpoint.zip')
+            check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
 
-    if len(check_pth) == 0:
-        raise ValueError(
-            'cant find benchmark model in ' +
-            os.path.join(benchmark_ckpt, args.mutation_type) +
-            '. Download benchmark model from ' + url + ' and extract to this path.'
-        )
+        if len(check_pth) == 0:
+            raise ValueError(
+                'cant find benchmark model in ' +
+                os.path.join(benchmark_ckpt, args.mutation_type) +
+                '. Download benchmark model from ' + url + ' and extract to this path.'
+            )
 
     print('running prediction of ensemble models')
 
@@ -256,53 +242,45 @@ def _run_predict_ensemble(args, wgs_wes, device):
     else:
         vcf_files = multifiles_handler(args.input_filepath)
 
-    tmp_dir = check_tmp_dir(args)
+    tmp_dir = check_tmp_dir(args) if args.needs_preprocessing else None
 
     for i_fold, pth_file in enumerate(check_pth):
-        fold = pth_file.split('fold')[-1].split('.pthx')[0]
+        if args.source == 'from-checkpoint':
+            fold = str(i_fold)
+        else:
+            fold = pth_file.split('fold')[-1].split('.pthx')[0]
         print('prediction from {}'.format(pth_file))
 
         checkpoint = load_and_check_checkpoint(pth_file)
         dict_motif, dict_pos, dict_ges = load_token_dict(checkpoint)
 
-        if args.no_preprocess:
+        if not args.needs_preprocessing:
             if i_fold == 0:
-                _validate_no_preprocess_inputs(vcf_files)
-                predict_ready_files = vcf_files
+                predict_ready_files = [resolve_path(x) for x in vcf_files]
                 pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-        elif args.hg19 is not None:
-            if i_fold == 0:
-                genome_reference_path_hg19 = resolve_path(args.hg19)
-                preprocessing_vcf_tokenizing(
-                    vcf_file=vcf_files,
-                    genome_reference_path=genome_reference_path_hg19,
-                    tmp_dir=tmp_dir,
-                    dict_motif=dict_motif,
-                    dict_pos=dict_pos,
-                    dict_ges=dict_ges
-                )
-                print('preprocessed data saved in ' + tmp_dir)
-            predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
-            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
-        elif args.hg38 is not None:
-            if i_fold == 0:
-                genome_reference_path_hg38 = resolve_path(args.hg38)
-                preprocessing_vcf38_tokenizing(
-                    vcf_file=vcf_files,
-                    genome_reference_38_path=genome_reference_path_hg38,
-                    tmp_dir=tmp_dir,
-                    dict_motif=dict_motif,
-                    dict_pos=dict_pos,
-                    dict_ges=dict_ges
-                )
-                print('preprocessed data saved in ' + tmp_dir)
-            predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
-            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
-
         else:
-            raise ValueError("Please provide either --hg19, --hg38, or --no-preprocess.")
+            if i_fold == 0:
+                if args.hg19 is not None:
+                    preprocessing_vcf_tokenizing(
+                        vcf_file=vcf_files,
+                        genome_reference_path=resolve_path(args.hg19),
+                        tmp_dir=tmp_dir,
+                        dict_motif=dict_motif,
+                        dict_pos=dict_pos,
+                        dict_ges=dict_ges
+                    )
+                else:
+                    preprocessing_vcf38_tokenizing(
+                        vcf_file=vcf_files,
+                        genome_reference_38_path=resolve_path(args.hg38),
+                        tmp_dir=tmp_dir,
+                        dict_motif=dict_motif,
+                        dict_pos=dict_pos,
+                        dict_ges=dict_ges
+                    )
+                print('preprocessed data saved in ' + tmp_dir)
+            predict_ready_files = _collect_preprocessed_files(vcf_files, tmp_dir)
+            pd_predict = pd.DataFrame(predict_ready_files, columns=['prep_path'])
 
         target_handler = load_target_handler(checkpoint)
         dataloader_config = checkpoint['dataloader_config']
@@ -364,7 +342,7 @@ def main():
     pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
     pkg_ckpt = ensure_dirpath(pkg_ckpt)
 
-    if args.command in ['predict-ensemble']:
+    if args.command == 'predict-ensemble' and args.source == 'pretrained':
         unziping_from_package_installation()
 
     if args.command == 'download':
@@ -385,17 +363,20 @@ def main():
         
     if args.command == 'predict':
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        wgs_wes = args.subcommand  # 'wgs' or 'wes'
-        _run_predict(args, wgs_wes, device)
+        _run_predict(args, device)
 
     elif args.command == 'predict-ensemble':
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        wgs_wes = args.subcommand  # 'wgs' or 'wes'
-        _run_predict_ensemble(args, wgs_wes, device)
+        _run_predict_ensemble(args, device)
 
     elif args.command == 'preprocess':
         tmp_dir = check_tmp_dir(args)
-        vcf_files = [resolve_path(x) for x in multifiles_handler(args.input_filepath)]
+        if getattr(args, 'input_list', None) is not None:
+            with open(resolve_path(args.input_list)) as f:
+                vcf_files = [line.strip() for line in f if line.strip()]
+        else:
+            vcf_files = multifiles_handler(args.input_filepath)
+        vcf_files = [resolve_path(x) for x in vcf_files]
 
         if not args.annotated and args.hg19 is None and args.hg38 is None:
             raise ValueError("--hg19 or --hg38 is required unless --annotated is set.")

@@ -46,6 +46,15 @@ class MuAtDataloader(Dataset):
         self.same_sampling = same_sampling
         self.sampling_replacement = config.sampling_replacement
 
+        if 'prep_path' not in data_split_tsv.columns:
+            raise ValueError("MuAtDataloader: input dataframe is missing required column 'prep_path'.")
+        missing = [p for p in data_split_tsv['prep_path'].tolist() if not os.path.exists(p)]
+        if missing:
+            preview = '\n  '.join(missing[:5])
+            raise FileNotFoundError(
+                "MuAtDataloader: {} input file(s) do not exist. First missing:\n  {}".format(
+                    len(missing), preview))
+
     def __len__(self):
         return len(self.data_split_tsv)
     
