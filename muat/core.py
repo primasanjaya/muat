@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import torch
 
-from pkg_resources import resource_filename
+from muat._resources import pkg_path
 
 from muat.download import *
 from muat.preprocessing import *
@@ -101,7 +101,7 @@ def initialize_label_encoders(target_path, subtarget_path=None):
 
 
 def unziping_from_package_installation():
-    pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
+    pkg_ckpt = pkg_path('pkg_ckpt')
     pkg_ckpt = ensure_dirpath(pkg_ckpt)
 
     all_zip = glob.glob(os.path.join(pkg_ckpt, '*.zip'))
@@ -126,10 +126,10 @@ def _run_predict(args, device):
 
     if args.source == 'pretrained':
         if args.assay == 'wgs':
-            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'pcawg_wgs')
+            benchmark_ckpt = os.path.join(ensure_dirpath(pkg_path('pkg_ckpt')), 'pcawg_wgs')
             url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wgs_pcawg.zip"
         else:
-            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'tcga_wes')
+            benchmark_ckpt = os.path.join(ensure_dirpath(pkg_path('pkg_ckpt')), 'tcga_wes')
             url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/best_wes_tcga.zip"
 
         check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
@@ -215,10 +215,10 @@ def _run_predict_ensemble(args, device):
             raise ValueError('checkpoint(s) not found: ' + ', '.join(missing))
     else:
         if args.assay == 'wgs':
-            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wgs')
+            benchmark_ckpt = os.path.join(ensure_dirpath(pkg_path('pkg_ckpt')), 'benchmark_wgs')
             url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wgs.zip"
         else:
-            benchmark_ckpt = os.path.join(ensure_dirpath(resource_filename('muat', 'pkg_ckpt')), 'benchmark_wes')
+            benchmark_ckpt = os.path.join(ensure_dirpath(pkg_path('pkg_ckpt')), 'benchmark_wes')
             url = "https://huggingface.co/primasanjaya/muat-checkpoint/resolve/main/benchmark_wes.zip"
 
         check_pth = glob.glob(os.path.join(benchmark_ckpt, args.mutation_type, '*.pthx'))
@@ -367,10 +367,10 @@ def _run_predict_ensemble(args, device):
 def main():
     args = get_main_args()
 
-    genomedir = resource_filename('muat', 'genome_reference')
+    genomedir = pkg_path('genome_reference')
     genomedir = ensure_dirpath(genomedir)
 
-    pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
+    pkg_ckpt = pkg_path('pkg_ckpt')
     pkg_ckpt = ensure_dirpath(pkg_ckpt)
 
     if args.command == 'predict-ensemble' and args.source == 'pretrained':
@@ -417,7 +417,7 @@ def main():
             args.position_dictionary_filepath is None or
             args.ges_dictionary_filepath is None
         ):
-            extdir = ensure_dirpath(resource_filename('muat', 'extfile'))
+            extdir = ensure_dirpath(pkg_path('extfile'))
             dict_motif = pd.read_csv(os.path.join(extdir, 'dictMutation.tsv'), sep='\t')
             dict_pos = pd.read_csv(os.path.join(extdir, 'dictChpos.tsv'), sep='\t')
             dict_ges = pd.read_csv(os.path.join(extdir, 'dictGES.tsv'), sep='\t')
@@ -543,7 +543,7 @@ def main():
 
     elif args.command == 'train':
         if args.subcommand == 'from-scratch':
-            extdir = ensure_dirpath(resource_filename('muat', 'extfile'))
+            extdir = ensure_dirpath(pkg_path('extfile'))
 
             motif_path = resolve_path(args.motif_dictionary_filepath) or f"{extdir}/dictMutation.tsv"
             pos_path = resolve_path(args.position_dictionary_filepath) or f"{extdir}/dictChpos.tsv"

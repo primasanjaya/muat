@@ -107,6 +107,7 @@ setup(
         "numpy",
         "pandas",
         "requests",
+        'importlib_resources; python_version<"3.9"',
     ],
     entry_points={
         "console_scripts": [

@@ -7,7 +7,7 @@ import subprocess
 import pdb
 import argparse
 from muat.model import *
-from pkg_resources import resource_filename
+from muat._resources import pkg_path
 from sklearn.preprocessing import LabelEncoder
 import pandas as pd
 from muat.dataloader import *
@@ -299,7 +299,7 @@ def _validate_predict_inputs(parser, args):
 
 
 def mut_type_checkpoint_handler(mutation_type,wgs_wes):
-    ckptdir = resource_filename('muat','pkg_ckpt')
+    ckptdir = pkg_path('pkg_ckpt')
     ckptdir = ensure_dirpath(ckptdir)
 
     if wgs_wes == 'wgs':

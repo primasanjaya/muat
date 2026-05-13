@@ -1,6 +1,6 @@
 import torch
 import pdb
-from pkg_resources import resource_filename
+from muat._resources import pkg_path
 from sklearn.preprocessing import LabelEncoder
 import pandas as pd
 from muat.util import *
@@ -19,7 +19,7 @@ from muat.dataloader import DataloaderConfig
 from muat.util import LabelEncoderFromCSV
 
 def unziping_from_package_installation():
-    pkg_ckpt = resource_filename('muat', 'pkg_ckpt')
+    pkg_ckpt = pkg_path('pkg_ckpt')
     pkg_ckpt = ensure_dirpath(pkg_ckpt)
 
     all_zip = glob.glob(pkg_ckpt+'*.zip')
@@ -513,13 +513,13 @@ def convert_checkpoint_version2(checkpoint,ckpt_path,save=False):
     #pdb.set_trace()
 
     if 'pcawg' in new_name:
-        extdir = resource_filename('muat', 'extfile')
+        extdir = pkg_path('extfile')
         extdir = ensure_dirpath(extdir)
         classfileinfo = extdir + 'classinfo_pcawg.tsv'
         le = LabelEncoderFromCSV(csv_file=classfileinfo,class_name_col='class_name',class_index_col='class_index')
 
     if 'tcga' in new_name:
-        extdir = resource_filename('muat', 'extfile')
+        extdir = pkg_path('extfile')
         extdir = ensure_dirpath(extdir)
         classfileinfo = extdir + 'classinfo_tcga.tsv'
         le = LabelEncoderFromCSV(csv_file=classfileinfo,class_name_col='class_name',class_index_col='class_index')

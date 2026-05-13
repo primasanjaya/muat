@@ -27,6 +27,7 @@ requirements:
     - numpy
     - pandas
     - requests
+    - importlib_resources  # [py<39]
     - bedtools
     - htslib
     - natsort

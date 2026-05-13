@@ -12,7 +12,7 @@ from pathlib import Path
 import pdb
 import urllib.request
 import zipfile
-from pkg_resources import resource_filename
+from muat._resources import pkg_path
 from muat.util import *
 
 # Function to download and extract the checkpoint
@@ -20,7 +20,7 @@ def download_checkpoint(url,name,checkpoint_dir=None):
     checkpoint_url = url  # Replace with your checkpoint URL
 
     if checkpoint_dir is None:
-        checkpoint_dir = resource_filename('muat', 'pkg_ckpt')
+        checkpoint_dir = pkg_path('pkg_ckpt')
         checkpoint_dir = ensure_dirpath(checkpoint_dir)
 
     # Ensure the checkpoint directory exists

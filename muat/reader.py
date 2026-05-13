@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from natsort import natsort_keygen 
 from collections import deque
-from pkg_resources import resource_filename
+from muat._resources import pkg_path
 import os, subprocess,re, sys,itertools
 
 import pdb
@@ -253,7 +253,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     if liftover:
         from pyliftover import LiftOver
 
-        liftover_chain = resource_filename('muat', 'pkg_data/genomic_tracks/hg38ToHg19.over.chain.gz')
+        liftover_chain = pkg_path('pkg_data/genomic_tracks/hg38ToHg19.over.chain.gz')
         lo = LiftOver(liftover_chain)
 
         pd_hg38 = pd.read_csv(output_file,sep='\t',low_memory=False)
@@ -301,10 +301,10 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     process.append('gc')
 
     if hg38_native:
-        genic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.genic.genomic.bed.gz')
+        genic_regions_file = pkg_path('pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.genic.genomic.bed.gz')
     else:
-        genic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.genic.genomic.bed.gz')
-    annotate_with_bed_sh = resource_filename('muat', 'pkg_shell/annotate_mutations_with_bed.sh')
+        genic_regions_file = pkg_path('pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.genic.genomic.bed.gz')
+    annotate_with_bed_sh = pkg_path('pkg_shell/annotate_mutations_with_bed.sh')
     # Make the shell script executable
     #os.chmod(annotate_with_bed_sh, 0o755)
     # Genic region
@@ -331,9 +331,9 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     #exon regions
     output_exon = tmp_dir + sample_name + '.gc.genic.exonic.tsv.gz'
     if hg38_native:
-        exonic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.exons.genomic.bed.gz')
+        exonic_regions_file = pkg_path('pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.exons.genomic.bed.gz')
     else:
-        exonic_regions_file = resource_filename('muat', 'pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.exons.genomic.bed.gz')
+        exonic_regions_file = pkg_path('pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.exons.genomic.bed.gz')
 
     syntax_exonic = annotate_with_bed_sh + '\
     ' + output_genic + ' \
@@ -353,9 +353,9 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     #strand
     output_cs = tmp_dir + sample_name + '.gc.genic.exonic.cs.tsv.gz'
     if hg38_native:
-        annotation = resource_filename('muat', 'pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.transcript_directionality.bed.gz')
+        annotation = pkg_path('pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.transcript_directionality.bed.gz')
     else:
-        annotation = resource_filename('muat', 'pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.transcript_directionality.bed.gz')
+        annotation = pkg_path('pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.transcript_directionality.bed.gz')
 
     o = openz(output_cs, 'wt')
 
