@@ -20,27 +20,39 @@ def get_main_args():
     parser = argparse.ArgumentParser(description='Mutation Attention Tool')
     subparsers = parser.add_subparsers(dest='command', required=True, help='Available commands')
 
+    def _make_required_group(p):
+        """Create a 'required arguments' group and promote it above the default
+        'optional arguments' so --help lists required flags first."""
+        g = p.add_argument_group('required arguments')
+        p._action_groups.insert(1, p._action_groups.pop())
+        return g
+
     download_parser = subparsers.add_parser('download', help='Download the dataset.')
-    download_parser.add_argument("--pcawg", action="store_true", help="Download the PCAWG dataset.", required=True)
-    download_parser.add_argument("--download-dir", type=str, default=None,required=True,
-                        help='Directory for storing the downloaded dataset.')
+    download_req = _make_required_group(download_parser)
+    download_req.add_argument("--pcawg", action="store_true", required=True,
+                              help="Download the PCAWG dataset.")
+    download_req.add_argument("--download-dir", type=str, default=None, required=True,
+                              help='Directory for storing the downloaded dataset.')
 
     preprocess = subparsers.add_parser('preprocess', help='Preprocess the dataset.')
-    vcf_somagg_tsv = preprocess.add_mutually_exclusive_group(required=True)
+    preprocess_req = _make_required_group(preprocess)
+
+    vcf_somagg_tsv = preprocess_req.add_mutually_exclusive_group(required=True)
     vcf_somagg_tsv.add_argument("--vcf", action="store_true", help="Preprocess VCF files.")
     vcf_somagg_tsv.add_argument("--somagg", action="store_true", help="Preprocess SomAgg VCF files.")
     vcf_somagg_tsv.add_argument("--tsv", action="store_true", help="Preprocess TSV files.")
     vcf_somagg_tsv.add_argument("--annotated", action="store_true",
                                 help="Tokenize already-annotated files (.gc.genic.exonic.cs.tsv or .gc.genic.exonic.cs.tsv.gz). "
                                      "Skips motif/annotation; --hg19/--hg38 not required.")
-    hg19_hg38 = preprocess.add_mutually_exclusive_group(required=False)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz). Required unless --annotated.")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg38 (.fa or .fa.gz). Required unless --annotated.")
-    
-    preprocess_input = preprocess.add_mutually_exclusive_group(required=True)
+
+    preprocess_input = preprocess_req.add_mutually_exclusive_group(required=True)
     preprocess_input.add_argument("--input-filepath", nargs="+", default=None, help="Input file paths.")
     preprocess_input.add_argument("--input-list", type=str, default=None,
                                   help="Path to a text file listing input file paths, one per line.")
+
+    hg19_hg38 = preprocess.add_mutually_exclusive_group(required=False)
+    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz). Required unless --annotated.")
+    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg38 (.fa or .fa.gz). Required unless --annotated.")
 
     preprocess.add_argument("--tmp-dir", type=str, default=None, help='Directory for storing preprocessed files.')
     preprocess.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
@@ -53,7 +65,19 @@ def get_main_args():
     # Predict subparser
     # Shared input/output args used by both predict and predict-ensemble.
     # Preprocessing mode is inferred from input file suffix; see _validate_predict_inputs.
-    def _add_common_predict_args(p):
+    # `required` is an argument_group on `p`; the leaf parser puts its own
+    # leaf-specific required flags there too so the help displays them together.
+    def _add_common_predict_args(p, required):
+        inp = required.add_mutually_exclusive_group(required=True)
+        inp.add_argument("--input-filepath", nargs="+",
+                         help="Input paths. Accepted: .vcf{,.gz}, .maf{,.gz}, .tsv "
+                              "(preprocessed first), or .muat.tsv{,.gz} (already preprocessed). "
+                              "All inputs must be the same kind.")
+        inp.add_argument("--input-list", type=str, default=None,
+                         help="Text file listing input paths, one per line. Same suffix rules.")
+        required.add_argument("--result-dir", type=str, default=None, required=True,
+                              help='Result directory where the output will be written (.tsv).')
+
         ref = p.add_mutually_exclusive_group()
         ref.add_argument("--hg19", type=str, default=None,
                          help="Path to GRCh37/hg19 (.fa or .fa.gz). "
@@ -61,15 +85,6 @@ def get_main_args():
         ref.add_argument("--hg38", type=str, default=None,
                          help="Path to GRCh38/hg38 (.fa or .fa.gz). "
                               "Required when inputs are raw (.vcf/.maf/.tsv).")
-
-        inp = p.add_mutually_exclusive_group(required=True)
-        inp.add_argument("--input-filepath", nargs="+",
-                         help="Input paths. Accepted: .vcf{,.gz}, .maf{,.gz}, .tsv (preprocessed first), "
-                              "or .muat.tsv{,.gz} (already preprocessed). All inputs must be the same kind.")
-        inp.add_argument("--input-list", type=str, default=None,
-                         help="Text file listing input paths, one per line. Same suffix rules.")
-        p.add_argument("--result-dir", type=str, default=None, required=True,
-                       help='Result directory where the output will be written (.tsv).')
         p.add_argument("--tmp-dir", type=str, default=None,
                        help='Directory for storing preprocessed files (used only for raw inputs).')
 
@@ -89,42 +104,46 @@ def get_main_args():
         help='Assay type for the benchmark.')
 
     pre_wgs = pre_assay.add_parser('wgs', help='Whole Genome Sequence benchmark.')
-    pre_wgs.add_argument("--mutation-type", type=str, required=True,
-                         choices=['snv', 'snv+mnv', 'snv+mnv+indel',
-                                  'snv+mnv+indel+svmei', 'snv+mnv+indel+svmei+neg'],
-                         help='Selects which benchmark checkpoint to download/use.')
-    _add_common_predict_args(pre_wgs)
+    pre_wgs_req = _make_required_group(pre_wgs)
+    pre_wgs_req.add_argument("--mutation-type", type=str, required=True,
+                             choices=['snv', 'snv+mnv', 'snv+mnv+indel',
+                                      'snv+mnv+indel+svmei', 'snv+mnv+indel+svmei+neg'],
+                             help='Selects which benchmark checkpoint to download/use.')
+    _add_common_predict_args(pre_wgs, pre_wgs_req)
 
     pre_wes = pre_assay.add_parser('wes', help='Whole Exome Sequence benchmark.')
-    pre_wes.add_argument("--mutation-type", type=str, required=True,
-                         choices=['snv', 'snv+mnv', 'snv+mnv+indel'],
-                         help='Selects which benchmark checkpoint to download/use.')
-    _add_common_predict_args(pre_wes)
+    pre_wes_req = _make_required_group(pre_wes)
+    pre_wes_req.add_argument("--mutation-type", type=str, required=True,
+                             choices=['snv', 'snv+mnv', 'snv+mnv+indel'],
+                             help='Selects which benchmark checkpoint to download/use.')
+    _add_common_predict_args(pre_wes, pre_wes_req)
 
     # from-checkpoint: user-supplied checkpoint; assay is inferred from the .pthx.
     fc = predict_source.add_parser(
         'from-checkpoint',
         help='Use your own checkpoint (.pthx); assay is inferred from the checkpoint.')
-    fc.add_argument("--ckpt-filepath", type=str, required=True,
-                    help='Path to load the checkpoint (.pthx).')
-    _add_common_predict_args(fc)
+    fc_req = _make_required_group(fc)
+    fc_req.add_argument("--ckpt-filepath", type=str, required=True,
+                        help='Path to load the checkpoint (.pthx).')
+    _add_common_predict_args(fc, fc_req)
 
     train_parser = subparsers.add_parser('train', help='Train the MuAt model.')
     train_subparsers = train_parser.add_subparsers(dest='subcommand', required=True, help='Available commands.')
     from_scratch = train_subparsers.add_parser('from-scratch', help='Train from scratch.')
-    from_scratch.add_argument('--mutation-type', type=str, default=None, required=True,
+    from_scratch_req = _make_required_group(from_scratch)
+    from_scratch_req.add_argument('--mutation-type', type=str, default=None, required=True,
                     help='Mutation type; choose from {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg}.')
-    from_scratch.add_argument("--use-motif", action="store_true", help="Use motif input.", required=True)
+    from_scratch_req.add_argument("--use-motif", action="store_true", required=True,
+                                  help="Use motif input.")
+    from_scratch_req.add_argument('--train-split-filepath', type=str, default=None, required=True,
+                    help='Training split data; example file in example_files/train_split_example.tsv.')
+    from_scratch_req.add_argument('--val-split-filepath', type=str, default=None, required=True,
+                    help='Internal validation split data; example file in example_files/val_split_example.tsv.')
+    from_scratch_req.add_argument('--save-dir', type=str, default=None, required=True,
+                    help='Directory to save the model.')
+
     from_scratch.add_argument("--use-position", action="store_true", help="Use genomic position input.")
     from_scratch.add_argument("--use-ges", action="store_true", help="Use genic, exonic, and strand annotation.")
-
-    from_scratch.add_argument('--train-split-filepath', type=str, default=None, required=True,
-                    help='Training split data; example file in example_files/train_split_example.tsv.')
-    from_scratch.add_argument('--val-split-filepath', type=str, default=None, required=True,
-                    help='Internal validation split data; example file in example_files/val_split_example.tsv.')
-    from_scratch.add_argument('--save-dir', type=str, default=None, required=True,
-                    help='Directory to save the model.')    
-
     from_scratch.add_argument('--epoch', type=int, default=1,
                     help='Number of epochs (default: 5).')
     from_scratch.add_argument('--learning-rate', type=float, default=6e-4,
@@ -136,30 +155,29 @@ def get_main_args():
     from_scratch.add_argument('--n-head', type=int, default=8,
                     help='Number of attention heads (default: 8).')
     from_scratch.add_argument('--n-emb', type=int, default=128,
-                    help='Embedding dimension (default: 128).') 
+                    help='Embedding dimension (default: 128).')
     from_scratch.add_argument('--mutation-sampling-size', type=int, default=5000,
                     help='Maximum number of mutations to fetch for the model (default: 5000).')
     from_scratch.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement. Default is False")
-
     from_scratch.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
     from_scratch.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
     from_scratch.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
 
     from_checkpoint = train_subparsers.add_parser('from-checkpoint', help='Train from a checkpoint.')
-    from_checkpoint.add_argument("--ckpt-filepath", type=str, default=None, required=True,
+    from_checkpoint_req = _make_required_group(from_checkpoint)
+    from_checkpoint_req.add_argument("--ckpt-filepath", type=str, default=None, required=True,
                         help='Path to load the checkpoint (.pthx).')
-    from_checkpoint.add_argument("--mutation-type", type=str, default=None, required=True,
+    from_checkpoint_req.add_argument("--mutation-type", type=str, default=None, required=True,
                         help='Mutation type; choose from {snv, snv+mnv, snv+mnv+indel, snv+mnv+indel+svmei, snv+mnv+indel+svmei+neg}.')
-    
-    from_checkpoint.add_argument('--train-split-filepath', type=str, default=None, required=True,
+    from_checkpoint_req.add_argument('--train-split-filepath', type=str, default=None, required=True,
                     help='Training split data; example file in example_files/train_split_example.tsv.')
-    from_checkpoint.add_argument('--val-split-filepath', type=str, default=None, required=True,
+    from_checkpoint_req.add_argument('--val-split-filepath', type=str, default=None, required=True,
                     help='Internal validation split data; example file in example_files/val_split_example.tsv.')
-    from_checkpoint.add_argument('--save-dir', type=str, default=None, required=True,
-                    help='Directory to save the model.')    
-
-    from_checkpoint.add_argument('--epoch', type=int, default=1,required=True,
+    from_checkpoint_req.add_argument('--save-dir', type=str, default=None, required=True,
+                    help='Directory to save the model.')
+    from_checkpoint_req.add_argument('--epoch', type=int, default=1, required=True,
                     help='Number of epochs (default: 5).')
+
     from_checkpoint.add_argument('--learning-rate', type=float, default=6e-4,
                     help='Learning rate (default: 6e-4).')
     from_checkpoint.add_argument('--batch-size', type=int, default=2,
@@ -186,25 +204,28 @@ def get_main_args():
         help='Assay type for the benchmark bundle.')
 
     ens_pre_wgs = ens_pre_assay.add_parser('wgs', help='Whole Genome Sequence benchmark.')
-    ens_pre_wgs.add_argument("--mutation-type", type=str, required=True,
-                             choices=['snv', 'snv+mnv', 'snv+mnv+indel',
-                                      'snv+mnv+indel+svmei', 'snv+mnv+indel+svmei+neg'],
-                             help='Selects which benchmark bundle to download/use.')
-    _add_common_predict_args(ens_pre_wgs)
+    ens_pre_wgs_req = _make_required_group(ens_pre_wgs)
+    ens_pre_wgs_req.add_argument("--mutation-type", type=str, required=True,
+                                 choices=['snv', 'snv+mnv', 'snv+mnv+indel',
+                                          'snv+mnv+indel+svmei', 'snv+mnv+indel+svmei+neg'],
+                                 help='Selects which benchmark bundle to download/use.')
+    _add_common_predict_args(ens_pre_wgs, ens_pre_wgs_req)
 
     ens_pre_wes = ens_pre_assay.add_parser('wes', help='Whole Exome Sequence benchmark.')
-    ens_pre_wes.add_argument("--mutation-type", type=str, required=True,
-                             choices=['snv', 'snv+mnv', 'snv+mnv+indel'],
-                             help='Selects which benchmark bundle to download/use.')
-    _add_common_predict_args(ens_pre_wes)
+    ens_pre_wes_req = _make_required_group(ens_pre_wes)
+    ens_pre_wes_req.add_argument("--mutation-type", type=str, required=True,
+                                 choices=['snv', 'snv+mnv', 'snv+mnv+indel'],
+                                 help='Selects which benchmark bundle to download/use.')
+    _add_common_predict_args(ens_pre_wes, ens_pre_wes_req)
 
     # from-checkpoint: user-supplied ensemble; assay is inferred from each checkpoint.
     ens_fc = ensemble_source.add_parser(
         'from-checkpoint',
         help='Use your own ensemble checkpoints (.pthx); assay is inferred from each checkpoint.')
-    ens_fc.add_argument("--ckpt-filepath", nargs="+", required=True,
-                        help='One .pthx per fold; logits are averaged across them.')
-    _add_common_predict_args(ens_fc)
+    ens_fc_req = _make_required_group(ens_fc)
+    ens_fc_req.add_argument("--ckpt-filepath", nargs="+", required=True,
+                            help='One .pthx per fold; logits are averaged across them.')
+    _add_common_predict_args(ens_fc, ens_fc_req)
 
     args = parser.parse_args()
     _validate_predict_inputs(parser, args)

@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import tarfile
 import zipfile
 import glob
@@ -248,7 +249,8 @@ def _run_predict_ensemble(args, device):
         if args.source == 'from-checkpoint':
             fold = str(i_fold)
         else:
-            fold = pth_file.split('fold')[-1].split('.pthx')[0]
+            m = re.search(r'fold(\d+)', os.path.basename(pth_file))
+            fold = m.group(1) if m else str(i_fold)
         print('prediction from {}'.format(pth_file))
 
         checkpoint = load_and_check_checkpoint(pth_file)
@@ -301,7 +303,7 @@ def _run_predict_ensemble(args, device):
         predictor = Predictor(model, test_dataloader, predict_config)
         predictor.batch_predict()
 
-    all_fold = glob.glob(os.path.join(result_dir, 'fold*'))
+    all_fold = glob.glob(os.path.join(result_dir, 'fold*_prediction_*.tsv'))
     pd_allfold = pd.DataFrame()
 
     for i_f in all_fold:
@@ -331,6 +333,35 @@ def _run_predict_ensemble(args, device):
         index=False
     )
     print('ensemble prediction saved to ' + os.path.join(result_dir, 'ensemble_prediction.tsv'))
+
+    # Concatenate per-fold feature files horizontally; one ensemble file per feature head.
+    # Per-fold files are named fold<label>_features_<head>.tsv with columns M1, M2, ..., sample.
+    feat_files = glob.glob(os.path.join(result_dir, 'fold*_features_*.tsv'))
+    heads = {}
+    for fpath in feat_files:
+        m = re.match(r'fold(.+?)_features_(.+)\.tsv$', os.path.basename(fpath))
+        if m:
+            heads.setdefault(m.group(2), []).append((m.group(1), fpath))
+
+    def _fold_sort_key(label):
+        try:
+            return (0, int(label))
+        except ValueError:
+            return (1, label)
+
+    for head, items in heads.items():
+        items.sort(key=lambda x: _fold_sort_key(x[0]))
+        merged = None
+        for fold_label, fpath in items:
+            df = pd.read_csv(fpath, sep='\t', low_memory=False)
+            df = df.rename(columns={c: '{}_{}'.format(c, fold_label) for c in df.columns if c != 'sample'})
+            merged = df if merged is None else merged.merge(df, on='sample', how='inner')
+            os.remove(fpath)
+        cols = [c for c in merged.columns if c != 'sample'] + ['sample']
+        merged = merged[cols]
+        out_path = os.path.join(result_dir, 'ensemble_features_{}.tsv'.format(head))
+        merged.to_csv(out_path, sep='\t', index=False, float_format='%.8f')
+        print('ensemble features saved to ' + out_path)
 
 
 def main():

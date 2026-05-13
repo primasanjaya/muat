@@ -127,7 +127,7 @@ class Predictor:
                     for nk, lk in enumerate(feature_keys):
                         feat = logits[lk]
                         feat_cpu = feat.detach().cpu().numpy()
-                        feat_filename = 'features_{}.tsv'.format(lk)
+                        feat_filename = '{}features_{}.tsv'.format(self.config.prefix, lk)
                         
                         if i==0:
                             f = open(self.result_dir + feat_filename, 'w+') 
