@@ -52,14 +52,23 @@ You will see:
 Mutation Attention Tool
 
 positional arguments:
-  {download,preprocessing,predict,train,benchmark}
+  {download,preprocess,predict,predict-ensemble,train}
                         Available commands
     download            Download the dataset.
     preprocess          Preprocess the dataset.
-    predict             Predict samples.
+    predict             Predict samples with a single model.
+    predict-ensemble    Run ensemble prediction (averages logits across fold checkpoints).
     train               Train the MuAt model.
-    predict-ensemble    Run the prediction using the best MuAt ensemble models
 ```
+
+Both `predict` and `predict-ensemble` accept two sources:
+- `pretrained {wgs,wes}` — auto-downloads the benchmark checkpoint(s) from HuggingFace.
+- `from-checkpoint` — uses your own `.pthx` files; the assay is inferred from each checkpoint.
+
+Input mode is inferred from file suffix:
+- Raw inputs (`.vcf{,.gz}`, `.maf{,.gz}`, `.tsv`) are preprocessed first and require `--hg19` or `--hg38`.
+- Preprocessed inputs (`.muat.tsv{,.gz}`) are used as-is; the reference flag must be omitted.
+- All inputs in a single call must be the same kind (mixed batches are rejected).
 
 ## Docker container installation
 You can build docker container from source by running `build_docker.sh` <br>
@@ -74,25 +83,37 @@ This file was written with hg19. To run prediction on this file, execute:
 **Run the prediction (exactly using this command)**
 
 ```bash
-(muat-env)$ muat predict wgs --hg19 genome_reference/hg19.fa --mutation-type 'snv+mnv' --input-filepath 'example_files/0a6be23a-d5a0-4e95-ada2-a61b2b5d9485.consensus.20160830.somatic.snv_mnv.vcf.gz' --result-dir results
+(muat-env)$ muat predict pretrained wgs --mutation-type 'snv+mnv' --hg19 genome_reference/hg19.fa --input-filepath 'example_files/0a6be23a-d5a0-4e95-ada2-a61b2b5d9485.consensus.20160830.somatic.snv_mnv.vcf.gz' --result-dir results
 ```
 
 
 ### For VCF Files Written with hg38
 To predict using VCF files written with hg38, run:
 ```bash
-(muat-env)$ muat predict wgs --hg38 '/path/to/genome_reference/hg38.fa' --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
+(muat-env)$ muat predict pretrained wgs --mutation-type 'snv+mnv' --hg38 '/path/to/genome_reference/hg38.fa' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
 ```
 
 ### Predicting preprocessed data samples (read preprocessing steps [here](https://github.com/primasanjaya/muat/blob/main/documentation/README_preprocessing.md))
+Use the `.muat.tsv` (or `.muat.tsv.gz`) output of `muat preprocess` directly — no reference flag needed; the suffix tells muat to skip preprocessing.
 ```bash
-(muat-env)$ muat predict wgs --no-preprocessing --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.token.gc.genic.exonic.cs.tsv.gz' --result-dir 'path/to/result_dir/'
+(muat-env)$ muat predict pretrained wgs --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.muat.tsv' --result-dir 'path/to/result_dir/'
 ```
 
-## Run MuAt benchmark models
-Example cli to predict samples using the best MuAt ensemble models:
+### Predicting with your own checkpoint
 ```bash
-(muat-env)$ muat predict-ensemble muat-wgs --hg19 '/path/to/genome_reference/hg19.fa' --mutation-type 'snv+mnv' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
+(muat-env)$ muat predict from-checkpoint --ckpt-filepath 'path/to/my_model.pthx' --hg19 '/path/to/genome_reference/hg19.fa' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
+```
+
+## Run MuAt benchmark ensemble models
+Example cli to predict samples using the benchmark ensemble (auto-downloaded from HuggingFace):
+```bash
+(muat-env)$ muat predict-ensemble pretrained wgs --mutation-type 'snv+mnv' --hg19 '/path/to/genome_reference/hg19.fa' --input-filepath 'path/to/sample.vcf.gz' --result-dir 'path/to/result_dir/'
+```
+
+## Run ensemble prediction with your own checkpoints
+Pass one `.pthx` per fold; logits are averaged across them. The assay (wgs/wes) is inferred from each checkpoint.
+```bash
+(muat-env)$ muat predict-ensemble from-checkpoint --ckpt-filepath 'path/fold0.pthx' 'path/fold1.pthx' 'path/fold2.pthx' --hg19 '/path/to/genome_reference/hg19.fa' --input-list 'path/to/inputs.txt' --result-dir 'path/to/result_dir/'
 ```
 
 ## Additional Resources
