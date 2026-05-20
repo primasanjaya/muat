@@ -199,7 +199,8 @@ def _run_predict(args, device):
         max_epochs=1,
         batch_size=1,
         result_dir=result_dir,
-        target_handler=target_handler
+        target_handler=target_handler,
+        prerelu=not getattr(args, 'relu', False)
     )
     predictor = Predictor(model, test_dataloader, predict_config)
     predictor.batch_predict()
@@ -297,7 +298,8 @@ def _run_predict_ensemble(args, device):
             max_epochs=1,
             batch_size=1,
             result_dir=result_dir,
-            target_handler=target_handler
+            target_handler=target_handler,
+            prerelu=not getattr(args, 'relu', False)
         )
         predict_config.prefix = 'fold' + str(fold) + '_'
         predictor = Predictor(model, test_dataloader, predict_config)
@@ -644,7 +646,11 @@ def main():
                 learning_rate=args.learning_rate,
                 num_workers=1,
                 save_ckpt_dir=save_dir,
-                target_handler=target_handler
+                target_handler=target_handler,
+                patience=getattr(args, 'patience', 0),
+                lr_patience=getattr(args, 'lr_patience', None),
+                lr_factor=getattr(args, 'lr_factor', 0.5),
+                min_lr=getattr(args, 'min_lr', 1e-7),
             )
 
             model = get_model(arch, model_config)
@@ -680,6 +686,10 @@ def main():
             dataloader_config = checkpoint['dataloader_config']
 
             trainer_config.save_ckpt_dir = save_dir
+            trainer_config.patience = getattr(args, 'patience', 0)
+            trainer_config.lr_patience = getattr(args, 'lr_patience', None)
+            trainer_config.lr_factor = getattr(args, 'lr_factor', 0.5)
+            trainer_config.min_lr = getattr(args, 'min_lr', 1e-7)
 
             validate_checkpoint(trainer_config)
 

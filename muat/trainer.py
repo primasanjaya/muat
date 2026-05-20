@@ -33,6 +33,10 @@ class TrainerConfig:
         ckpt_name="model",
         args=None,
         target_handler=None,
+        patience=0,
+        lr_patience=None,
+        lr_factor=0.5,
+        min_lr=1e-7,
     ):
         self.max_epochs = max_epochs
         self.batch_size = batch_size
@@ -48,6 +52,10 @@ class TrainerConfig:
         self.ckpt_name = ckpt_name
         self.args = args
         self.target_handler = target_handler if target_handler is not None else []
+        self.patience = patience
+        self.lr_patience = lr_patience
+        self.lr_factor = lr_factor
+        self.min_lr = min_lr
 
 
 class Trainer:
@@ -93,6 +101,22 @@ class Trainer:
             momentum=0.9,
             weight_decay=self.config.weight_decay,
         )
+
+        patience = getattr(self.config, "patience", 0) or 0
+        scheduler = None
+        if patience > 0:
+            lr_patience = getattr(self.config, "lr_patience", None)
+            if lr_patience is None:
+                lr_patience = max(1, patience // 2)
+            scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode="min",
+                factor=getattr(self.config, "lr_factor", 0.5),
+                patience=lr_patience,
+                min_lr=getattr(self.config, "min_lr", 1e-7),
+            )
+        best_val_loss = float("inf")
+        no_improve_epochs = 0
 
         trainloader = torch.utils.data.DataLoader(
             self.train_dataset,
@@ -280,6 +304,20 @@ class Trainer:
                 f.flush()
                 os.fsync(f.fileno())
 
+            if patience > 0:
+                if scheduler is not None:
+                    scheduler.step(test_loss)
+                current_lr = optimizer.param_groups[0]["lr"]
+                if test_loss < best_val_loss - 1e-6:
+                    best_val_loss = test_loss
+                    no_improve_epochs = 0
+                else:
+                    no_improve_epochs += 1
+                print(
+                    f"Early-stop tracker: no_improve_epochs={no_improve_epochs}/{patience}, "
+                    f"best_val_loss={best_val_loss:.4f}, lr={current_lr:.2e}"
+                )
+
             self.save_checkpoint_v3(self.config.save_ckpt_dir)
             self.save_checkpoint_v3(os.path.join(checkpoint_dir, f"epoch_{e}"))
 
@@ -303,6 +341,13 @@ class Trainer:
                     "best_ckpt.pthx"
                 )
                 shutil.copyfile(ckpt_path, best_ckpt_path)
+
+            if patience > 0 and no_improve_epochs >= patience:
+                print(
+                    f"Early stopping at epoch {e + 1}: validation loss did not improve "
+                    f"for {patience} consecutive epochs."
+                )
+                break
 
     def make_json_serializable(self, obj):
         if isinstance(obj, pd.DataFrame):

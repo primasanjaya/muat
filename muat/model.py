@@ -202,7 +202,7 @@ class MuAtMotif(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None,get_features=False):
+    def forward(self, x, targets=None, vis=None,get_features=False,prerelu=False):
 
         motif = x[:, 0, :]
 
@@ -230,7 +230,7 @@ class MuAtMotif(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
         logits_feats = {'first_logits': logits}
-                        
+
         return logits_feats, loss
 
 class MuAtMotifF(nn.Module):
@@ -260,7 +260,7 @@ class MuAtMotifF(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None,get_features=False):
+    def forward(self, x, targets=None, vis=None,get_features=False,prerelu=False):
 
         motif = x[:, 0, :]
 
@@ -274,10 +274,11 @@ class MuAtMotifF(nn.Module):
 
         x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
 
-        feature = self.tofeature(x)
+        feature_pre = self.tofeature[0](x)
+        feature = self.tofeature[1](feature_pre)
 
         if get_features:
-            return feature
+            return feature_pre if prerelu else feature
         else:
             logits = self.toprobs(feature)
 
@@ -322,7 +323,7 @@ class MuAtMotifF_2Labels(nn.Module):
 
         self.to_subtypeprobs = nn.Linear(32, config.num_subclass)        
 
-    def forward(self, x, targets=None, vis=None,get_features=False):
+    def forward(self, x, targets=None, vis=None,get_features=False,prerelu=False):
 
         motif = x[:, 0, :]
 
@@ -336,9 +337,12 @@ class MuAtMotifF_2Labels(nn.Module):
 
         x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
 
-        join_features = self.to_joinfeatures(x)
-        type_features = self.to_typefeatures(join_features)
-        subtype_features = self.to_subtypefeatures(join_features)
+        join_pre = self.to_joinfeatures[0](x)
+        join_features = self.to_joinfeatures[1](join_pre)
+        type_pre = self.to_typefeatures[0](join_features)
+        type_features = self.to_typefeatures[1](type_pre)
+        subtype_pre = self.to_subtypefeatures[0](join_features)
+        subtype_features = self.to_subtypefeatures[1](subtype_pre)
 
         typeprobs = self.to_typeprobs(type_features)
         subtypeprobs = self.to_subtypeprobs(subtype_features)
@@ -351,9 +355,9 @@ class MuAtMotifF_2Labels(nn.Module):
 
         logits_feats = {'first_logits': typeprobs,
                         'second_logits': subtypeprobs,
-                        'first_features': type_features,
-                        'second_features': subtype_features,
-                        'join_features': join_features
+                        'first_features': type_pre if prerelu else type_features,
+                        'second_features': subtype_pre if prerelu else subtype_features,
+                        'join_features': join_pre if prerelu else join_features
                         }
         return logits_feats, loss
 
@@ -382,7 +386,7 @@ class MuAtMotifPosition(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None,get_features=False):
+    def forward(self, x, targets=None, vis=None,get_features=False,prerelu=False):
 
         triplettoken = x[:, 0, :]
         # pdb.set_trace()
@@ -442,7 +446,7 @@ class MuAtMotifPositionF(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None, visatt=None):
+    def forward(self, x, targets=None, vis=None, visatt=None, prerelu=False):
 
         triplettoken = x[:, 0, :]
         # pdb.set_trace()
@@ -479,7 +483,8 @@ class MuAtMotifPositionF(nn.Module):
 
         x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
 
-        feature = self.tofeature(x)
+        feature_pre = self.tofeature[0](x)
+        feature = self.tofeature[1](feature_pre)
         logits = self.toprobs(feature)
 
         # if we are given some desired targets also calculate the loss
@@ -488,9 +493,9 @@ class MuAtMotifPositionF(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
         logits_feats = {'first_logits': logits,
-                        'first_features': feature
+                        'first_features': feature_pre if prerelu else feature
                         }
-                        
+
         return logits_feats, loss
 
 class MuAtMotifPositionF_2Labels(nn.Module):
@@ -531,7 +536,7 @@ class MuAtMotifPositionF_2Labels(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None, visatt=None,get_features=False):
+    def forward(self, x, targets=None, vis=None, visatt=None,get_features=False,prerelu=False):
 
         triplettoken = x[:, 0, :]
         # pdb.set_trace()
@@ -546,11 +551,14 @@ class MuAtMotifPositionF_2Labels(nn.Module):
 
         x = self.tblocks(x)
 
-        x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1) 
+        x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)
 
-        join_features = self.to_joinfeatures(x)
-        type_features = self.to_typefeatures(join_features)
-        subtype_features = self.to_subtypefeatures(join_features)
+        join_pre = self.to_joinfeatures[0](x)
+        join_features = self.to_joinfeatures[1](join_pre)
+        type_pre = self.to_typefeatures[0](join_features)
+        type_features = self.to_typefeatures[1](type_pre)
+        subtype_pre = self.to_subtypefeatures[0](join_features)
+        subtype_features = self.to_subtypefeatures[1](subtype_pre)
 
         typeprobs = self.to_typeprobs(type_features)
         subtypeprobs = self.to_subtypeprobs(subtype_features)
@@ -564,9 +572,9 @@ class MuAtMotifPositionF_2Labels(nn.Module):
 
         logits_feats = {'first_logits': typeprobs,
                         'second_logits': subtypeprobs,
-                        'first_features': type_features,
-                        'second_features': subtype_features,
-                        'join_features': join_features
+                        'first_features': type_pre if prerelu else type_features,
+                        'second_features': subtype_pre if prerelu else subtype_features,
+                        'join_features': join_pre if prerelu else join_features
                         }
         return logits_feats, loss
 
@@ -596,7 +604,7 @@ class MuAtMotifPositionGES(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None):
+    def forward(self, x, targets=None, vis=None, prerelu=False):
 
         triplettoken = x[:, 0, :]
         postoken = x[:, 1, :]
@@ -655,7 +663,7 @@ class MuAtMotifPositionGESF(nn.Module):
 
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None,get_features=False):
+    def forward(self, x, targets=None, vis=None,get_features=False,prerelu=False):
 
         triplettoken = x[:, 0, :]
         postoken = x[:, 1, :]
@@ -674,7 +682,8 @@ class MuAtMotifPositionGESF(nn.Module):
 
         x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
 
-        feature = self.tofeature(x)
+        feature_pre = self.tofeature[0](x)
+        feature = self.tofeature[1](feature_pre)
         logits = self.toprobs(feature)
 
         # if we are given some desired targets also calculate the loss
@@ -683,9 +692,9 @@ class MuAtMotifPositionGESF(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
         logits_feats = {'first_logits': logits,
-                        'first_features': feature
+                        'first_features': feature_pre if prerelu else feature
                         }
-                        
+
         return logits_feats, loss
 
 class MuAtMotifPositionGESF_2Labels(nn.Module):
@@ -724,7 +733,7 @@ class MuAtMotifPositionGESF_2Labels(nn.Module):
         self.to_subtypeprobs = nn.Linear(32, config.num_subclass)
         self.do = nn.Dropout(config.embd_pdrop)
 
-    def forward(self, x, targets=None, vis=None,get_features=False):
+    def forward(self, x, targets=None, vis=None,get_features=False,prerelu=False):
 
         triplettoken = x[:, 0, :]
         postoken = x[:, 1, :]
@@ -743,11 +752,14 @@ class MuAtMotifPositionGESF_2Labels(nn.Module):
 
         x = x.max(dim=1)[0] if self.max_pool else x.mean(dim=1)  # pool over the time dimension
 
-        join_features = self.to_joinfeatures(x)
+        join_pre = self.to_joinfeatures[0](x)
+        join_features = self.to_joinfeatures[1](join_pre)
 
-        type_features = self.to_typefeatures(join_features)
+        type_pre = self.to_typefeatures[0](join_features)
+        type_features = self.to_typefeatures[1](type_pre)
 
-        subtype_features = self.to_subtypefeatures(join_features)
+        subtype_pre = self.to_subtypefeatures[0](join_features)
+        subtype_features = self.to_subtypefeatures[1](subtype_pre)
 
         typeprobs = self.to_typeprobs(type_features)
         subtypeprobs = self.to_subtypeprobs(subtype_features)
@@ -762,9 +774,9 @@ class MuAtMotifPositionGESF_2Labels(nn.Module):
 
         logits_feats = {'first_logits': typeprobs,
                         'second_logits': subtypeprobs,
-                        'first_features': type_features,
-                        'second_features': subtype_features,
-                        'join_features': join_features
+                        'first_features': type_pre if prerelu else type_features,
+                        'second_features': subtype_pre if prerelu else subtype_features,
+                        'join_features': join_pre if prerelu else join_features
                         }
         return logits_feats, loss
 

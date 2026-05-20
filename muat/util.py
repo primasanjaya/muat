@@ -87,6 +87,9 @@ def get_main_args():
                               "Required when inputs are raw (.vcf/.maf/.tsv).")
         p.add_argument("--tmp-dir", type=str, default=None,
                        help='Directory for storing preprocessed files (used only for raw inputs).')
+        p.add_argument("--relu", action="store_true",
+                       help='Apply ReLU to saved features. By default, features are '
+                            'pre-ReLU (raw Linear output). Logits/predictions are unchanged.')
 
     # predict: single-model prediction.
     # Two sources: 'pretrained' (downloads benchmark) and 'from-checkpoint' (user .pthx).
@@ -159,6 +162,14 @@ def get_main_args():
     from_scratch.add_argument('--mutation-sampling-size', type=int, default=5000,
                     help='Maximum number of mutations to fetch for the model (default: 5000).')
     from_scratch.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement. Default is False")
+    from_scratch.add_argument('--patience', type=int, default=0,
+                    help='Early-stopping patience: stop if validation loss has not improved for N epochs. 0 disables.')
+    from_scratch.add_argument('--lr-patience', type=int, default=None,
+                    help='Reduce LR by --lr-factor after this many epochs without val-loss improvement. Default: max(1, patience//2).')
+    from_scratch.add_argument('--lr-factor', type=float, default=0.5,
+                    help='Multiplier applied to LR when val loss plateaus (default 0.5).')
+    from_scratch.add_argument('--min-lr', type=float, default=1e-7,
+                    help='Lower bound for LR scheduling (default 1e-7).')
     from_scratch.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
     from_scratch.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
     from_scratch.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
@@ -185,6 +196,14 @@ def get_main_args():
     from_checkpoint.add_argument('--mutation-sampling-size', type=int, default=5000,
                     help='Maximum number of mutations to fetch for the model (default: 5000).')
     from_checkpoint.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement.  Default is False")
+    from_checkpoint.add_argument('--patience', type=int, default=0,
+                    help='Early-stopping patience: stop if validation loss has not improved for N epochs. 0 disables.')
+    from_checkpoint.add_argument('--lr-patience', type=int, default=None,
+                    help='Reduce LR by --lr-factor after this many epochs without val-loss improvement. Default: max(1, patience//2).')
+    from_checkpoint.add_argument('--lr-factor', type=float, default=0.5,
+                    help='Multiplier applied to LR when val loss plateaus (default 0.5).')
+    from_checkpoint.add_argument('--min-lr', type=float, default=1e-7,
+                    help='Lower bound for LR scheduling (default 1e-7).')
 
     # predict-ensemble: averages logits across fold checkpoints.
     # Two sources: 'pretrained' (downloads benchmark bundle) and 'from-checkpoint' (user .pthx files).

@@ -16,6 +16,7 @@ class PredictorConfig:
     result_dir = None
     target_handler = None
     get_features = False
+    prerelu = True
     prefix = ''
 
     def __init__(self, **kwargs):
@@ -59,7 +60,7 @@ class Predictor:
             numeric_data = numeric_data.to(self.device)
             # forward the model 
             with torch.set_grad_enabled(False):
-                logits, _ = model(numeric_data)
+                logits, _ = model(numeric_data, prerelu=self.config.prerelu)
                 #pdb.set_trace()
                 if isinstance(logits, dict):
                     #write all logits
