@@ -686,6 +686,9 @@ def main():
             dataloader_config = checkpoint['dataloader_config']
 
             trainer_config.save_ckpt_dir = save_dir
+            trainer_config.max_epochs = args.epoch
+            trainer_config.learning_rate = args.learning_rate
+            trainer_config.batch_size = args.batch_size
             trainer_config.patience = getattr(args, 'patience', 0)
             trainer_config.lr_patience = getattr(args, 'lr_patience', None)
             trainer_config.lr_factor = getattr(args, 'lr_factor', 0.5)
