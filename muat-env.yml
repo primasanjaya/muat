@@ -12,7 +12,7 @@ dependencies:
   - boto3
   - openpyxl
   - scikit-learn
-  - pytorch-cpu
+  - pytorch
   - pyliftover
   - bcftools
   - bedops
