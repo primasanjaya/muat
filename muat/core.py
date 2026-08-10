@@ -706,7 +706,39 @@ def main():
         if not args.annotated and args.hg19 is None and args.hg38 is None:
             raise ValueError("--hg19 or --hg38 is required unless --annotated is set.")
 
-        if (
+        annotate_only = getattr(args, 'annotate_only', False)
+        build_dict = getattr(args, 'build_dictionary', False)
+        if annotate_only and args.annotated:
+            raise ValueError("--no-tokenize and --preannotated are contradictory: --preannotated "
+                             "means the input is ALREADY annotated and only needs tokenizing, "
+                             "which is exactly the step --no-tokenize skips. There would be "
+                             "nothing left to do.")
+        if build_dict and annotate_only:
+            raise ValueError("--build-dictionary and --no-tokenize are contradictory: building a "
+                             "dictionary implies tokenizing with it, which --no-tokenize skips.")
+        if build_dict and (args.motif_dictionary_filepath or args.position_dictionary_filepath
+                           or args.ges_dictionary_filepath):
+            raise ValueError("--build-dictionary builds the dictionaries from this data, so it "
+                             "cannot be combined with an explicit --*-dictionary-filepath. Drop "
+                             "one or the other.")
+        if build_dict and len(vcf_files) < 2:
+            print('muat preprocess: WARNING --build-dictionary given for only {} input file(s). '
+                  'A dictionary is corpus-level -- build it from the WHOLE cohort in one '
+                  'invocation (--input-list), or every sample ends up with its own '
+                  'vocabulary.'.format(len(vcf_files)), file=sys.stderr)
+
+        # With --build-dictionary the annotation pass runs first and tokenizing is deferred
+        # until the dictionaries exist, so the dispatch below takes the annotate-only route.
+        if build_dict:
+            annotate_only = True
+
+        # Dictionaries are only needed for tokenizing. Loading them under --no-tokenize
+        # would also print the misleading 'using default dictionary' line for a run that
+        # never consults one.
+        dict_motif = dict_pos = dict_ges = None
+        if annotate_only:
+            pass
+        elif (
             args.motif_dictionary_filepath is None or
             args.position_dictionary_filepath is None or
             args.ges_dictionary_filepath is None
@@ -722,46 +754,71 @@ def main():
             dict_ges = pd.read_csv(resolve_path(args.ges_dictionary_filepath), sep='\t')
 
         if args.annotated:
-            preprocessing_annotated_tokenizing(
-                input_files=vcf_files,
-                tmp_dir=tmp_dir,
-                dict_motif=dict_motif,
-                dict_pos=dict_pos,
-                dict_ges=dict_ges,
-            )
-            print('preprocessed data saved in ' + tmp_dir)
+            # With --build-dictionary the inputs ARE the annotated corpus, so there is
+            # nothing to annotate and tokenizing is deferred to the dictionary step below
+            # (which needs the vocabulary before it can assign tokens).
+            if not build_dict:
+                preprocessing_annotated_tokenizing(
+                    input_files=vcf_files,
+                    tmp_dir=tmp_dir,
+                    dict_motif=dict_motif,
+                    dict_pos=dict_pos,
+                    dict_ges=dict_ges,
+                )
+                print('preprocessed data saved in ' + tmp_dir)
 
         elif args.vcf:
             if args.hg19 is not None:
                 genome_reference_path_hg19 = resolve_path(args.hg19)
-                preprocessing_vcf_tokenizing(
-                    vcf_file=vcf_files,
-                    genome_reference_path=genome_reference_path_hg19,
-                    tmp_dir=tmp_dir,
-                    dict_motif=dict_motif,
-                    dict_pos=dict_pos,
-                    dict_ges=dict_ges
-                )
+                if annotate_only:
+                    preprocessing_vcf(
+                        vcf_file=vcf_files,
+                        genome_reference_path=genome_reference_path_hg19,
+                        tmp_dir=tmp_dir,
+                    )
+                else:
+                    preprocessing_vcf_tokenizing(
+                        vcf_file=vcf_files,
+                        genome_reference_path=genome_reference_path_hg19,
+                        tmp_dir=tmp_dir,
+                        dict_motif=dict_motif,
+                        dict_pos=dict_pos,
+                        dict_ges=dict_ges
+                    )
             elif args.hg38 is not None:
                 genome_reference_path_hg38 = resolve_path(args.hg38)
                 if args.liftover:
-                    preprocessing_vcf38_tokenizing(
-                        vcf_file=vcf_files,
-                        genome_reference_38_path=genome_reference_path_hg38,
-                        tmp_dir=tmp_dir,
-                        dict_motif=dict_motif,
-                        dict_pos=dict_pos,
-                        dict_ges=dict_ges
-                    )
+                    if annotate_only:
+                        preprocessing_vcf38(
+                            vcf_file=vcf_files,
+                            genome_reference_38_path=genome_reference_path_hg38,
+                            tmp_dir=tmp_dir,
+                        )
+                    else:
+                        preprocessing_vcf38_tokenizing(
+                            vcf_file=vcf_files,
+                            genome_reference_38_path=genome_reference_path_hg38,
+                            tmp_dir=tmp_dir,
+                            dict_motif=dict_motif,
+                            dict_pos=dict_pos,
+                            dict_ges=dict_ges
+                        )
                 else:
-                    preprocessing_vcf38_native_tokenizing(
-                        vcf_file=vcf_files,
-                        genome_reference_38_path=genome_reference_path_hg38,
-                        tmp_dir=tmp_dir,
-                        dict_motif=dict_motif,
-                        dict_pos=dict_pos,
-                        dict_ges=dict_ges
-                    )
+                    if annotate_only:
+                        preprocessing_vcf38_native(
+                            vcf_file=vcf_files,
+                            genome_reference_38_path=genome_reference_path_hg38,
+                            tmp_dir=tmp_dir,
+                        )
+                    else:
+                        preprocessing_vcf38_native_tokenizing(
+                            vcf_file=vcf_files,
+                            genome_reference_38_path=genome_reference_path_hg38,
+                            tmp_dir=tmp_dir,
+                            dict_motif=dict_motif,
+                            dict_pos=dict_pos,
+                            dict_ges=dict_ges
+                        )
             else:
                 raise ValueError("For VCF preprocessing, please provide either --hg19 or --hg38.")
             print('preprocessed data saved in ' + tmp_dir)
@@ -769,34 +826,43 @@ def main():
         elif args.tsv:
             if args.hg19 is not None:
                 genome_reference_path_hg19 = resolve_path(args.hg19)
-                preprocessing_tsv_tokenizing(
-                    vcf_files,
-                    genome_reference_path_hg19,
-                    tmp_dir,
-                    dict_motif,
-                    dict_pos,
-                    dict_ges
-                )
+                if annotate_only:
+                    preprocessing_tsv(vcf_files, genome_reference_path_hg19, tmp_dir)
+                else:
+                    preprocessing_tsv_tokenizing(
+                        vcf_files,
+                        genome_reference_path_hg19,
+                        tmp_dir,
+                        dict_motif,
+                        dict_pos,
+                        dict_ges
+                    )
             elif args.hg38 is not None:
                 genome_reference_path_hg38 = resolve_path(args.hg38)
                 if args.liftover:
-                    preprocessing_tsv38_tokenizing(
-                        vcf_files,
-                        genome_reference_path_hg38,
-                        tmp_dir,
-                        dict_motif,
-                        dict_pos,
-                        dict_ges
-                    )
+                    if annotate_only:
+                        preprocessing_tsv38(vcf_files, genome_reference_path_hg38, tmp_dir)
+                    else:
+                        preprocessing_tsv38_tokenizing(
+                            vcf_files,
+                            genome_reference_path_hg38,
+                            tmp_dir,
+                            dict_motif,
+                            dict_pos,
+                            dict_ges
+                        )
                 else:
-                    preprocessing_tsv38_native_tokenizing(
-                        vcf_files,
-                        genome_reference_path_hg38,
-                        tmp_dir,
-                        dict_motif,
-                        dict_pos,
-                        dict_ges
-                    )
+                    if annotate_only:
+                        preprocessing_tsv38_native(vcf_files, genome_reference_path_hg38, tmp_dir)
+                    else:
+                        preprocessing_tsv38_native_tokenizing(
+                            vcf_files,
+                            genome_reference_path_hg38,
+                            tmp_dir,
+                            dict_motif,
+                            dict_pos,
+                            dict_ges
+                        )
             else:
                 raise ValueError("For TSV preprocessing, please provide either --hg19 or --hg38.")
 
@@ -834,6 +900,47 @@ def main():
                     )
             else:
                 raise ValueError("For somagg preprocessing, please provide --hg38 or implement --hg19 branch.")
+
+        if build_dict:
+            # The annotated corpus now exists in tmp_dir; derive the vocabulary from it and
+            # tokenize in the same pass, so the tokens and the dictionaries cannot disagree.
+            from .dictionary import build_dictionaries
+            built = build_dictionaries(
+                # --annotated: the inputs themselves are the corpus, and they may live in
+                # several directories, so pass the resolved list rather than a directory.
+                data_dir=None if args.annotated else tmp_dir,
+                files=vcf_files if args.annotated else None,
+                out_dir=args.dictionary_out_dir or tmp_dir,
+                which=[w.strip() for w in args.dictionary_which.split(',') if w.strip()],
+                suffix=args.dictionary_suffix,
+                motif_labels=args.motif_labels,
+                tokenize_to=tmp_dir,
+            )
+            print('\nTrain with these dictionaries (pass ALL THREE, or the defaults silently '
+                  'reintroduce the shipped ones):')
+            for flag, kind in (('--motif-dictionary-filepath', 'motif'),
+                               ('--position-dictionary-filepath', 'pos'),
+                               ('--ges-dictionary-filepath', 'ges')):
+                print('  {} {}'.format(flag, built.get(kind, '<shipped default>')))
+
+        # Verify something was actually written. get_motif_pos_ges() catches per-sample
+        # exceptions so one bad input does not abandon a batch, and its 0/1 return was
+        # never inspected -- so a run that preprocessed NOTHING still printed
+        # 'preprocessed data saved in ...' and exited 0, which is indistinguishable from
+        # success inside a job script. Exit non-zero instead, and say what is missing.
+        produced = sorted(set(glob.glob(os.path.join(tmp_dir, '*.muat.tsv'))
+                              + glob.glob(os.path.join(tmp_dir, '*.muat.tsv.gz'))
+                              + glob.glob(os.path.join(tmp_dir, '*.annotate.tsv.gz'))
+                              + glob.glob(os.path.join(tmp_dir, '*.gc.genic.exonic.cs.tsv.gz'))))
+        n_in = len(vcf_files)
+        if not produced:
+            print('muat preprocess: produced no output for any of the {} input file(s). '
+                  'See the errors above.'.format(n_in), file=sys.stderr)
+            sys.exit(1)
+        if len(produced) < n_in:
+            print('muat preprocess: WARNING only {}/{} input file(s) produced output; '
+                  'the rest failed (see errors above).'.format(len(produced), n_in),
+                  file=sys.stderr)
 
     elif args.command == 'train':
         if args.subcommand == 'from-scratch':

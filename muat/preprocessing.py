@@ -119,8 +119,9 @@ def preprocessing_tsv38_tokenizing(tsv_file,genome_reference_38_path,tmp_dir,dic
     tmp_dir = ensure_dirpath(tmp_dir)
 
     for x in tsv_file:
-        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
-            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+        _annot = find_annotated_path(tmp_dir, get_sample_name(x))
+        if _annot is not None:
+            all_preprocessed_vcf.append(_annot)
     #pdb.set_trace()
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     #pdb.set_trace()
@@ -154,8 +155,9 @@ def preprocessing_tsv_tokenizing(tsv_file,genome_reference_path,tmp_dir,dict_mot
     tmp_dir = ensure_dirpath(tmp_dir)
 
     for x in tsv_file:
-        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
-            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+        _annot = find_annotated_path(tmp_dir, get_sample_name(x))
+        if _annot is not None:
+            all_preprocessed_vcf.append(_annot)
 
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
 
@@ -203,8 +205,9 @@ def preprocessing_vcf38_tokenizing(vcf_file,genome_reference_38_path,tmp_dir,dic
     tmp_dir = ensure_dirpath(tmp_dir)
 
     for x in vcf_file:
-        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
-            all_preprocessed_vcf.append(tmp_dir  + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+        _annot = find_annotated_path(tmp_dir, get_sample_name(x))
+        if _annot is not None:
+            all_preprocessed_vcf.append(_annot)
     #pdb.set_trace()
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     #pdb.set_trace()
@@ -278,8 +281,9 @@ def preprocessing_vcf38_native_tokenizing(vcf_file,genome_reference_38_path,tmp_
     all_preprocessed_vcf = []
     tmp_dir = ensure_dirpath(tmp_dir)
     for x in vcf_file:
-        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
-            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+        _annot = find_annotated_path(tmp_dir, get_sample_name(x))
+        if _annot is not None:
+            all_preprocessed_vcf.append(_annot)
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
 
 def preprocessing_tsv38_native(tsv_file,genome_reference_38_path,tmp_dir,verbose=True):
@@ -309,8 +313,9 @@ def preprocessing_tsv38_native_tokenizing(tsv_file,genome_reference_38_path,tmp_
     all_preprocessed_vcf = []
     tmp_dir = ensure_dirpath(tmp_dir)
     for x in tsv_file:
-        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
-            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+        _annot = find_annotated_path(tmp_dir, get_sample_name(x))
+        if _annot is not None:
+            all_preprocessed_vcf.append(_annot)
 
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
 
@@ -341,8 +346,9 @@ def preprocessing_vcf_tokenizing(vcf_file,genome_reference_path,tmp_dir,dict_mot
 
     tmp_dir = ensure_dirpath(tmp_dir)
     for x in vcf_file:
-        if os.path.exists(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz'):
-            all_preprocessed_vcf.append(tmp_dir + get_sample_name(x) + '.gc.genic.exonic.cs.tsv.gz')
+        _annot = find_annotated_path(tmp_dir, get_sample_name(x))
+        if _annot is not None:
+            all_preprocessed_vcf.append(_annot)
     #pdb.set_trace()
     tokenizing(dict_motif,dict_pos,dict_ges,all_preprocessed_vcf,tmp_dir)
     
@@ -369,9 +375,12 @@ def get_motif_pos_ges(fn,genome_ref,tmp_dir,genome_ref38=None,liftover=False,hg3
         f.close()
         return 1
     except Exception as e:
-        print(f"Error: {e}")
-        print("Traceback:")
-        print(traceback.format_exc())
+        # Kept non-fatal so one bad sample does not abandon a whole batch, but reported on
+        # STDERR and counted by the caller: this used to print to stdout and return 0 that
+        # nobody inspected, so a run that preprocessed nothing still exited 0 and printed
+        # 'preprocessed data saved in ...'.
+        print(f"Error preprocessing {fn}: {e}", file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
         return 0
     
 
@@ -473,9 +482,19 @@ def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,tmp_dir,pos_b
     '''
     Tokenizing the motif, pos, and ges. Accepts both .tsv and .tsv.gz inputs
     (compression inferred from the file extension).
+
+    The supplied dictionaries are treated as the BASELINE vocabulary. Every merge below is
+    a LEFT join, so any key the data contains but the dictionary does not becomes a NaN
+    token -- silently carrying no information to the model. That is measured here and
+    reported once for the whole batch; see report_vocab_coverage().
     '''
     tmp_dir = ensure_dirpath(resolve_path(tmp_dir))
     os.makedirs(tmp_dir, exist_ok=True)
+
+    # kind -> {key: n_rows} for keys absent from the baseline dictionary
+    unmapped = {'motif': {}, 'position': {}, 'ges': {}}
+    n_rows_total = 0
+    n_rows_unmapped = {'motif': 0, 'position': 0, 'ges': 0}
 
     for path in tqdm(all_preprocessed_vcf, desc="Tokenizing", unit="file"):
         path = resolve_path(path)
@@ -494,19 +513,79 @@ def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,tmp_dir,pos_b
         df = df.merge(dict_pos, left_on='chrompos', right_on='chrompos', how='left')
         df = df.merge(dict_ges, left_on='ges', right_on='ges', how='left')
 
+        n_rows_total += len(df)
+        for kind, keycol, tokcol in (('motif', 'seq', 'triplettoken'),
+                                     ('position', 'chrompos', 'postoken'),
+                                     ('ges', 'ges', 'gestoken')):
+            if tokcol not in df.columns:
+                continue
+            miss = df.loc[df[tokcol].isna(), keycol].astype(str)
+            if len(miss):
+                n_rows_unmapped[kind] += len(miss)
+                for k, c in miss.value_counts().items():
+                    unmapped[kind][k] = unmapped[kind].get(k, 0) + int(c)
+
         token_file = os.path.join(tmp_dir, get_sample_name(path) + '.muat.tsv')
         df.to_csv(token_file, sep='\t', index=False)
+
+    report_vocab_coverage(unmapped, n_rows_unmapped, n_rows_total, tmp_dir)
+
+
+def report_vocab_coverage(unmapped, n_rows_unmapped, n_rows_total, tmp_dir):
+    '''
+    Report the data's vocabulary against the baseline dictionaries.
+
+    Unmapped keys are not an error -- a cohort legitimately contains motifs or genomic bins
+    the reference dictionary never saw -- but they are silent, so they are surfaced with
+    counts and an actionable next step. Writes unmapped_vocab.tsv only when there is
+    something to write.
+    '''
+    if n_rows_total == 0:
+        return
+
+    print('\nvocabulary coverage against the supplied dictionaries '
+          '({} rows over {} token type(s)):'.format(n_rows_total, len(unmapped)))
+    any_missing = False
+    for kind in ('motif', 'position', 'ges'):
+        keys, nrows = unmapped.get(kind, {}), n_rows_unmapped.get(kind, 0)
+        if not keys:
+            print('  {:9s} all mapped'.format(kind))
+            continue
+        any_missing = True
+        examples = [k for k, _ in sorted(keys.items(), key=lambda kv: -kv[1])[:5]]
+        print('  {:9s} {} row(s) unmapped ({:.2f}%), {} distinct new key(s), e.g. {}'.format(
+            kind, nrows, 100.0 * nrows / n_rows_total, len(keys), examples))
+
+    if not any_missing:
+        return
+
+    out = os.path.join(ensure_dirpath(tmp_dir), 'unmapped_vocab.tsv')
+    with open(out, 'w') as f:
+        f.write('token_type\tkey\tn_rows\n')
+        for kind in ('motif', 'position', 'ges'):
+            for k, c in sorted(unmapped.get(kind, {}).items(), key=lambda kv: -kv[1]):
+                f.write('{}\t{}\t{}\n'.format(kind, k, c))
+    print('WARNING: the data contains vocabulary absent from the supplied dictionaries.')
+    print('         Those tokens are NaN and carry no information to the model.')
+    print('         Full list written to {}'.format(out))
+    print('         A different reference genome is the usual cause -- position bins are')
+    print('         build-specific. Rebuild the vocabulary from your own corpus by adding')
+    print('         --build-dictionary to the same preprocess command, e.g.')
+    print('           muat preprocess --vcf --hg38 <ref> --build-dictionary \\')
+    print('               --dictionary-suffix _hg38 --input-list <list> --tmp-dir <dir>')
+    print('         A model trained on rebuilt dictionaries is only usable with those same')
+    print('         dictionaries, so keep them beside the checkpoint.')
 
 def preprocessing_annotated_tokenizing(input_files, tmp_dir, dict_motif, dict_pos, dict_ges):
     '''
     Tokenize files that are already annotated with motif/genic/exonic/strand.
-    Expected input: *.gc.genic.exonic.cs.tsv or *.gc.genic.exonic.cs.tsv.gz.
+    Expected input: *.annotate.tsv[.gz] (or the legacy *.gc.genic.exonic.cs.tsv[.gz]).
     Skips the motif/annotation stage; runs only the tokenizer.
     '''
     input_files = multifiles_handler(input_files)
     input_files = [resolve_path(x) for x in input_files]
 
-    valid_suffixes = ('.gc.genic.exonic.cs.tsv', '.gc.genic.exonic.cs.tsv.gz')
+    valid_suffixes = ANNOTATED_SUFFIXES_ACCEPTED
     for path in input_files:
         if not os.path.exists(path):
             raise FileNotFoundError(path)

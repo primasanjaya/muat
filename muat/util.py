@@ -41,9 +41,13 @@ def get_main_args():
     vcf_somagg_tsv.add_argument("--vcf", action="store_true", help="Preprocess VCF files.")
     vcf_somagg_tsv.add_argument("--somagg", action="store_true", help="Preprocess SomAgg VCF files.")
     vcf_somagg_tsv.add_argument("--tsv", action="store_true", help="Preprocess TSV files.")
-    vcf_somagg_tsv.add_argument("--annotated", action="store_true",
-                                help="Tokenize already-annotated files (.gc.genic.exonic.cs.tsv or .gc.genic.exonic.cs.tsv.gz). "
-                                     "Skips motif/annotation; --hg19/--hg38 not required.")
+    # `--annotated` is the 0.1.21 spelling and stays as an alias. It was too easily confused
+    # with --annotate-only (now --no-tokenize), which means the OPPOSITE end of the pipeline.
+    vcf_somagg_tsv.add_argument("--preannotated", "--annotated", dest="annotated",
+                                action="store_true",
+                                help="Input is ALREADY annotated (.annotate.tsv[.gz], "
+                                     "the output of a previous run): skip annotation and only "
+                                     "tokenize. --hg19/--hg38 not required.")
 
     preprocess_input = preprocess_req.add_mutually_exclusive_group(required=True)
     preprocess_input.add_argument("--input-filepath", nargs="+", default=None, help="Input file paths.")
@@ -55,6 +59,47 @@ def get_main_args():
     hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg38 (.fa or .fa.gz). Required unless --annotated.")
 
     preprocess.add_argument("--tmp-dir", type=str, default=None, help='Directory for storing preprocessed files.')
+    preprocess.add_argument("--build-dictionary", action="store_true",
+                            help="Build the token dictionaries from THIS data and tokenize with "
+                                 "them, instead of using the shipped ones. Needed for a new "
+                                 "reference genome. NOTE this requires a single invocation over "
+                                 "the WHOLE corpus (use --input-list): a dictionary is corpus-"
+                                 "level, so building it per-sample would give every sample its "
+                                 "own vocabulary. Cannot be combined with an explicit "
+                                 "--*-dictionary-filepath.")
+    preprocess.add_argument("--dictionary-out-dir", type=str, default=None,
+                            help="Where --build-dictionary writes dict{Chpos,Mutation,GES}.tsv "
+                                 "(default: --tmp-dir).")
+    preprocess.add_argument("--dictionary-suffix", type=str, default='',
+                            help="Suffix for the built dictionary filenames, e.g. _hg38.")
+    preprocess.add_argument("--dictionary-which", type=str, default='pos,motif,ges',
+                            help="Which dictionaries --build-dictionary rebuilds (default: all "
+                                 "three). For a new reference genome, `pos` alone is usually "
+                                 "enough -- motifs and genic/exonic/strand categories do not "
+                                 "depend on the build.")
+    preprocess.add_argument("--motif-labels", type=str, default='inherit',
+                            choices=['inherit', 'hybrid', 'refalt'],
+                            help="How --build-dictionary assigns mut_type to motifs. inherit "
+                                 "(default) drops motifs the shipped dictionary lacks; hybrid "
+                                 "labels those from ref/alt allele lengths instead; refalt "
+                                 "derives all of them. hybrid/refalt cannot produce SV, MEI or "
+                                 "Neg and diverge from the shipped labelling convention, so a "
+                                 "dictMutation*.provenance.txt records what was done.")
+    # --no-tokenize is deliberately UNDOCUMENTED (help=SUPPRESS). The intended model is that
+    # one preprocess call goes all the way from VCF to tokenized output, optionally building
+    # the dictionaries on the way, so a stop-early flag is a distraction for most users.
+    #
+    # It is kept because it is the only way to parallelise a large cohort. Building a
+    # dictionary is corpus-level, so `--build-dictionary` has to be a single invocation over
+    # every sample -- for ~1800 whole genomes that is hours of serial annotation. The
+    # alternative is a SLURM array of `--no-tokenize` jobs (annotation is per-sample and
+    # embarrassingly parallel), then ONE `--preannotated --build-dictionary` job over the
+    # finished corpus. Without this flag every array task would also tokenize, using the
+    # shipped dictionary that is about to be replaced -- pure waste.
+    #
+    # `--annotate-only` was the original spelling; kept as an alias.
+    preprocess.add_argument("--no-tokenize", "--annotate-only", dest="annotate_only",
+                            action="store_true", help=argparse.SUPPRESS)
     preprocess.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
     preprocess.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
     preprocess.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
@@ -287,10 +332,50 @@ def get_main_args():
     fetch_parser.add_argument('--from-raw', action='store_true',
                               help='Also stage raw PCAWG data + reference for the --from-raw run path.')
 
+    # NOTE: there is deliberately no top-level `build-dictionary` command. Rebuilding the
+    # vocabulary is not a standalone task -- it only makes sense as part of preparing data,
+    # and it must be followed by tokenizing with the dictionaries just built or the two
+    # disagree. So it lives on preprocess as `--build-dictionary`, which covers both the
+    # from-raw route (`--vcf --hg38 --build-dictionary`) and the resume route
+    # (`--preannotated --build-dictionary`, for a corpus already annotated by an array job).
+    # The implementation is muat/dictionary.py:build_dictionaries(), still importable.
+
     args = parser.parse_args()
     _validate_predict_inputs(parser, args)
 
     return args
+
+
+# --- annotated-file naming --------------------------------------------------------------
+#
+# The annotated (pre-tokenized) file is what `preprocess --no-tokenize` emits and what
+# `--preannotated` / --build-dictionary consume. It used to be named after every annotation
+# stage it had been through -- `.gc.genic.exonic.cs.tsv.gz` -- which is unreadable and leaks
+# implementation detail. New output is `.annotate.tsv.gz`.
+#
+# The old suffix is still ACCEPTED on input: data/preprocessed/ holds 1901 files under the
+# old name, and any user who ran an earlier muat has the same. Never write it.
+ANNOTATED_SUFFIX = '.annotate.tsv.gz'
+LEGACY_ANNOTATED_SUFFIXES = ('.gc.genic.exonic.cs.tsv.gz', '.gc.genic.exonic.cs.tsv')
+ANNOTATED_SUFFIXES_ACCEPTED = (ANNOTATED_SUFFIX, '.annotate.tsv') + LEGACY_ANNOTATED_SUFFIXES
+# Globs for discovering annotated files in a directory (both namings).
+ANNOTATED_GLOBS = ('*.annotate.tsv*', '*.gc.genic.exonic.cs.tsv*')
+
+
+def annotated_path(tmp_dir, sample_name):
+    """Where the annotated file for this sample is WRITTEN."""
+    return ensure_dirpath(tmp_dir) + sample_name + ANNOTATED_SUFFIX
+
+
+def find_annotated_path(tmp_dir, sample_name):
+    """Existing annotated file for this sample, preferring the current name over the
+    legacy one. Returns None if neither is present."""
+    tmp_dir = ensure_dirpath(tmp_dir)
+    for suffix in (ANNOTATED_SUFFIX, '.annotate.tsv') + LEGACY_ANNOTATED_SUFFIXES:
+        candidate = tmp_dir + sample_name + suffix
+        if os.path.exists(candidate):
+            return candidate
+    return None
 
 
 # Input-suffix whitelist for muat predict / predict-ensemble.
@@ -419,7 +504,7 @@ def get_main_args_old():
                         help="List of vcf hg38")
 
     parser.add_argument("--preprocessed-filepath", type=str, default=None,
-                        help="List of preprocessed files (.gc.genic.exonic.cs.tsv.gz) which contain motif position and ges to be tokenized")
+                        help="List of annotated files (.annotate.tsv.gz) which contain motif position and ges to be tokenized")
     #OUTPUT
     parser.add_argument("--result-dir", type=str, default=None,
                     help='Absolut Path to save the result')

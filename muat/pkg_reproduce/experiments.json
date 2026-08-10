@@ -271,7 +271,7 @@
       "description": "GRCh37/hg19 reference (Sanger PanCancer genome.fa.gz).",
       "source": "sanger",
       "url": "https://ftp.sanger.ac.uk/pub/project/PanCancer/genome.fa.gz",
-      "sha256": "TODO",
+      "sha256": "2555eae3e0dda43c50b70741883d6cd28346cc8286c23e0fa37fb3788c5e6e37",
       "filename": "hg19.fa.gz"
     },
     "hg38": {
@@ -279,7 +279,7 @@
       "description": "GRCh38/hg38 reference (UCSC goldenPath). Same URL muat/download.py:104 uses. Needed for hg38 preprocessing (tags d5/d6); note the `muat download` CLI only exposes --pcawg, so the reference is fetched via download_reference(), not the CLI.",
       "source": "ucsc",
       "url": "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz",
-      "sha256": "TODO",
+      "sha256": "c1dd87068c254eb53d944f71e51d1311964fce8de24d6fc0effc9c61c01527d4",
       "filename": "hg38.fa.gz"
     },
     "pcawg_open_hg38_preprocessed": {
@@ -297,8 +297,9 @@
       "description": "Preprocessed open-access PCAWG samples, one friendly <sample>.muat.tsv (plain TSV) per aliquot (1812 samples, 17 tumour types), built by make_bundle.py from the internal *.token.gc.genic.exonic.cs.tsv.gz files. Default input for Group D; the split files' prep_path basenames resolve against extract_subdir.",
       "source": "zenodo",
       "url": "TODO",
-      "sha256": "TODO",
+      "sha256": "f7c8fdcb9cb17af25df255d48392b3c162c21e43094b0a3bc3c49288f8ced536",
       "filename": "pcawg_open_muat.tar.gz",
+      "_sha256_note": "Verified 2026-08-10 against data/reproduce_release/pcawg_open_muat.tar.gz (222 MB, 1812 entries). Archive is byte-reproducible: sorted file list, fixed mtime/ownership, gzip -n, so make_bundle.py output re-hashes to this value.",
       "extract": true,
       "extract_subdir": "pcawg_open_muat"
     },

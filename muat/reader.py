@@ -5,8 +5,47 @@ from natsort import natsort_keygen
 from collections import deque
 from muat._resources import pkg_path
 import os, subprocess,re, sys,itertools
+import shutil
 
 import pdb
+
+
+# Annotation is done by pkg_shell/annotate_mutations_with_bed.sh, which shells out to
+# these. They are conda dependencies (bedops provides bedmap, htslib provides bgzip), so
+# they are present in a proper install -- but absent if muat is pip-installed into a bare
+# venv, or if the interpreter is invoked by absolute path without activating the env. Left
+# unchecked the script fails, its stderr is captured and discarded, and the first symptom
+# is a FileNotFoundError on the output that was never written.
+REQUIRED_ANNOTATION_TOOLS = ('bedmap', 'bgzip')
+
+
+def require_annotation_tools():
+    missing = [t for t in REQUIRED_ANNOTATION_TOOLS if shutil.which(t) is None]
+    if missing:
+        raise RuntimeError(
+            "required external tool(s) not found on PATH: {}. Annotation needs bedmap "
+            "(conda package `bedops`) and bgzip (`htslib`). If you installed muat with "
+            "conda/mamba, activate the environment -- calling the interpreter by absolute "
+            "path (.../envs/x/bin/python) does NOT put the environment's bin on PATH."
+            .format(', '.join(missing)))
+
+
+def run_bed_annotation(cmd, output_file, label):
+    """Run the BED annotation helper and fail loudly.
+
+    subprocess.run(capture_output=True) hides the helper's own diagnostics, and its return
+    code was previously never inspected, so a failed annotation surfaced only as a missing
+    file several lines later.
+    """
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if result.returncode != 0 or not os.path.exists(output_file) \
+            or os.path.getsize(output_file) == 0:
+        raise RuntimeError(
+            "{} annotation failed (exit {}) and produced no usable output at {}.\n"
+            "--- stderr ---\n{}\n--- stdout ---\n{}".format(
+                label, result.returncode, output_file,
+                (result.stderr or '').strip(), (result.stdout or '').strip()))
+    return result
 
 accepted_pos_h19 = ['1',
 '2',
@@ -305,6 +344,9 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     else:
         genic_regions_file = pkg_path('pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.genic.genomic.bed.gz')
     annotate_with_bed_sh = pkg_path('pkg_shell/annotate_mutations_with_bed.sh')
+    # Checked once, before the first of three annotation passes, so a missing tool is
+    # reported up front rather than after the sweepline has already run.
+    require_annotation_tools()
     # Make the shell script executable
     #os.chmod(annotate_with_bed_sh, 0o755)
     # Genic region
@@ -318,7 +360,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     #syntax_test = /Users/primasan/Documents/0a9c9db0-c623-11e3-bf01-24c6515278c0.gc.tsv.gz /Users/primasan/Documents/work/muat/pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.genic.genomic.bed.gz /Users/primasan/Documents/0a9c9db0-c623-11e3-bf01-24c6515278c0.genic.gc.tsv.gz genic
     
     # Run the shell script and capture the result
-    result = subprocess.run(syntax_genic, shell=True, capture_output=True, text=True)
+    run_bed_annotation(syntax_genic, output_genic, 'genic')
     pd_sort = pd.read_csv(output_genic,sep='\t',low_memory=False,compression="gzip")
     #remove nan genic
     pd_sort = pd_sort[~pd_sort['genic'].isna()]
@@ -340,9 +382,9 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     ' + exonic_regions_file + ' \
     ' + output_exon + ' \
     exonic'
-    subprocess.run(syntax_exonic, shell=True)
+    run_bed_annotation(syntax_exonic, output_exon, 'exonic')
 
-    pd_sort = pd.read_csv(output_exon,sep='\t',low_memory=False,compression="gzip") 
+    pd_sort = pd.read_csv(output_exon,sep='\t',low_memory=False,compression="gzip")
     pd_sort = pd_sort[~pd_sort['exonic'].isna()]
     pd_sort['chrom'] = pd_sort['chrom'].astype('string')
     pd_sort = pd_sort.loc[pd_sort['chrom'].isin(accepted_pos_h19)]
@@ -351,7 +393,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     process.append('exonic')
 
     #strand
-    output_cs = tmp_dir + sample_name + '.gc.genic.exonic.cs.tsv.gz'
+    output_cs = tmp_dir + sample_name + ANNOTATED_SUFFIX
     if hg38_native:
         annotation = pkg_path('pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.transcript_directionality.bed.gz')
     else:
@@ -368,8 +410,10 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     else:
         sys.stderr.write('Header absent\n')
         hdr = None
-    sys.stderr.write('Reading reference: ')
-    #reference = read_reference(args.ref, verbose=True)
+    # NOTE: this used to announce 'Reading reference: ' before a read_reference() call that
+    # is long commented out -- the strand pass needs only the BED track and the already
+    # annotated file, never the FASTA. The message survived and made it look as though the
+    # reference were being loaded a second time (a 3.2 GB re-read that never happened).
     # Set the appropriate command based on OS
     if sys.platform == "darwin":  # macOS
         zcat_cmd = "gzcat"
