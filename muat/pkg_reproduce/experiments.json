@@ -1,0 +1,319 @@
+{
+  "version": 2,
+  "_comment": "Single source of truth for `muat reproduce`. experiments.md is generated/kept in sync with this file. URLs and sha256 values marked TODO must be filled once the Zenodo release exists.",
+
+  "_matrix_note": "Group D is a 2x2 reproducibility matrix (train/inference x same/different environment) plus an hg38 pair. EVERY tag uses seed 1337 on purpose: to attribute a difference to the ENVIRONMENT, the seed must be held fixed, otherwise seed and environment are confounded. Expected outcomes differ by comparison: WITHIN one environment (the 10 repeats of any single tag) outputs must be BIT-IDENTICAL; ACROSS environments (d1 vs d2, d3 vs d4) they will NOT be bit-identical, because GPU and CPU use different kernels and reduction orders - the claim there is agreement within a stated tolerance, not bit-equality. Fix that tolerance before running so a normal float difference is not read as a failure.",
+
+  "defaults": {
+    "seed": 1337,
+    "reference": "hg19"
+  },
+
+  "tags": {
+    "d1": {
+      "group": "D",
+      "access": "open",
+      "mode": "train",
+      "purpose": "Training-run reproducibility, SAME environment (CSC Puhti GPU / bioconda). Input type SNV+MNV+pos+ges on the 80:20 pcawg_orig partition (train 1449 / test 363); trained 10x under the same seed. Expected: all 10 repeats BIT-IDENTICAL. Reported metrics come from the BEST epoch (best_val_first_logits.tsv), and the published checkpoint is the matching best_ckpt.pthx. Produces ckpt1, which d3 and d4 load.",
+      "_split_note": "The 'val' key is the mechanical name the training code expects; semantically these 363 samples are the TEST set. 'Best epoch' is the epoch scoring highest on these same 363 (trainer.py:324), so the test set informed epoch selection - report it as a best-epoch figure. Publish best_ckpt.pthx (NOT model.pthx, which is the final epoch) as the d1_checkpoint asset, so the inference tags reproduce exactly the reported numbers.",
+      "_result_note": "DONE 2026-08-07 (SLURM array 280085, 10/10 repeats). Best epoch 73. top1 0.851240 / top3 0.953168 / top5 0.986226 / weighted precision 0.860142 / weighted recall 0.851240 / weighted F1 0.847808 / macro F1 0.786709. sd = 0.000000 across all 10; logits, predictions AND the full 100-epoch evaluation.tsv curve are byte-identical. NOTE the run executed on the epitkane cluster (node a6, Tesla P100) from repo source, NOT on Puhti under bioconda - relabel this tag or re-run before publishing it as the Puhti/bioconda row.",
+      "mutation_type": "snv+mnv",
+      "repeat_runs": 10,
+      "label": "ckpt1",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "splits/pcawg_orig_train.tsv",
+        "val": "splits/pcawg_orig_val.tsv"
+      },
+      "data_bundle": "pcawg_open_preprocessed",
+      "raw_data": "pcawg_open_raw",
+      "reference": "hg19",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "d1_checkpoint",
+      "environment": "CSC Puhti GPU bioconda"
+    },
+
+    "d1_snvmnv": {
+      "group": "D",
+      "access": "open",
+      "mode": "train",
+      "purpose": "d1 variant: SNV+MNV (with position+ges) instead of SNV-only; isolates the effect of adding MNV motifs. Same split/hyperparams as d1.",
+      "mutation_type": "snv+mnv",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "splits/pcawg_orig_train.tsv",
+        "val": "splits/pcawg_orig_val.tsv"
+      },
+      "data_bundle": "pcawg_open_preprocessed",
+      "raw_data": "pcawg_open_raw",
+      "reference": "hg19",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "d1_snvmnv",
+      "environment": "CSC Puhti GPU"
+    },
+
+    "d1_snvmnv_9010": {
+      "group": "D",
+      "access": "open",
+      "mode": "train",
+      "purpose": "d1 SNV+MNV variant on the 90:10 split (train9 1630 / held-out test1 182) — matches the partition used in the manuscript. Same hyperparams as d1_snvmnv; only the split ratio differs (80:20 -> 90:10).",
+      "mutation_type": "snv+mnv",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "splits/pcawg_orig9010_train.tsv",
+        "val": "splits/pcawg_orig9010_test.tsv"
+      },
+      "data_bundle": "pcawg_open_preprocessed",
+      "raw_data": "pcawg_open_raw",
+      "reference": "hg19",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "d1_snvmnv_9010",
+      "environment": "CSC Puhti GPU"
+    },
+
+    "d2": {
+      "group": "D",
+      "access": "open",
+      "mode": "train",
+      "purpose": "Training-run reproducibility, DIFFERENT environment (CSC Puhti CPU / docker). Identical to d1 in every respect except the environment - same seed 1337, same split, same hyperparameters - so any difference is attributable to the environment alone. Trained 10x. Expected: the 10 repeats bit-identical WITHIN this environment; versus d1 (GPU) agreement within tolerance, NOT bit-equality. Produces ckpt2.",
+      "_comparison_note": "d1 vs d2 changes device (GPU->CPU) AND install method (bioconda->docker) at once. If a discrepancy appears and needs attributing, add an intermediate run (Puhti GPU + docker) to separate the container from the device.",
+      "mutation_type": "snv+mnv",
+      "repeat_runs": 10,
+      "label": "ckpt2",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "splits/pcawg_orig_train.tsv",
+        "val": "splits/pcawg_orig_val.tsv"
+      },
+      "data_bundle": "pcawg_open_preprocessed",
+      "raw_data": "pcawg_open_raw",
+      "reference": "hg19",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "d2_checkpoint",
+      "environment": "CSC Puhti CPU docker"
+    },
+
+    "d3": {
+      "group": "D",
+      "access": "open",
+      "mode": "predict",
+      "purpose": "Inference-run reproducibility, SAME environment (CSC Puhti GPU / bioconda). Loads ckpt1 and predicts the 363-sample test split 10x under seed 1337. Repeats are meaningful because inference subsamples mutations per sample. Expected: all 10 runs bit-identical (enforced by assert_identical).",
+      "mutation_type": "snv+mnv",
+      "checkpoint": "d1_checkpoint",
+      "splits": { "test": "splits/pcawg_orig_val.tsv" },
+      "data_bundle": "pcawg_open_preprocessed",
+      "raw_data": "pcawg_open_raw",
+      "reference": "hg19",
+      "repeat": 10,
+      "assert_identical": true,
+      "environment": "CSC Puhti GPU bioconda"
+    },
+
+    "d4": {
+      "group": "D",
+      "access": "open",
+      "mode": "predict",
+      "purpose": "Inference-run reproducibility, DIFFERENT environment (CSC Puhti CPU / docker). Same ckpt1, same seed 1337, same 363-sample test split as d3; only the environment differs. Expected: the 10 runs bit-identical WITHIN this environment; versus d3 (GPU) agreement within tolerance, NOT bit-equality.",
+      "mutation_type": "snv+mnv",
+      "checkpoint": "d1_checkpoint",
+      "splits": { "test": "splits/pcawg_orig_val.tsv" },
+      "data_bundle": "pcawg_open_preprocessed",
+      "raw_data": "pcawg_open_raw",
+      "reference": "hg19",
+      "repeat": 10,
+      "assert_identical": true,
+      "environment": "CSC Puhti CPU docker"
+    },
+
+    "d5": {
+      "group": "D",
+      "access": "open",
+      "mode": "train",
+      "purpose": "Training on GRCh38. Same recipe as d1 (seed 1337, same 1449/363 sample partition, same hyperparameters) but on hg38-preprocessed inputs, isolating the effect of the genome build. Trained 10x. Produces ckpt3.",
+      "_hg38_note": "NOT RUNNABLE YET - three things must be settled first. (1) BUILD DIRECTION: muat supports two hg38 paths and they are different experiments - reader.py:254 lifts hg38 input DOWN to hg19 and reuses the hg19 pipeline, whereas reader.py:284 hg38_native keeps hg38 coordinates and uses the GRCh38 genic/exonic tracks in pkg_data/genomic_tracks/h38. This recipe assumes hg38_native on hg19->hg38 lifted PCAWG data. (2) POSITION DICTIONARY: only one dictionary ships (muat/extfile/dictChpos.tsv, 2915 chrom_bin tokens) and it is hg19-derived; under hg38_native the coordinates are hg38 but the lookup is against hg19 bins. Verify whether it must be regenerated for hg38 - if so the vocabulary changes and ckpt3 is not comparable to ckpt1 token-for-token. (3) DATA: no hg38 bundle exists; all 1812 samples need re-preprocessing and a new Zenodo asset. This is a much larger job than d1-d4 combined.",
+      "mutation_type": "snv+mnv",
+      "repeat_runs": 10,
+      "label": "ckpt3",
+      "genome_build_mode": "hg38_native",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "splits/pcawg_orig_train.tsv",
+        "val": "splits/pcawg_orig_val.tsv"
+      },
+      "_splits_note": "Reuses the hg19 split id-lists on purpose: the same 1449/363 aliquots, so d1 and d5 differ only in genome build. This works only if the hg38 bundle names its files with the same <uuid>.muat.tsv basenames.",
+      "data_bundle": "pcawg_open_hg38_preprocessed",
+      "reference": "hg38",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "d5_checkpoint",
+      "environment": "CSC Puhti GPU bioconda"
+    },
+
+    "d6": {
+      "group": "D",
+      "access": "open",
+      "mode": "predict",
+      "purpose": "Inference on GRCh38. Loads ckpt3 (from d5) and predicts the hg38 363-sample test split 10x under seed 1337, same environment as d5. Expected: all 10 runs bit-identical.",
+      "_hg38_note": "Blocked on d5 - see its _hg38_note. Depends on both the hg38 bundle and ckpt3 existing.",
+      "mutation_type": "snv+mnv",
+      "genome_build_mode": "hg38_native",
+      "checkpoint": "d5_checkpoint",
+      "splits": { "test": "splits/pcawg_orig_val.tsv" },
+      "data_bundle": "pcawg_open_hg38_preprocessed",
+      "reference": "hg38",
+      "repeat": 10,
+      "assert_identical": true,
+      "environment": "CSC Puhti GPU bioconda"
+    }
+  },
+
+  "assets": {
+    "d1_checkpoint": {
+      "kind": "checkpoint",
+      "description": "Checkpoint produced by experiment d1 (PCAWG-open, snv+mnv+pos+ges). This is the BEST-EPOCH checkpoint: upload d1_rep01_<arrayid>/best_ckpt.pthx renamed to d1.pthx.",
+      "source": "zenodo",
+      "url": "TODO",
+      "sha256": "TODO",
+      "filename": "d1.pthx"
+    },
+    "d2_checkpoint": {
+      "kind": "checkpoint",
+      "description": "ckpt2 - checkpoint produced by experiment d2 (same recipe and seed as d1, trained in the CSC Puhti CPU / docker environment). Published as cross-environment evidence; no other tag loads it. Upload the BEST-EPOCH best_ckpt.pthx renamed to d2.pthx.",
+      "source": "zenodo",
+      "url": "TODO",
+      "sha256": "TODO",
+      "filename": "d2.pthx"
+    },
+    "d5_checkpoint": {
+      "kind": "checkpoint",
+      "description": "ckpt3 - checkpoint produced by experiment d5 (GRCh38 training). Loaded by d6. Upload the BEST-EPOCH best_ckpt.pthx renamed to d5.pthx. Does not exist yet - see the _hg38_note on tag d5.",
+      "source": "zenodo",
+      "url": "TODO",
+      "sha256": "TODO",
+      "filename": "d5.pthx"
+    },
+    "_repeat_archive_note": "The *_all_repeats archives below are EVIDENCE, not run-time dependencies: no tag references them, so 'muat fetch' never downloads them and a reproduce run does not need them. They are published so a reader can verify the determinism claim independently, by checking that the inner weight.pth of every repeat has the same sha256. Build them with muat/pkg_reproduce/package_checkpoints.py, which writes a byte-reproducible archive (fixed member timestamps) so the sha256 recorded here is itself reproducible.",
+    "d1_all_repeats": {
+      "kind": "archive",
+      "description": "ckpt1.zip - all 10 best-epoch checkpoints from the 10 repeats of d1, plus MANIFEST.tsv (per-repeat sha256 of the container and of the inner weight.pth) and README.md. Determinism evidence for the manuscript.",
+      "source": "zenodo",
+      "url": "TODO",
+      "sha256": "TODO",
+      "filename": "ckpt1.zip"
+    },
+    "d2_all_repeats": {
+      "kind": "archive",
+      "description": "ckpt2.zip - all 10 best-epoch checkpoints from the 10 repeats of d2 (CPU / docker arm), same format as ckpt1.zip.",
+      "source": "zenodo",
+      "url": "TODO",
+      "sha256": "TODO",
+      "filename": "ckpt2.zip"
+    },
+    "d5_all_repeats": {
+      "kind": "archive",
+      "description": "ckpt3.zip - all 10 best-epoch checkpoints from the 10 repeats of d5 (GRCh38 arm), same format as ckpt1.zip. Does not exist yet - see the _hg38_note on tag d5.",
+      "source": "zenodo",
+      "url": "TODO",
+      "sha256": "TODO",
+      "filename": "ckpt3.zip"
+    },
+    "hg19": {
+      "kind": "reference",
+      "description": "GRCh37/hg19 reference (Sanger PanCancer genome.fa.gz).",
+      "source": "sanger",
+      "url": "https://ftp.sanger.ac.uk/pub/project/PanCancer/genome.fa.gz",
+      "sha256": "TODO",
+      "filename": "hg19.fa.gz"
+    },
+    "hg38": {
+      "kind": "reference",
+      "description": "GRCh38/hg38 reference (UCSC goldenPath). Same URL muat/download.py:104 uses. Needed for hg38 preprocessing (tags d5/d6); note the `muat download` CLI only exposes --pcawg, so the reference is fetched via download_reference(), not the CLI.",
+      "source": "ucsc",
+      "url": "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz",
+      "sha256": "TODO",
+      "filename": "hg38.fa.gz"
+    },
+    "pcawg_open_hg38_preprocessed": {
+      "kind": "data_bundle",
+      "description": "GRCh38 counterpart of pcawg_open_preprocessed: the same 1812 aliquots preprocessed against hg38, one <sample>.muat.tsv per aliquot, SAME basenames as the hg19 bundle so the shipped split id-lists resolve unchanged. DOES NOT EXIST YET - requires re-preprocessing all 1812 samples; see the _hg38_note on tag d5.",
+      "source": "zenodo",
+      "url": "TODO",
+      "sha256": "TODO",
+      "filename": "pcawg_open_hg38_muat.tar.gz",
+      "extract": true,
+      "extract_subdir": "pcawg_open_hg38_muat"
+    },
+    "pcawg_open_preprocessed": {
+      "kind": "data_bundle",
+      "description": "Preprocessed open-access PCAWG samples, one friendly <sample>.muat.tsv (plain TSV) per aliquot (1812 samples, 17 tumour types), built by make_bundle.py from the internal *.token.gc.genic.exonic.cs.tsv.gz files. Default input for Group D; the split files' prep_path basenames resolve against extract_subdir.",
+      "source": "zenodo",
+      "url": "TODO",
+      "sha256": "TODO",
+      "filename": "pcawg_open_muat.tar.gz",
+      "extract": true,
+      "extract_subdir": "pcawg_open_muat"
+    },
+    "pcawg_open_raw": {
+      "kind": "raw_pcawg",
+      "description": "Raw open-access PCAWG consensus mutations from ICGC object storage (only fetched with --from-raw).",
+      "source": "icgc",
+      "bucket": "icgc25k-open",
+      "endpoint_url": "https://object.genomeinformatics.org",
+      "files": [
+        "PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public.tgz",
+        "PCAWG/consensus_sv/final_consensus_sv_bedpe_passonly.icgc.public.tgz",
+        "PCAWG/data_releases/latest/pcawg_sample_sheet.v1.4.2016-09-14.tsv"
+      ],
+      "subdir": "pcawg_open_raw"
+    }
+  }
+}

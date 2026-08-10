@@ -91,7 +91,7 @@ path = os.path.dirname(os.path.abspath(__file__)) + '/'
 
 setup(
     name="muat",
-    version="0.1.20",
+    version="0.1.21",
     packages=find_packages(),
     package_data={
         'muat': [
@@ -99,6 +99,8 @@ setup(
             'extfile/*',            
             'pkg_shell/*.sh',  # Make sure shell scripts are included as package data
             'pkg_ckpt/*',
+            'pkg_reproduce/*.json',
+            'pkg_reproduce/splits/*',
             'genome_reference/*'
         ],
     },

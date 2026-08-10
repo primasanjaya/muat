@@ -20,6 +20,12 @@ from muat.trainer import *
 from muat.predict import *
 from muat.model import *
 from muat.checkpoint import *
+from muat.reproduce import (
+    load_experiments, get_recipe, list_tags, resolve_cache_dir,
+    fetch_tag, ensure_assets_present, build_predict_namespace,
+    build_train_namespace, _sha256,
+)
+from muat.seed import set_seed
 
 def attach_label_indices(train_split, test_split, label_1, label_2=None):
     class_map = label_1.set_index('class_name')['class_index']
@@ -366,6 +372,277 @@ def _run_predict_ensemble(args, device):
         print('ensemble features saved to ' + out_path)
 
 
+def _hash_dir_outputs(result_dir):
+    """sha256 of each prediction tsv in result_dir, keyed by filename — used to
+    check that repeated same-seed runs (e.g. tag d6) are bit-identical."""
+    return {os.path.basename(fpath): _sha256(fpath)
+            for fpath in sorted(glob.glob(os.path.join(result_dir, '*prediction*.tsv')))}
+
+
+def _emit_reproduce_metrics(save_dir):
+    """After a reproduce-train run, compute per-class precision/recall/F1 plus a
+    confusion matrix from the best-epoch validation logits and write them next to
+    the checkpoint (per_class_metrics.tsv / metrics_summary.tsv /
+    confusion_matrix.tsv). Best-effort: a metrics failure must never fail a
+    training run that already succeeded, so everything here is guarded."""
+    from muat.metrics import metrics_from_logits  # local import (sklearn/pandas)
+
+    logits_files = sorted(glob.glob(os.path.join(save_dir, 'best_val_*.tsv')))
+    if not logits_files:
+        print('metrics: no best_val_*.tsv in {} — skipping.'.format(save_dir))
+        return
+    for lf in logits_files:
+        # 'best_val_first_logits.tsv' -> head 'first_logits'
+        head = os.path.basename(lf)[len('best_val_'):-len('.tsv')]
+        prefix = '' if len(logits_files) == 1 else head + '_'
+        try:
+            m = metrics_from_logits(lf, out_dir=save_dir, prefix=prefix)
+        except Exception as exc:  # noqa: BLE001 — never crash a finished run
+            print('metrics: skipping {} ({}).'.format(os.path.basename(lf), exc))
+            continue
+        print('metrics [{}]: accuracy={:.4f}  macro-F1={:.4f}  weighted-F1={:.4f}  '
+              '({} samples, {} classes) -> {}per_class_metrics.tsv'.format(
+                  head, m['accuracy'], m['macro']['f1'], m['weighted']['f1'],
+                  m['n_samples'], m['n_classes'], prefix))
+
+
+def _run_reproduce(args):
+    """Dispatch `muat reproduce <tag>`: resolve assets from cache, then run via
+    the existing predict/train code paths with a pinned seed."""
+    experiments = load_experiments()
+
+    if getattr(args, 'list', False):
+        list_tags(experiments)
+        return
+    if not args.tag:
+        raise ValueError('a tag is required (e.g. `muat reproduce d2`), or use --list.')
+
+    recipe = get_recipe(args.tag, experiments)
+    cache_dir = resolve_cache_dir(args.cache_dir)
+    result_dir = ensure_dirpath(
+        resolve_path(args.result_dir) if args.result_dir
+        else os.path.join(os.getcwd(), 'reproduce_results', args.tag))
+
+    # Seed resolution: --unseeded skips seeding entirely (non-deterministic),
+    # --seed overrides the recipe, otherwise use the recipe's pinned seed.
+    if getattr(args, 'unseeded', False):
+        seed = None
+    elif getattr(args, 'seed', None) is not None:
+        seed = args.seed
+    else:
+        seed = recipe.get('seed')
+
+    if seed is not None:
+        set_seed(seed)
+    else:
+        print('running UNSEEDED (no set_seed; cuDNN left non-deterministic)')
+
+    mode = recipe.get('mode')
+    if mode not in ('predict', 'train'):
+        raise NotImplementedError(
+            "reproduce for mode {!r} (tag {}) is not wired yet.".format(mode, args.tag))
+
+    # Offline by default: verify the cache, or fetch if explicitly allowed.
+    try:
+        ensure_assets_present(recipe, cache_dir, experiments, args.from_raw)
+    except FileNotFoundError:
+        if not args.allow_download:
+            raise
+        print('assets missing; --allow-download set, fetching now...')
+        fetch_tag(args.tag, cache_dir_arg=args.cache_dir, from_raw=args.from_raw)
+        ensure_assets_present(recipe, cache_dir, experiments, args.from_raw)
+
+    if mode == 'train':
+        if args.dry_run:
+            print('DRY RUN — reproduce {} (train)'.format(args.tag))
+            print('  seed        : {}'.format(seed))
+            print('  cache_dir   : {}'.format(cache_dir))
+            print('  save_dir    : {}'.format(result_dir))
+            print('  hyperparams : {}'.format(recipe.get('hyperparams', {})))
+            return
+        save_dir = _run_train_from_scratch(
+            build_train_namespace(recipe, cache_dir, result_dir, experiments, seed=seed))
+        print('reproduce {} (train) done -> checkpoint saved in {}'.format(args.tag, save_dir))
+        _emit_reproduce_metrics(save_dir)
+        return
+
+    repeat = int(recipe.get('repeat', 1))
+
+    def make_ns(out_dir):
+        return build_predict_namespace(recipe, cache_dir, out_dir, experiments,
+                                       from_raw=args.from_raw, relu=args.relu)
+
+    if args.dry_run:
+        ns = make_ns(result_dir)
+        print('DRY RUN — reproduce {}'.format(args.tag))
+        print('  seed        : {}'.format(seed))
+        print('  cache_dir   : {}'.format(cache_dir))
+        print('  result_dir  : {}'.format(result_dir))
+        print('  repeat      : {}'.format(repeat))
+        print('  checkpoint  : {}'.format(ns.ckpt_filepath))
+        print('  input_list  : {}'.format(ns.input_list))
+        return
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if repeat <= 1:
+        _run_predict(make_ns(result_dir), device)
+        print('reproduce {} done -> {}'.format(args.tag, result_dir))
+        return
+
+    # Run-level reproducibility (tag d6): repeat with the same seed and compare.
+    hashes = []
+    for i in range(repeat):
+        run_dir = ensure_dirpath(os.path.join(result_dir, 'run{}'.format(i + 1)))
+        set_seed(recipe.get('seed'))
+        _run_predict(make_ns(run_dir), device)
+        hashes.append(_hash_dir_outputs(run_dir))
+
+    identical = all(h == hashes[0] for h in hashes)
+    print('reproduce {}: {} runs, outputs {}identical'.format(
+        args.tag, repeat, '' if identical else 'NOT '))
+    if recipe.get('assert_identical') and not identical:
+        raise RuntimeError(
+            'tag {} requires identical outputs across {} same-seed runs, but they differ.'
+            .format(args.tag, repeat))
+
+
+def _run_train_from_scratch(args):
+    """Train a MuAt model from scratch. Shared by `muat train from-scratch` and
+    `muat reproduce` train tags (e.g. d1). Returns the save_dir holding the
+    trained checkpoint."""
+    extdir = ensure_dirpath(pkg_path('extfile'))
+
+    motif_path = resolve_path(args.motif_dictionary_filepath) or f"{extdir}/dictMutation.tsv"
+    pos_path = resolve_path(args.position_dictionary_filepath) or f"{extdir}/dictChpos.tsv"
+    ges_path = resolve_path(args.ges_dictionary_filepath) or f"{extdir}/dictGES.tsv"
+
+    save_dir = ensure_dirpath(resolve_path(args.save_dir))
+    os.makedirs(save_dir, exist_ok=True)
+
+    if (
+        args.motif_dictionary_filepath is None or
+        args.position_dictionary_filepath is None or
+        args.ges_dictionary_filepath is None
+    ):
+        warnings.warn(
+            f"Dictionary file paths were not defined and have been set automatically:\n"
+            f"--motif-dictionary-filepath: {motif_path}\n"
+            f"--position-dictionary-filepath: {pos_path}\n"
+            f"--ges-dictionary-filepath: {ges_path}\n"
+            "These dictionaries might be different from your preprocessed files!"
+        )
+
+    dict_motif = pd.read_csv(motif_path, sep='\t')
+    dict_pos = pd.read_csv(pos_path, sep='\t')
+    dict_ges = pd.read_csv(ges_path, sep='\t')
+
+    train_split, test_split = load_data(
+        resolve_path(args.train_split_filepath),
+        resolve_path(args.val_split_filepath)
+    )
+
+    all_split = pd.concat([train_split, test_split], ignore_index=True)
+    columns = all_split.columns
+
+    if 'class_index' in columns:
+        label_1 = all_split[['class_name', 'class_index']].drop_duplicates()
+        label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)
+    else:
+        label_1 = all_split[['class_name']].drop_duplicates()
+        label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
+        label_1['class_index'] = np.arange(len(label_1))
+
+    save_label_1 = os.path.join(save_dir, 'label_1.tsv')
+    label_1.to_csv(save_label_1, sep='\t', index=False)
+
+    label_2 = None
+    save_label_2 = None
+    if 'subclass_name' in columns:
+        if 'subclass_index' in columns:
+            label_2 = all_split[['subclass_name', 'subclass_index']].drop_duplicates()
+            label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True)
+        else:
+            label_2 = all_split[['subclass_name']].drop_duplicates()
+            label_2 = label_2.sort_values(by=['subclass_name']).reset_index(drop=True)
+            label_2['subclass_index'] = np.arange(len(label_2))
+
+        save_label_2 = os.path.join(save_dir, 'label_2.tsv')
+        label_2.to_csv(save_label_2, sep='\t', index=False)
+
+    target_handler, n_class, n_subclass = initialize_label_encoders(save_label_1, save_label_2)
+    train_split, test_split = attach_label_indices(train_split, test_split, label_1, label_2)
+
+    if label_2 is None:
+        if args.use_motif and not args.use_position and not args.use_ges:
+            arch = 'MuAtMotifF'
+        elif args.use_motif and args.use_position and not args.use_ges:
+            arch = 'MuAtMotifPositionF'
+        elif args.use_motif and args.use_position and args.use_ges:
+            arch = 'MuAtMotifPositionGESF'
+        else:
+            raise ValueError("Invalid combination of motif/position/ges flags.")
+    else:
+        if args.use_motif and not args.use_position and not args.use_ges:
+            arch = 'MuAtMotifF_2Labels'
+        elif args.use_motif and args.use_position and not args.use_ges:
+            arch = 'MuAtMotifPositionF_2Labels'
+        elif args.use_motif and args.use_position and args.use_ges:
+            arch = 'MuAtMotifPositionGESF_2Labels'
+        else:
+            raise ValueError("Invalid combination of motif/position/ges flags.")
+
+    model_config = ModelConfig(
+        model_name=arch,
+        dict_motif=dict_motif,
+        dict_pos=dict_pos,
+        dict_ges=dict_ges,
+        mutation_sampling_size=args.mutation_sampling_size,
+        n_layer=args.n_layer,
+        n_emb=args.n_emb,
+        n_head=args.n_head,
+        n_class=n_class,
+        mutation_type=args.mutation_type,
+        num_subclass=n_subclass
+    )
+
+    trainer_config = TrainerConfig(
+        max_epochs=args.epoch,
+        batch_size=args.batch_size,
+        learning_rate=args.learning_rate,
+        num_workers=1,
+        save_ckpt_dir=save_dir,
+        target_handler=target_handler,
+        patience=getattr(args, 'patience', 0),
+        lr_patience=getattr(args, 'lr_patience', None),
+        lr_factor=getattr(args, 'lr_factor', 0.5),
+        min_lr=getattr(args, 'min_lr', 1e-7),
+        seed=getattr(args, 'seed', None),
+    )
+
+    model = get_model(arch, model_config)
+
+    train_dataloader_config = DataloaderConfig(
+        model_input=model_config.model_input,
+        mutation_type_ratio=model_config.mutation_type_ratio,
+        mutation_sampling_size=args.mutation_sampling_size,
+        sampling_replacement=args.sampling_replacement
+    )
+    test_dataloader_config = DataloaderConfig(
+        model_input=model_config.model_input,
+        mutation_type_ratio=model_config.mutation_type_ratio,
+        mutation_sampling_size=args.mutation_sampling_size,
+        sampling_replacement=args.sampling_replacement
+    )
+
+    train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
+    test_dataloader = MuAtDataloader(test_split, test_dataloader_config)
+
+    trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
+    trainer.batch_train()
+    return save_dir
+
+
 def main():
     args = get_main_args()
 
@@ -374,6 +651,21 @@ def main():
 
     pkg_ckpt = pkg_path('pkg_ckpt')
     pkg_ckpt = ensure_dirpath(pkg_ckpt)
+
+    if args.command in ('fetch', 'reproduce'):
+        # These commands surface expected, user-actionable states (missing
+        # cached assets, unpopulated splits, not-yet-wired tags). Report them
+        # as a clean message + non-zero exit instead of a Python traceback.
+        try:
+            if args.command == 'fetch':
+                fetch_tag(args.tag, cache_dir_arg=args.cache_dir,
+                          from_raw=args.from_raw)
+            else:
+                _run_reproduce(args)
+        except (FileNotFoundError, NotImplementedError, ValueError) as err:
+            print('muat {}: {}'.format(args.command, err), file=sys.stderr)
+            sys.exit(1)
+        return
 
     if args.command == 'predict-ensemble' and args.source == 'pretrained':
         unziping_from_package_installation()
@@ -545,134 +837,8 @@ def main():
 
     elif args.command == 'train':
         if args.subcommand == 'from-scratch':
-            extdir = ensure_dirpath(pkg_path('extfile'))
-
-            motif_path = resolve_path(args.motif_dictionary_filepath) or f"{extdir}/dictMutation.tsv"
-            pos_path = resolve_path(args.position_dictionary_filepath) or f"{extdir}/dictChpos.tsv"
-            ges_path = resolve_path(args.ges_dictionary_filepath) or f"{extdir}/dictGES.tsv"
-
-            save_dir = ensure_dirpath(resolve_path(args.save_dir))
-            os.makedirs(save_dir, exist_ok=True)
-
-            if (
-                args.motif_dictionary_filepath is None or
-                args.position_dictionary_filepath is None or
-                args.ges_dictionary_filepath is None
-            ):
-                warnings.warn(
-                    f"Dictionary file paths were not defined and have been set automatically:\n"
-                    f"--motif-dictionary-filepath: {motif_path}\n"
-                    f"--position-dictionary-filepath: {pos_path}\n"
-                    f"--ges-dictionary-filepath: {ges_path}\n"
-                    "These dictionaries might be different from your preprocessed files!"
-                )
-
-            dict_motif = pd.read_csv(motif_path, sep='\t')
-            dict_pos = pd.read_csv(pos_path, sep='\t')
-            dict_ges = pd.read_csv(ges_path, sep='\t')
-
-            train_split, test_split = load_data(
-                resolve_path(args.train_split_filepath),
-                resolve_path(args.val_split_filepath)
-            )
-
-            all_split = pd.concat([train_split, test_split], ignore_index=True)
-            columns = all_split.columns
-
-            if 'class_index' in columns:
-                label_1 = all_split[['class_name', 'class_index']].drop_duplicates()
-                label_1 = label_1.sort_values(by=['class_index']).reset_index(drop=True)
-            else:
-                label_1 = all_split[['class_name']].drop_duplicates()
-                label_1 = label_1.sort_values(by=['class_name']).reset_index(drop=True)
-                label_1['class_index'] = np.arange(len(label_1))
-
-            save_label_1 = os.path.join(save_dir, 'label_1.tsv')
-            label_1.to_csv(save_label_1, sep='\t', index=False)
-
-            label_2 = None
-            save_label_2 = None
-            if 'subclass_name' in columns:
-                if 'subclass_index' in columns:
-                    label_2 = all_split[['subclass_name', 'subclass_index']].drop_duplicates()
-                    label_2 = label_2.sort_values(by=['subclass_index']).reset_index(drop=True)
-                else:
-                    label_2 = all_split[['subclass_name']].drop_duplicates()
-                    label_2 = label_2.sort_values(by=['subclass_name']).reset_index(drop=True)
-                    label_2['subclass_index'] = np.arange(len(label_2))
-
-                save_label_2 = os.path.join(save_dir, 'label_2.tsv')
-                label_2.to_csv(save_label_2, sep='\t', index=False)
-
-            target_handler, n_class, n_subclass = initialize_label_encoders(save_label_1, save_label_2)
-            train_split, test_split = attach_label_indices(train_split, test_split, label_1, label_2)
-
-            if label_2 is None:
-                if args.use_motif and not args.use_position and not args.use_ges:
-                    arch = 'MuAtMotifF'
-                elif args.use_motif and args.use_position and not args.use_ges:
-                    arch = 'MuAtMotifPositionF'
-                elif args.use_motif and args.use_position and args.use_ges:
-                    arch = 'MuAtMotifPositionGESF'
-                else:
-                    raise ValueError("Invalid combination of motif/position/ges flags.")
-            else:
-                if args.use_motif and not args.use_position and not args.use_ges:
-                    arch = 'MuAtMotifF_2Labels'
-                elif args.use_motif and args.use_position and not args.use_ges:
-                    arch = 'MuAtMotifPositionF_2Labels'
-                elif args.use_motif and args.use_position and args.use_ges:
-                    arch = 'MuAtMotifPositionGESF_2Labels'
-                else:
-                    raise ValueError("Invalid combination of motif/position/ges flags.")
-
-            model_config = ModelConfig(
-                model_name=arch,
-                dict_motif=dict_motif,
-                dict_pos=dict_pos,
-                dict_ges=dict_ges,
-                mutation_sampling_size=args.mutation_sampling_size,
-                n_layer=args.n_layer,
-                n_emb=args.n_emb,
-                n_head=args.n_head,
-                n_class=n_class,
-                mutation_type=args.mutation_type,
-                num_subclass=n_subclass
-            )
-
-            trainer_config = TrainerConfig(
-                max_epochs=args.epoch,
-                batch_size=args.batch_size,
-                learning_rate=args.learning_rate,
-                num_workers=1,
-                save_ckpt_dir=save_dir,
-                target_handler=target_handler,
-                patience=getattr(args, 'patience', 0),
-                lr_patience=getattr(args, 'lr_patience', None),
-                lr_factor=getattr(args, 'lr_factor', 0.5),
-                min_lr=getattr(args, 'min_lr', 1e-7),
-            )
-
-            model = get_model(arch, model_config)
-
-            train_dataloader_config = DataloaderConfig(
-                model_input=model_config.model_input,
-                mutation_type_ratio=model_config.mutation_type_ratio,
-                mutation_sampling_size=args.mutation_sampling_size,
-                sampling_replacement=args.sampling_replacement
-            )
-            test_dataloader_config = DataloaderConfig(
-                model_input=model_config.model_input,
-                mutation_type_ratio=model_config.mutation_type_ratio,
-                mutation_sampling_size=args.mutation_sampling_size,
-                sampling_replacement=args.sampling_replacement
-            )
-
-            train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
-            test_dataloader = MuAtDataloader(test_split, test_dataloader_config)
-
-            trainer = Trainer(model, train_dataloader, test_dataloader, trainer_config)
-            trainer.batch_train()
+            set_seed(getattr(args, 'seed', 1337))
+            _run_train_from_scratch(args)
 
         elif args.subcommand == 'from-checkpoint':
             save_dir = ensure_dirpath(resolve_path(args.save_dir))

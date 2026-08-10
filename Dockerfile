@@ -21,6 +21,15 @@ ENV PATH=/opt/conda/envs/muat-env/bin:$PATH
 
 COPY --chown=$MAMBA_USER:$MAMBA_USER . /app
 
-RUN micromamba run -n muat-env python setup.py install
+# `python setup.py install` was REMOVED in setuptools 80; on any current base image it
+# fails outright. `pip install --no-deps` is the supported form -- --no-deps because
+# micromamba has already resolved every dependency from muat-env.yml above, and letting
+# pip re-resolve them would pull PyPI wheels over the conda builds (in particular a
+# different torch, which would silently change the environment this image is meant to pin).
+RUN micromamba run -n muat-env pip install --no-deps --no-build-isolation .
 
+# ENTRYPOINT is used by `docker run` and by `singularity run`, but NOT by
+# `singularity exec`, which is how the cluster jobs invoke the image. That path relies on
+# ENV PATH above placing the env's bin first; the sbatch also passes an absolute
+# interpreter path so it does not depend on either mechanism.
 ENTRYPOINT ["micromamba", "run", "-n", "muat-env", "muat"]

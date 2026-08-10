@@ -44,7 +44,7 @@ class MuAtDataloader(Dataset):
         self.mutation_type_ratio = config.mutation_type_ratio
         self.mutation_sampling_size = config.mutation_sampling_size
         self.same_sampling = same_sampling
-        self.sampling_replacement = config.sampling_replacement
+        self.sampling_replacement = getattr(config, 'sampling_replacement', False)
 
         if 'prep_path' not in data_split_tsv.columns:
             raise ValueError("MuAtDataloader: input dataframe is missing required column 'prep_path'.")

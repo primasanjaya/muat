@@ -32,11 +32,66 @@
 
 ## Group D — Reproducibility Across Environments (Open-Access Data)
 
+A 2×2 matrix — {train, inference} × {same, different environment} — plus an hg38 pair.
+Every tag uses **seed 1337**: attributing a difference to the environment requires the
+seed to be held fixed, and varying both would confound them.
+
 | Tag | Purpose | Mode | Cohort | Split | Input Type | Checkpoint in | Checkpoint produced | Environment | Performance metrics | Reference |
 |-----|---------|------|--------|-------|-----------|--------------|-------------------|-------------|--------------------:|-----------|
-| d1 | Reproducibility across environments using open-access data | Train | PCAWG-open access | Train | SNV+MNV+pos+ges | None | d1 | CSC Puhti GPU | | This work |
-| d2 | | Inference | PCAWG-open access | Test | | d1 | None | CSC Puhti CPU bioconda | | This work |
-| d3 | | Inference | PCAWG-open access | Test | | d1 | None | CSC Puhti CPU docker | | This work |
-| d4 | | Inference | PCAWG-open access | Test | | d1 | None | iCAN bioconda | | This work |
-| d5 | | Inference | PCAWG-open access | Test | | d1 | None | iCAN docker | | This work |
-| d6 | Run-level reproducibility | Inference (10× same seed) | PCAWG-open access | Test | | d1 | None | CSC Puhti CPU bioconda | | This work |
+| d1 | Training-run reproducibility, same environment | Train (10× same seed) | PCAWG-open access (hg19) | 80:20 — 1449 train / 363 test | SNV+MNV+pos+ges | None | ckpt1 | CSC Puhti GPU, bioconda | see report workbook | This work |
+| d2 | Training-run reproducibility, different environment | Train (10× same seed) | PCAWG-open access (hg19) | 80:20 — 1449 train / 363 test | SNV+MNV+pos+ges | None | ckpt2 | CSC Puhti CPU, docker | see report workbook | This work |
+| d3 | Inference-run reproducibility, same environment | Inference (10× same seed) | PCAWG-open access (hg19) | Test (363) | SNV+MNV+pos+ges | ckpt1 | None | CSC Puhti GPU, bioconda | see report workbook | This work |
+| d4 | Inference-run reproducibility, different environment | Inference (10× same seed) | PCAWG-open access (hg19) | Test (363) | SNV+MNV+pos+ges | ckpt1 | None | CSC Puhti CPU, docker | see report workbook | This work |
+| d5 | Training with GRCh38 — *not runnable yet* | Train (10× same seed) | PCAWG-open access (hg19 calls lifted to hg38) | 80:20 — 1449 train / 363 test | SNV+MNV+pos+ges | None | ckpt3 | CSC Puhti GPU, bioconda | — | This work |
+| d6 | Inference with GRCh38 — *not runnable yet* | Inference (10× same seed) | PCAWG-open access (hg19 calls lifted to hg38) | Test (363) | SNV+MNV+pos+ges | ckpt3 | None | CSC Puhti GPU, bioconda | — | This work |
+
+**What "reproducible" means here, precisely.** Two different claims, which must not be
+conflated:
+
+- *Within* an environment, the repeats of one tag are expected to be **identical** —
+  same logits, same predictions, same weight tensors.
+- *Across* environments (d1 vs d2, d3 vs d4), they will **not** be bit-identical. CPU and
+  GPU float32 kernels reduce in different orders, so bit-equality across devices is not
+  achievable and is not claimed. Those pairs are scored against a tolerance fixed before
+  the runs, using `muat/pkg_reproduce/compare_environments.py`.
+
+Results, per-repeat figures and the cross-environment comparison are recorded in
+`example_files/local_checkpoint_reports_v2.xlsx`, which is generated from the run
+directories by `muat/pkg_reproduce/make_report_workbook.py`.
+
+**d5/d6 are not runnable yet.** No hg38 bundle exists, and the shipped position dictionary
+(`muat/extfile/dictChpos.tsv`) is hg19-derived; see the `_hg38_note` on tag d5 in
+`experiments.json`. Note also that PCAWG open-access variants were called against hg19, so
+this arm measures the effect of a liftover round-trip rather than performance on natively
+hg38-called data.
+
+---
+
+## Reproducing these experiments
+
+Each tag above is runnable through the `muat reproduce` CLI, which pins the data
+splits, hyperparameters, checkpoint and random seed for that experiment (recipes
+live in `muat/pkg_reproduce/experiments.json`).
+
+Because compute nodes are often offline, asset download is **separated from the run**:
+
+```bash
+# 1. On a node WITH internet (e.g. an HPC login node), stage assets into a shared cache:
+muat fetch d3 --cache-dir /path/to/shared/cache
+
+# 2. In the (possibly offline) compute job, run purely from the cache:
+muat reproduce d3 --cache-dir /path/to/shared/cache --result-dir ./results/d3
+```
+
+- `--cache-dir` defaults to `$MUAT_CACHE`, then `~/.cache/muat`. On HPC point it at a
+  **shared** path visible to both login and compute nodes.
+- By default Group D uses the **preprocessed** open-access bundle (fast, offline-clean).
+  Pass `--from-raw` to download raw PCAWG data and run preprocessing in-node, which
+  additionally exercises the preprocessing pipeline across environments.
+- The Docker image runs `muat fetch` at build time, so `muat reproduce` works offline
+  inside the container with no extra step.
+- Groups A–C use controlled-access (PCAWG-controlled / GEL) data and are **not**
+  externally downloadable; their recipes resolve to user-provided paths.
+
+Useful flags: `muat reproduce --list` (show all tags), `muat reproduce <tag> --dry-run`
+(print the resolved command without running).

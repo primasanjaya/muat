@@ -298,6 +298,29 @@ def load_checkpoint_v3(ckpt_path):
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
+def _backfill_config_defaults(checkpoint):
+    """Backfill config fields added after an older checkpoint was pickled.
+
+    Pickle restores instances without calling __init__, so a ModelConfig /
+    DataloaderConfig saved by an older muat version is missing any attribute
+    introduced later. We re-add them with their current defaults so the model
+    can be reconstructed. The dropout fields are inert at predict time
+    (model.eval()); n_emb/n_class are aliases of n_embd/num_class."""
+    mc = checkpoint.get('model_config')
+    if mc is not None:
+        for attr, default in (('embd_pdrop', 0.1), ('resid_pdrop', 0.1), ('attn_pdrop', 0.1)):
+            if not hasattr(mc, attr):
+                setattr(mc, attr, default)
+        if not hasattr(mc, 'n_emb') and hasattr(mc, 'n_embd'):
+            mc.n_emb = mc.n_embd
+        if not hasattr(mc, 'n_class') and hasattr(mc, 'num_class'):
+            mc.n_class = mc.num_class
+    dc = checkpoint.get('dataloader_config')
+    if dc is not None and not hasattr(dc, 'sampling_replacement'):
+        dc.sampling_replacement = False
+    return checkpoint
+
+
 def load_and_check_checkpoint(ckpt_path, save=False):
     if not ckpt_path:
         raise ValueError("No checkpoint path was provided.")
@@ -316,7 +339,7 @@ def load_and_check_checkpoint(ckpt_path, save=False):
 
         if isinstance(checkpoint, dict):
             if "target_handler" in checkpoint:
-                return checkpoint
+                return _backfill_config_defaults(checkpoint)
             checkpoint = convert_checkpoint_version1(checkpoint, ckpt_path, save=save)
             return checkpoint
 

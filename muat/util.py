@@ -162,6 +162,8 @@ def get_main_args():
     from_scratch.add_argument('--mutation-sampling-size', type=int, default=5000,
                     help='Maximum number of mutations to fetch for the model (default: 5000).')
     from_scratch.add_argument("--sampling-replacement", action="store_true", help="Use sampling with replacement. Default is False")
+    from_scratch.add_argument('--seed', type=int, default=1337,
+                    help='Random seed for reproducible training (Python/NumPy/PyTorch + cuDNN deterministic). Default: 1337.')
     from_scratch.add_argument('--patience', type=int, default=0,
                     help='Early-stopping patience: stop if validation loss has not improved for N epochs. 0 disables.')
     from_scratch.add_argument('--lr-patience', type=int, default=None,
@@ -245,6 +247,45 @@ def get_main_args():
     ens_fc_req.add_argument("--ckpt-filepath", nargs="+", required=True,
                             help='One .pthx per fold; logits are averaged across them.')
     _add_common_predict_args(ens_fc, ens_fc_req)
+
+    # reproduce: run a pinned experiment from experiments.md by tag.
+    reproduce_parser = subparsers.add_parser(
+        'reproduce',
+        help='Reproduce a pinned experiment (see experiments.md) by tag, offline-safe.')
+    reproduce_parser.add_argument('tag', nargs='?', default=None,
+                                  help='Experiment tag, e.g. d2. Omit with --list.')
+    reproduce_parser.add_argument('--list', action='store_true',
+                                  help='List available tags and exit.')
+    reproduce_parser.add_argument('--cache-dir', type=str, default=None,
+                                  help='Asset cache (default: $MUAT_CACHE, then ~/.cache/muat). '
+                                       'On HPC use a path shared by login and compute nodes.')
+    reproduce_parser.add_argument('--result-dir', type=str, default=None,
+                                  help='Where to write outputs (default: ./reproduce_results/<tag>).')
+    reproduce_parser.add_argument('--from-raw', action='store_true',
+                                  help='Preprocess raw PCAWG data instead of using the preprocessed bundle.')
+    reproduce_parser.add_argument('--allow-download', action='store_true',
+                                  help='Permit downloading missing assets at run time '
+                                       '(default: offline; error with a fetch hint instead).')
+    reproduce_parser.add_argument('--dry-run', action='store_true',
+                                  help='Resolve and print the run configuration without executing.')
+    reproduce_parser.add_argument('--relu', action='store_true',
+                                  help='Apply ReLU to saved features (passed through to predict).')
+    reproduce_parser.add_argument('--seed', type=int, default=None,
+                                  help='Override the recipe seed (default: use the seed pinned in '
+                                       'experiments.json).')
+    reproduce_parser.add_argument('--unseeded', action='store_true',
+                                  help='Run without seeding (non-deterministic): skip set_seed and leave '
+                                       'cuDNN non-deterministic. Overrides --seed and the recipe seed.')
+
+    # fetch: stage a tag's assets into the cache (run on a node with internet).
+    fetch_parser = subparsers.add_parser(
+        'fetch',
+        help="Download a reproduce tag's assets into the cache (run where there is internet).")
+    fetch_parser.add_argument('tag', help='Experiment tag, e.g. d2.')
+    fetch_parser.add_argument('--cache-dir', type=str, default=None,
+                              help='Asset cache (default: $MUAT_CACHE, then ~/.cache/muat).')
+    fetch_parser.add_argument('--from-raw', action='store_true',
+                              help='Also stage raw PCAWG data + reference for the --from-raw run path.')
 
     args = parser.parse_args()
     _validate_predict_inputs(parser, args)

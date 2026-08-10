@@ -23,7 +23,7 @@ class TrainerConfig:
         batch_size=4,
         learning_rate=3e-4,
         betas=(0.9, 0.95),
-        grad_norm_clip=1.0,
+        grad_norm_clip=None,
         weight_decay=0.001,
         lr_decay=False,
         show_loss_interval=10,
@@ -37,6 +37,7 @@ class TrainerConfig:
         lr_patience=None,
         lr_factor=0.5,
         min_lr=1e-7,
+        seed=None,
     ):
         self.max_epochs = max_epochs
         self.batch_size = batch_size
@@ -56,6 +57,10 @@ class TrainerConfig:
         self.lr_patience = lr_patience
         self.lr_factor = lr_factor
         self.min_lr = min_lr
+        # Provenance only: the seed set_seed() was called with, recorded so a
+        # checkpoint's trainer_config.json says which seed produced it. The train
+        # loop does not consume it (see the RNG note in batch_train).
+        self.seed = seed
 
 
 class Trainer:
@@ -118,6 +123,16 @@ class Trainer:
         best_val_loss = float("inf")
         no_improve_epochs = 0
 
+        # NOTE on worker RNG seeding (checked against torch 2.5.1 / 2.7.1): no
+        # worker_init_fn or explicit generator is needed here. set_seed() pins the
+        # global RNGs, and PyTorch's own _worker_loop then derives each worker's
+        # torch/random/NumPy seeds from base_seed + worker_id
+        # (torch/utils/data/_utils/worker.py:259-265), so the per-sample mutation
+        # subsampling in MuAtDataloader.__getitem__ -- which draws from the NumPy
+        # global RNG via pandas .sample() -- is already deterministic run-to-run
+        # and independent across workers, under both fork and spawn. Adding
+        # worker_init_fn would only re-seed those streams to different values,
+        # changing results without improving reproducibility.
         trainloader = torch.utils.data.DataLoader(
             self.train_dataset,
             batch_size=self.config.batch_size,
