@@ -34,78 +34,148 @@ def get_main_args():
     download_req.add_argument("--download-dir", type=str, default=None, required=True,
                               help='Directory for storing the downloaded dataset.')
 
-    preprocess = subparsers.add_parser('preprocess', help='Preprocess the dataset.')
-    preprocess_req = _make_required_group(preprocess)
-
-    vcf_somagg_tsv = preprocess_req.add_mutually_exclusive_group(required=True)
-    vcf_somagg_tsv.add_argument("--vcf", action="store_true", help="Preprocess VCF files.")
-    vcf_somagg_tsv.add_argument("--somagg", action="store_true", help="Preprocess SomAgg VCF files.")
-    vcf_somagg_tsv.add_argument("--tsv", action="store_true", help="Preprocess TSV files.")
-    # `--annotated` is the 0.1.21 spelling and stays as an alias. It was too easily confused
-    # with --annotate-only (now --no-tokenize), which means the OPPOSITE end of the pipeline.
-    vcf_somagg_tsv.add_argument("--preannotated", "--annotated", dest="annotated",
-                                action="store_true",
-                                help="Input is ALREADY annotated (.annotate.tsv[.gz], "
-                                     "the output of a previous run): skip annotation and only "
-                                     "tokenize. --hg19/--hg38 not required.")
-
-    preprocess_input = preprocess_req.add_mutually_exclusive_group(required=True)
-    preprocess_input.add_argument("--input-filepath", nargs="+", default=None, help="Input file paths.")
-    preprocess_input.add_argument("--input-list", type=str, default=None,
-                                  help="Path to a text file listing input file paths, one per line.")
-
-    hg19_hg38 = preprocess.add_mutually_exclusive_group(required=False)
-    hg19_hg38.add_argument("--hg19", type=str, default=None, help="Path to GRCh37/hg19 (.fa or .fa.gz). Required unless --annotated.")
-    hg19_hg38.add_argument("--hg38", type=str, default=None, help="Path to GRCh38/hg38 (.fa or .fa.gz). Required unless --annotated.")
-
-    preprocess.add_argument("--tmp-dir", type=str, default=None, help='Directory for storing preprocessed files.')
-    preprocess.add_argument("--build-dictionary", action="store_true",
-                            help="Build the token dictionaries from THIS data and tokenize with "
-                                 "them, instead of using the shipped ones. Needed for a new "
-                                 "reference genome. NOTE this requires a single invocation over "
-                                 "the WHOLE corpus (use --input-list): a dictionary is corpus-"
-                                 "level, so building it per-sample would give every sample its "
-                                 "own vocabulary. Cannot be combined with an explicit "
-                                 "--*-dictionary-filepath.")
-    preprocess.add_argument("--dictionary-out-dir", type=str, default=None,
-                            help="Where --build-dictionary writes dict{Chpos,Mutation,GES}.tsv "
-                                 "(default: --tmp-dir).")
-    preprocess.add_argument("--dictionary-suffix", type=str, default='',
-                            help="Suffix for the built dictionary filenames, e.g. _hg38.")
-    preprocess.add_argument("--dictionary-which", type=str, default='pos,motif,ges',
-                            help="Which dictionaries --build-dictionary rebuilds (default: all "
-                                 "three). For a new reference genome, `pos` alone is usually "
-                                 "enough -- motifs and genic/exonic/strand categories do not "
-                                 "depend on the build.")
-    preprocess.add_argument("--motif-labels", type=str, default='inherit',
-                            choices=['inherit', 'hybrid', 'refalt'],
-                            help="How --build-dictionary assigns mut_type to motifs. inherit "
-                                 "(default) drops motifs the shipped dictionary lacks; hybrid "
-                                 "labels those from ref/alt allele lengths instead; refalt "
-                                 "derives all of them. hybrid/refalt cannot produce SV, MEI or "
-                                 "Neg and diverge from the shipped labelling convention, so a "
-                                 "dictMutation*.provenance.txt records what was done.")
-    # --no-tokenize is deliberately UNDOCUMENTED (help=SUPPRESS). The intended model is that
-    # one preprocess call goes all the way from VCF to tokenized output, optionally building
-    # the dictionaries on the way, so a stop-early flag is a distraction for most users.
+    # ---------------------------------------------------------------------------------
+    # preprocess: four named pipeline stages.
     #
-    # It is kept because it is the only way to parallelise a large cohort. Building a
-    # dictionary is corpus-level, so `--build-dictionary` has to be a single invocation over
-    # every sample -- for ~1800 whole genomes that is hours of serial annotation. The
-    # alternative is a SLURM array of `--no-tokenize` jobs (annotation is per-sample and
-    # embarrassingly parallel), then ONE `--preannotated --build-dictionary` job over the
-    # finished corpus. Without this flag every array task would also tokenize, using the
-    # shipped dictionary that is about to be replaced -- pure waste.
+    #   raw VCF/TSV --[annotate]--> *.annotate.tsv.gz --[tokenize]--> *.muat.tsv
+    #                                       \--[build-dictionary]--> dict*.tsv
     #
-    # `--annotate-only` was the original spelling; kept as an alias.
-    preprocess.add_argument("--no-tokenize", "--annotate-only", dest="annotate_only",
-                            action="store_true", help=argparse.SUPPRESS)
-    preprocess.add_argument('--motif-dictionary-filepath', type=str, default=None, help='Path to the motif dictionary (.tsv).')
-    preprocess.add_argument('--position-dictionary-filepath', type=str, default=None, help='Path to the genomic position dictionary (.tsv).')
-    preprocess.add_argument('--ges-dictionary-filepath', type=str, default=None, help='Path to the genic exonic strand dictionary (.tsv).')
-    preprocess.add_argument('--liftover', action='store_true', default=False,
-                            help='Only valid with --hg38: liftover coordinates to GRCh37/hg19 before training. '
-                                 'Default (without this flag) trains natively in GRCh38.')
+    # Stages exist so that illegal combinations are UNREPRESENTABLE rather than guarded:
+    # the flat flag form needed three separate contradiction checks (already-annotated
+    # input + stop-before-tokenizing, build-a-dictionary + stop-before-tokenizing,
+    # build-a-dictionary + supply-a-dictionary) for combinations that simply cannot be
+    # expressed once each stage has its own parser and its own arguments.
+    #
+    # Omitting the stage runs the FULL pipeline, which keeps the 0.1.21 command line
+    # (`muat preprocess --vcf --hg19 ... `) working unchanged.
+    # ---------------------------------------------------------------------------------
+    preprocess = subparsers.add_parser(
+        'preprocess',
+        help='Preprocess the dataset (raw -> annotated -> tokenized).',
+        description='Run the whole pipeline by default, or one named stage: '
+                    'annotate | build-dictionary | tokenize | full.')
+
+    def _add_inputs(p, required=True):
+        g = _make_required_group(p) if required else p
+        inp = g.add_mutually_exclusive_group(required=required)
+        inp.add_argument("--input-filepath", nargs="+", default=None,
+                         help="Input file paths.")
+        inp.add_argument("--input-list", type=str, default=None,
+                         help="Text file listing input paths, one per line.")
+        return g
+
+    def _add_reference(p, group=None):
+        g = (group or p).add_mutually_exclusive_group(required=False)
+        g.add_argument("--hg19", type=str, default=None,
+                       help="Path to GRCh37/hg19 (.fa or .fa.gz).")
+        g.add_argument("--hg38", type=str, default=None,
+                       help="Path to GRCh38/hg38 (.fa or .fa.gz).")
+        p.add_argument('--liftover', action='store_true', default=False,
+                       help='Only valid with --hg38: convert coordinates to GRCh37/hg19. '
+                            'Required to use the pretrained checkpoints, which have an hg19 '
+                            'position vocabulary. Without it, coordinates stay native GRCh38.')
+
+    def _add_input_kind(p, group=None):
+        g = (group or p).add_mutually_exclusive_group(required=False)
+        g.add_argument("--vcf", action="store_true", help="Inputs are VCF files.")
+        g.add_argument("--somagg", action="store_true", help="Inputs are SomAgg VCF files.")
+        g.add_argument("--tsv", action="store_true", help="Inputs are TSV files.")
+        return g
+
+    def _add_dictionary_build_args(p):
+        p.add_argument("--dictionary-out-dir", type=str, default=None,
+                       help="Where the dictionaries are written (default: --tmp-dir).")
+        p.add_argument("--dictionary-suffix", type=str, default='',
+                       help="Suffix for the dictionary filenames, e.g. _hg38.")
+        p.add_argument("--dictionary-which", type=str, default='pos,motif,ges',
+                       help="Which dictionaries to build (default: all three). For a new "
+                            "reference genome `pos` alone is usually enough -- motifs and "
+                            "genic/exonic/strand categories do not depend on the build.")
+        p.add_argument("--motif-labels", type=str, default='inherit',
+                       choices=['inherit', 'hybrid', 'refalt'],
+                       help="How mut_type is assigned to motifs. inherit (default) drops "
+                            "motifs the shipped dictionary lacks; hybrid labels those from "
+                            "ref/alt allele lengths; refalt derives all of them. hybrid and "
+                            "refalt cannot produce SV, MEI or Neg and diverge from the shipped "
+                            "convention, so a dictMutation*.provenance.txt records what "
+                            "was done.")
+        p.add_argument("--mut-type-from", type=str, default=None,
+                       help="dictMutation.tsv to inherit mut_type labels from "
+                            "(default: the shipped one).")
+
+    def _add_dictionary_use_args(p):
+        p.add_argument('--motif-dictionary-filepath', type=str, default=None,
+                       help='Motif dictionary (.tsv). Defaults to the shipped one.')
+        p.add_argument('--position-dictionary-filepath', type=str, default=None,
+                       help='Genomic position dictionary (.tsv). Defaults to the shipped one, '
+                            'which is hg19-derived -- supply your own for native GRCh38.')
+        p.add_argument('--ges-dictionary-filepath', type=str, default=None,
+                       help='Genic/exonic/strand dictionary (.tsv). Defaults to the shipped one.')
+
+    def _add_full_args(p, required_inputs=True):
+        """Everything the end-to-end pipeline accepts.
+
+        required_inputs=False for the parent parser: when a stage subcommand is used, the
+        input flags appear AFTER the stage word and are consumed by the stage's parser, so
+        argparse would reject them as missing at parent level. The flat (stage-less) form is
+        validated in _validate_preprocess_args() instead.
+        """
+        req = _add_inputs(p, required=required_inputs)
+        _add_input_kind(p, req)
+        # 0.1.21 spelling; a full run over already-annotated input is the `tokenize` stage.
+        req.add_argument("--preannotated", "--annotated", dest="annotated",
+                         action="store_true", help=argparse.SUPPRESS)
+        _add_reference(p)
+        p.add_argument("--tmp-dir", type=str, default=None,
+                       help='Where outputs are written.')
+        p.add_argument("--build-dictionary", action="store_true",
+                       help="Derive the token dictionaries from THIS data and tokenize with "
+                            "them, instead of using the shipped ones. Required for a new "
+                            "reference genome. Must see the whole cohort in one invocation "
+                            "(--input-list); for a large cohort use the annotate / "
+                            "build-dictionary / tokenize stages instead so annotation can "
+                            "run in parallel.")
+        _add_dictionary_build_args(p)
+        _add_dictionary_use_args(p)
+        p.add_argument("--no-tokenize", "--annotate-only", dest="annotate_only",
+                       action="store_true", help=argparse.SUPPRESS)
+
+    # Flat form == full pipeline, so the released command line still works.
+    _add_full_args(preprocess, required_inputs=False)
+
+    stages = preprocess.add_subparsers(
+        dest='stage', required=False, metavar='{annotate,build-dictionary,tokenize,full}',
+        help='Run a single stage instead of the whole pipeline.')
+
+    st_annotate = stages.add_parser(
+        'annotate',
+        help='Raw input -> *.annotate.tsv.gz. Per-sample, so safe to run as a SLURM array.')
+    req = _add_inputs(st_annotate)
+    _add_input_kind(st_annotate, req)
+    _add_reference(st_annotate)
+    st_annotate.add_argument("--tmp-dir", type=str, default=None,
+                             help='Where the annotated files are written.')
+
+    st_builddict = stages.add_parser(
+        'build-dictionary',
+        help='Annotated corpus -> dict{Chpos,Mutation,GES}.tsv. Corpus-level: must see every '
+             'sample at once, so run it ONCE over the whole cohort.')
+    _add_inputs(st_builddict)
+    st_builddict.add_argument("--tmp-dir", type=str, default=None,
+                              help='Fallback output directory if --dictionary-out-dir is unset.')
+    _add_dictionary_build_args(st_builddict)
+
+    st_tokenize = stages.add_parser(
+        'tokenize',
+        help='Annotated corpus -> *.muat.tsv, using existing dictionaries. Per-sample.')
+    _add_inputs(st_tokenize)
+    st_tokenize.add_argument("--tmp-dir", type=str, default=None,
+                             help='Where the tokenized files are written.')
+    _add_dictionary_use_args(st_tokenize)
+
+    st_full = stages.add_parser(
+        'full', help='Raw input -> tokenized output (the default when no stage is given).')
+    _add_full_args(st_full)
 
     # Predict subparser
     # Shared input/output args used by both predict and predict-ensemble.
@@ -342,8 +412,45 @@ def get_main_args():
 
     args = parser.parse_args()
     _validate_predict_inputs(parser, args)
+    _validate_preprocess_args(parser, args)
 
     return args
+
+
+def _validate_preprocess_args(parser, args):
+    """Per-stage requirements for `muat preprocess`.
+
+    Enforced here rather than by argparse because the parent parser cannot mark the input
+    flags required without breaking `preprocess <stage> --input-...` (the flags land on the
+    stage's parser, so the parent sees none).
+    """
+    if getattr(args, 'command', None) != 'preprocess':
+        return
+
+    stage = getattr(args, 'stage', None) or 'full'
+    args.stage = stage
+
+    if args.input_filepath is None and args.input_list is None:
+        parser.error('muat preprocess {}: one of --input-filepath or --input-list is required.'
+                     .format('' if stage == 'full' else stage).replace('  ', ' '))
+
+    if stage in ('annotate', 'full'):
+        # `--preannotated` is the legacy way to say "inputs are already annotated"; that is
+        # now the `tokenize` stage, and it needs no reference genome.
+        if not (args.vcf or args.somagg or args.tsv or args.annotated):
+            parser.error('one of --vcf, --somagg or --tsv is required to say what kind of '
+                         'input this is. If the inputs are already annotated '
+                         '(*.annotate.tsv[.gz]), use `muat preprocess tokenize` instead.')
+        if not args.annotated and args.hg19 is None and args.hg38 is None:
+            parser.error('--hg19 or --hg38 is required to annotate raw input.')
+        if args.liftover and args.hg38 is None:
+            parser.error('--liftover is only valid together with --hg38.')
+
+    if stage == 'build-dictionary':
+        # Guarding what the stage split cannot make unrepresentable: the vocabulary is
+        # derived from the whole cohort at once, so a single-sample invocation is almost
+        # always a mistake worth flagging (see the warning in core, which is not fatal).
+        pass
 
 
 # --- annotated-file naming --------------------------------------------------------------

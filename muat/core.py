@@ -703,24 +703,37 @@ def main():
             vcf_files = multifiles_handler(args.input_filepath)
         vcf_files = [resolve_path(x) for x in vcf_files]
 
-        if not args.annotated and args.hg19 is None and args.hg38 is None:
-            raise ValueError("--hg19 or --hg38 is required unless --annotated is set.")
+        # NOTE: the reference requirement is checked per stage in
+        # util._validate_preprocess_args() -- `tokenize` and `build-dictionary` consume
+        # already-annotated input and legitimately have no --hg19/--hg38.
 
-        annotate_only = getattr(args, 'annotate_only', False)
-        build_dict = getattr(args, 'build_dictionary', False)
-        if annotate_only and args.annotated:
-            raise ValueError("--no-tokenize and --preannotated are contradictory: --preannotated "
-                             "means the input is ALREADY annotated and only needs tokenizing, "
-                             "which is exactly the step --no-tokenize skips. There would be "
-                             "nothing left to do.")
-        if build_dict and annotate_only:
-            raise ValueError("--build-dictionary and --no-tokenize are contradictory: building a "
-                             "dictionary implies tokenizing with it, which --no-tokenize skips.")
-        if build_dict and (args.motif_dictionary_filepath or args.position_dictionary_filepath
-                           or args.ges_dictionary_filepath):
-            raise ValueError("--build-dictionary builds the dictionaries from this data, so it "
-                             "cannot be combined with an explicit --*-dictionary-filepath. Drop "
-                             "one or the other.")
+        # Stage -> what to run. The four stages make the previously-guarded contradictions
+        # unrepresentable: `annotate` has no dictionary arguments at all, `tokenize` has no
+        # reference and cannot build, `build-dictionary` cannot tokenize.
+        stage = getattr(args, 'stage', None) or 'full'
+        if stage == 'annotate':
+            annotate_only, build_dict = True, False
+        elif stage == 'build-dictionary':
+            # Inputs are the annotated corpus; derive the vocabulary and stop.
+            annotate_only, build_dict = True, True
+            args.annotated = True
+            tokenize_after_build = False
+        elif stage == 'tokenize':
+            annotate_only, build_dict = False, False
+            args.annotated = True
+        else:                                       # full
+            annotate_only = getattr(args, 'annotate_only', False)
+            build_dict = getattr(args, 'build_dictionary', False)
+            if build_dict and (args.motif_dictionary_filepath
+                               or args.position_dictionary_filepath
+                               or args.ges_dictionary_filepath):
+                raise ValueError(
+                    "--build-dictionary derives the dictionaries from this data, so it cannot "
+                    "be combined with an explicit --*-dictionary-filepath. Drop one, or split "
+                    "the run into `preprocess build-dictionary` and `preprocess tokenize`.")
+        if stage != 'build-dictionary':
+            tokenize_after_build = True
+
         if build_dict and len(vcf_files) < 2:
             print('muat preprocess: WARNING --build-dictionary given for only {} input file(s). '
                   'A dictionary is corpus-level -- build it from the WHOLE cohort in one '
@@ -914,14 +927,27 @@ def main():
                 which=[w.strip() for w in args.dictionary_which.split(',') if w.strip()],
                 suffix=args.dictionary_suffix,
                 motif_labels=args.motif_labels,
-                tokenize_to=tmp_dir,
+                mut_type_from=getattr(args, 'mut_type_from', None),
+                # `build-dictionary` as a standalone stage stops at the dictionaries; the
+                # tokenizing is then a separate (parallelisable) `tokenize` run.
+                tokenize_to=tmp_dir if tokenize_after_build else None,
             )
+            if not tokenize_after_build:
+                print('\nNow tokenize with them:')
+                print('  muat preprocess tokenize --input-list <same list> --tmp-dir <dir> \\')
+                resolved = built.get('resolved', {})
+                for flag, kind in (('--motif-dictionary-filepath', 'motif'),
+                                   ('--position-dictionary-filepath', 'pos'),
+                                   ('--ges-dictionary-filepath', 'ges')):
+                    print('      {} {}'.format(flag, resolved.get(kind, '?')))
+                return
             print('\nTrain with these dictionaries (pass ALL THREE, or the defaults silently '
                   'reintroduce the shipped ones):')
+            resolved = built.get('resolved', {})
             for flag, kind in (('--motif-dictionary-filepath', 'motif'),
                                ('--position-dictionary-filepath', 'pos'),
                                ('--ges-dictionary-filepath', 'ges')):
-                print('  {} {}'.format(flag, built.get(kind, '<shipped default>')))
+                print('  {} {}'.format(flag, resolved.get(kind, '?')))
 
         # Verify something was actually written. get_motif_pos_ges() catches per-sample
         # exceptions so one bad input does not abandon a batch, and its 0/1 return was

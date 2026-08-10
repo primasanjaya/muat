@@ -404,6 +404,10 @@ def build_dictionaries(data_dir=None, out_dir=None, pos_bin_size=DEFAULT_POS_BIN
         'ges':   written.get('ges')   or _shipped('dictGES.tsv'),
     }
 
+    # The fully resolved trio, so callers can print a copy-pasteable command: kinds that
+    # were rebuilt point at the new files, the rest at the shipped defaults actually used.
+    written['resolved'] = dict(trio)
+
     if tokenize_to:
         # Imported here rather than at module scope: preprocessing pulls in the reader and
         # the whole annotation stack, which build-dictionary alone does not need.
