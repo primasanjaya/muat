@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://github.com/primasanjaya/muat/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: 
+  sha256: 25e4d360b7463aa8730073307a638b97622d0397c5b1ea5ae848ed2b789ad537
 
 build:
   number: 0

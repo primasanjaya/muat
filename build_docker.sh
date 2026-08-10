@@ -20,7 +20,7 @@
 # your fleet (override with CUDA_VERSION=...).
 set -euo pipefail
 
-TAG="${TAG:-muat:v0.1.20}"
+TAG="${TAG:-muat:v0.1.21}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 
 # PyTorch CUDA builds available on conda-forge, highest first.
@@ -68,5 +68,8 @@ docker build --platform "${PLATFORM}" \
     -t "${TAG}" .
 
 echo "[build] Done: ${TAG}"
+# The image ENTRYPOINT is `muat`, so a bare `docker run <tag> python ...` would execute
+# `muat python ...` and fail on an invalid subcommand. --entrypoint overrides it; the
+# env's bin is already first on PATH, so plain `python` resolves inside muat-env.
 echo "[build] Verify GPU at runtime (on a GPU host):"
-echo "        docker run --gpus all ${TAG} python -c 'import torch; print(torch.cuda.is_available())'"
+echo "        docker run --gpus all --entrypoint python ${TAG} -c 'import torch; print(torch.cuda.is_available())'"
