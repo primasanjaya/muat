@@ -27,12 +27,30 @@ def get_main_args():
         p._action_groups.insert(1, p._action_groups.pop())
         return g
 
-    download_parser = subparsers.add_parser('download', help='Download the dataset.')
+    download_parser = subparsers.add_parser(
+        'download', help='Download the dataset or a reference genome.')
     download_req = _make_required_group(download_parser)
-    download_req.add_argument("--pcawg", action="store_true", required=True,
-                              help="Download the PCAWG dataset.")
     download_req.add_argument("--download-dir", type=str, default=None, required=True,
                               help='Directory for storing the downloaded dataset.')
+    # --pcawg is no longer argparse-required because --reference alone is a valid
+    # invocation (and either may be given, or both). core.py errors when neither
+    # is set, which keeps the "choose something" rule in one place instead of
+    # splitting it across two mutually-exclusive groups.
+    download_what = download_parser.add_argument_group(
+        'what to download (choose at least one)')
+    download_what.add_argument("--pcawg", action="store_true",
+                               help="Download the PCAWG dataset.")
+    download_what.add_argument("--reference", action="store_true",
+                               help="Download reference genome FASTAs. Fetches both builds "
+                                    "unless narrowed with --hg19 / --hg38. Files arrive "
+                                    "gzipped; gunzip once if you plan repeated runs, since "
+                                    "a .fa.gz is re-decompressed on every use.")
+    download_what.add_argument("--hg19", action="store_true",
+                               help="With --reference: hg19 only "
+                                    "(Sanger PanCancer genome.fa.gz).")
+    download_what.add_argument("--hg38", action="store_true",
+                               help="With --reference: hg38 only "
+                                    "(UCSC goldenPath hg38.fa.gz).")
 
     # ---------------------------------------------------------------------------------
     # preprocess: four named pipeline stages.

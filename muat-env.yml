@@ -1,19 +1,41 @@
 name: muat-env
+# Version-locked environment for the Docker image (Dockerfile builds from this file).
+#
+# Versions are pinned to the stack the Group D reproducibility runs were solved
+# against, so `docker build` produces the same environment months from now instead
+# of silently drifting to whatever conda-forge ships that day.
+#
+# Deliberately pinned to VERSIONS, not build strings: the Dockerfile passes
+# CONDA_OVERRIDE_CUDA / CUDA_VERSION so one recipe yields either a CUDA or a CPU
+# pytorch build, and pinning `pytorch=2.5.1=cuda*` would break the CPU image.
+# pytorch 2.5.1 is also the ceiling here -- CentOS 7's glibc 2.17 makes 2.11+
+# unavailable (they require __glibc >=2.28).
+#
+# To refresh after an intentional upgrade:
+#   mamba env create -f muat-env.yml -n muat-env-probe
+#   mamba list -n muat-env-probe --json | \
+#     python -c "import json,sys; [print(' ',p['name'],'=',p['version']) for p in json.load(sys.stdin)]"
 channels:
   - conda-forge
   - bioconda
 dependencies:
-  - python=3.9
-  - pandas
-  - numpy
-  - natsort
-  - tqdm
-  - requests
-  - boto3
-  - openpyxl
-  - scikit-learn
-  - pytorch
-  - pyliftover
-  - bcftools
-  - bedops
-  - swalign
+  - python=3.9.23
+  - pandas=2.3.1
+  - numpy=2.0.2
+  - natsort=8.4.0
+  - tqdm=4.67.1
+  - requests=2.32.5
+  - boto3=1.40.13
+  - openpyxl=3.1.5
+  - scikit-learn=1.6.1
+  - pytorch=2.5.1
+  - pyliftover=0.4.1
+  # Command-line tools. bedtools and htslib are hard requirements of
+  # muat/pkg_shell/annotate_mutations_with_bed.sh (bedtools, bgzip). They were
+  # missing from this file while the bioconda recipe listed them, so the image
+  # only received bgzip transitively via bcftools -> htslib. Listed explicitly now.
+  - bcftools=1.24
+  - bedops=2.4.42
+  - bedtools=2.31.1
+  - htslib=1.24
+  - swalign=0.3.7

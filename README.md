@@ -30,7 +30,6 @@ muat predict pretrained wgs --mutation-type 'snv+mnv' \
 | **PyTorch** | 2.5.1 tested; installed automatically as a dependency |
 | **CUDA** (GPU only) | 12.0 tested (driver 530.30.02). Must be **≤** your NVIDIA driver's maximum CUDA |
 | **Hardware** | Runs on CPU; a CUDA-capable GPU is optional, and recommended for training |
-| **Memory / runtime** | <!-- TODO: benchmark inference on a typical WGS genome --> |
 
 Native Windows is not supported: the `bedtools`/`htslib`/`bcftools`/`bedops` dependencies
 have no `win-64` conda builds. Use WSL2, where the Windows-side NVIDIA driver provides
@@ -118,7 +117,7 @@ The GPU image also runs on CPU-only hosts, so one image covers both.
 mount your data with `-v /data:/data` or `--bind /data`:
 
 ```bash
-docker run --gpus all muat:v0.1.21 predict pretrained wgs ...
+docker run --gpus all muat:v0.1.22 predict pretrained wgs ...
 apptainer run  --nv muat.sif predict pretrained wgs ...
 ```
 
@@ -152,9 +151,7 @@ muat predict pretrained wgs --mutation-type 'snv+mnv' \
 This needs the hg19 FASTA, roughly 3 GB to download and 3 GB again once unpacked:
 
 ```bash
-mkdir -p genome_reference
-curl -L -o genome_reference/hg19.fa.gz \
-  https://ftp.sanger.ac.uk/pub/project/PanCancer/genome.fa.gz
+muat download --reference --hg19 --download-dir genome_reference
 gunzip genome_reference/hg19.fa.gz
 
 muat predict pretrained wgs --mutation-type 'snv+mnv' \

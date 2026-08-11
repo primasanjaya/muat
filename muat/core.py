@@ -671,21 +671,44 @@ def main():
         unziping_from_package_installation()
 
     if args.command == 'download':
-        files_to_download = [
-            'PCAWG/consensus_snv_indel/README.md',
-            'PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public.tgz',
-            'PCAWG/consensus_sv/README.md',
-            'PCAWG/consensus_sv/final_consensus_sv_bedpe_passonly.icgc.public.tgz',
-            'PCAWG/consensus_sv/final_consensus_sv_bedpe_passonly.tcga.public.tgz',
-            'PCAWG/data_releases/latest/pcawg_sample_sheet.v1.4.2016-09-14.tsv',
-            'PCAWG/data_releases/latest/release_may2016.v1.4.tsv',
-            'PCAWG/data_releases/latest/pcawg_sample_sheet.2016-08-12.tsv',
-            'PCAWG/clinical_and_histology/pcawg_specimen_histology_August2016_v9.xlsx'
-        ]
+        if not (args.pcawg or getattr(args, 'reference', False)):
+            raise SystemExit(
+                'muat download: choose at least one of --pcawg / --reference')
         download_data_path = resolve_path(args.download_dir)
-        download_icgc_object_storage(data_path=download_data_path, files_to_download=files_to_download)
-        print("Download completed. Data saved in " + str(download_data_path))
-        
+
+        if args.pcawg:
+            files_to_download = [
+                'PCAWG/consensus_snv_indel/README.md',
+                'PCAWG/consensus_snv_indel/final_consensus_snv_indel_passonly_icgc.public.tgz',
+                'PCAWG/consensus_sv/README.md',
+                'PCAWG/consensus_sv/final_consensus_sv_bedpe_passonly.icgc.public.tgz',
+                'PCAWG/consensus_sv/final_consensus_sv_bedpe_passonly.tcga.public.tgz',
+                'PCAWG/data_releases/latest/pcawg_sample_sheet.v1.4.2016-09-14.tsv',
+                'PCAWG/data_releases/latest/release_may2016.v1.4.tsv',
+                'PCAWG/data_releases/latest/pcawg_sample_sheet.2016-08-12.tsv',
+                'PCAWG/clinical_and_histology/pcawg_specimen_histology_August2016_v9.xlsx'
+            ]
+            download_icgc_object_storage(data_path=download_data_path, files_to_download=files_to_download)
+            print("Download completed. Data saved in " + str(download_data_path))
+
+        if getattr(args, 'reference', False):
+            # Neither build selected means both, matching download_reference()'s
+            # own defaults. Files are left as downloaded (.fa.gz). read_reference()
+            # does accept a .gz path, but it shells out to gunzip_file() into a temp
+            # file on EVERY call, so anyone making repeated runs should gunzip once
+            # and pass the plain .fa instead.
+            pick_one = args.hg19 or args.hg38
+            download_reference(download_data_path,
+                               hg19=args.hg19 or not pick_one,
+                               hg38=args.hg38 or not pick_one)
+            print("Reference download completed. Files saved in " + str(download_data_path))
+        # Without this return the branch falls through to the `else: raise
+        # ValueError(f"Unknown command: ...")` that closes main(), because
+        # 'download' is not part of the predict/preprocess/train elif chain below.
+        # Every released version so far finished the download and *then* exited
+        # non-zero with "Unknown command: download".
+        return
+
     if args.command == 'predict':
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         _run_predict(args, device)

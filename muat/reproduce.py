@@ -130,12 +130,20 @@ def _verify_sha256(path, expected):
     print('  sha256 OK: {}'.format(os.path.basename(path)))
 
 
-def _download_url(url, dest):
+def _download_url(url, dest, asset=None):
+    # The message is written for someone who installed muat from bioconda/PyPI, not
+    # for a maintainer: telling them to edit experiments.json inside site-packages is
+    # not an action they should take. An unset url means this release was tagged
+    # before the data archive was published, which is a property of the release.
     if not url or url == 'TODO':
         raise ValueError(
-            'asset URL is not set yet (TODO) — cannot download. '
-            'Fill the url/sha256 in pkg_reproduce/experiments.json '
-            '(pending the Zenodo release).')
+            'no published download URL for asset {!r} in this muat release, so it '
+            'cannot be staged automatically.\n'
+            'This release was tagged before the corresponding data/checkpoint archive '
+            'was deposited. Either point --cache-dir at a copy you already have, or see '
+            'https://github.com/primasanjaya/muat for the archive DOI and the muat '
+            'version whose manifest includes it.'
+            .format(asset or os.path.basename(dest)))
     print('  downloading {} -> {}'.format(url, dest))
     urllib.request.urlretrieve(url, dest)
 
@@ -188,7 +196,7 @@ def fetch_tag(tag, cache_dir_arg=None, from_raw=False):
         if os.path.exists(dest):
             print('  already present: {}'.format(spec['filename']))
         else:
-            _download_url(spec.get('url'), dest)
+            _download_url(spec.get('url'), dest, asset=name)
         _verify_sha256(dest, spec.get('sha256'))
 
         record = {'filename': spec['filename'], 'kind': kind,
@@ -255,13 +263,37 @@ def ensure_assets_present(recipe, cache_dir, experiments, from_raw):
             if _asset_file(cache_dir, name, experiments) is None:
                 missing.append(name)
     if missing:
-        fetch_cmd = 'muat fetch {} --cache-dir {}'.format(recipe['tag'], cache_dir.rstrip('/'))
-        if from_raw:
-            fetch_cmd += ' --from-raw'
-        raise FileNotFoundError(
-            'missing cached asset(s) for {}: {}\n'
-            'Run this on a node with internet first:\n    {}'
-            .format(recipe['tag'], ', '.join(missing), fetch_cmd))
+        # Split the two cases apart. Suggesting `muat fetch` for an asset that has no
+        # published url just sends the user in a circle: fetch would fail too. Only
+        # assets that ARE downloadable get the fetch hint.
+        def _no_published_url(spec):
+            # raw_pcawg assets are staged through the ICGC object store rather than a
+            # plain url, so a missing 'url' key is normal for them and does NOT mean
+            # the archive is unpublished. Only url-based assets can be "not deposited yet".
+            if spec.get('kind') == 'raw_pcawg':
+                return False
+            return spec.get('url') in (None, '', 'TODO')
+
+        unpublished = [n for n in missing
+                       if _no_published_url(experiments.get('assets', {}).get(n, {}))]
+        fetchable = [n for n in missing if n not in unpublished]
+
+        lines = ['missing cached asset(s) for {}: {}'.format(recipe['tag'], ', '.join(missing))]
+        if fetchable:
+            fetch_cmd = 'muat fetch {} --cache-dir {}'.format(recipe['tag'], cache_dir.rstrip('/'))
+            if from_raw:
+                fetch_cmd += ' --from-raw'
+            lines.append('Stage the downloadable one(s) ({}) on a node with internet:'
+                         .format(', '.join(fetchable)))
+            lines.append('    ' + fetch_cmd)
+        if unpublished:
+            lines.append(
+                'No published download URL in this muat release for: {}. This release was '
+                'tagged before the corresponding archive was deposited, so these cannot be '
+                'fetched automatically — point --cache-dir at a copy you already have, or see '
+                'https://github.com/primasanjaya/muat for the archive DOI and the muat version '
+                'whose manifest includes it.'.format(', '.join(unpublished)))
+        raise FileNotFoundError('\n'.join(lines))
 
 
 def _split_path(recipe, which):

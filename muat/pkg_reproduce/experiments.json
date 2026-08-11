@@ -43,64 +43,6 @@
       "environment": "CSC Puhti GPU bioconda"
     },
 
-    "d1_snvmnv": {
-      "group": "D",
-      "access": "open",
-      "mode": "train",
-      "purpose": "d1 variant: SNV+MNV (with position+ges) instead of SNV-only; isolates the effect of adding MNV motifs. Same split/hyperparams as d1.",
-      "mutation_type": "snv+mnv",
-      "use_motif": true,
-      "use_position": true,
-      "use_ges": true,
-      "splits": {
-        "train": "splits/pcawg_orig_train.tsv",
-        "val": "splits/pcawg_orig_val.tsv"
-      },
-      "data_bundle": "pcawg_open_preprocessed",
-      "raw_data": "pcawg_open_raw",
-      "reference": "hg19",
-      "hyperparams": {
-        "epoch": 100,
-        "batch_size": 4,
-        "learning_rate": 0.001,
-        "n_layer": 1,
-        "n_head": 1,
-        "n_emb": 128,
-        "mutation_sampling_size": 5000
-      },
-      "produces_checkpoint": "d1_snvmnv",
-      "environment": "CSC Puhti GPU"
-    },
-
-    "d1_snvmnv_9010": {
-      "group": "D",
-      "access": "open",
-      "mode": "train",
-      "purpose": "d1 SNV+MNV variant on the 90:10 split (train9 1630 / held-out test1 182) — matches the partition used in the manuscript. Same hyperparams as d1_snvmnv; only the split ratio differs (80:20 -> 90:10).",
-      "mutation_type": "snv+mnv",
-      "use_motif": true,
-      "use_position": true,
-      "use_ges": true,
-      "splits": {
-        "train": "splits/pcawg_orig9010_train.tsv",
-        "val": "splits/pcawg_orig9010_test.tsv"
-      },
-      "data_bundle": "pcawg_open_preprocessed",
-      "raw_data": "pcawg_open_raw",
-      "reference": "hg19",
-      "hyperparams": {
-        "epoch": 100,
-        "batch_size": 4,
-        "learning_rate": 0.001,
-        "n_layer": 1,
-        "n_head": 1,
-        "n_emb": 128,
-        "mutation_sampling_size": 5000
-      },
-      "produces_checkpoint": "d1_snvmnv_9010",
-      "environment": "CSC Puhti GPU"
-    },
-
     "d2": {
       "group": "D",
       "access": "open",
