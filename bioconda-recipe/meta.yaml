@@ -7,15 +7,7 @@ package:
 
 source:
   url: https://github.com/primasanjaya/muat/archive/refs/tags/v{{ version }}.tar.gz
-  # MUST be recomputed after the v0.1.22 tag is PUSHED -- GitHub generates this
-  # tarball from whatever commit the tag points at. v0.1.21 shipped 0.1.20 code
-  # because the tag was created one commit early; the sha matched, so nothing
-  # complained. Verify the tarball contains muat/pkg_reproduce/ before filling:
-  #   python -c "import urllib.request,hashlib,tarfile,io; \
-  #     r=urllib.request.urlopen('https://github.com/primasanjaya/muat/archive/refs/tags/v0.1.22.tar.gz').read(); \
-  #     print(hashlib.sha256(r).hexdigest()); \
-  #     print(sum('pkg_reproduce' in n for n in tarfile.open(fileobj=io.BytesIO(r)).getnames()),'pkg_reproduce entries')"
-  sha256: FILL_AFTER_TAG_PUSH
+  sha256: 0c2b1a83b882b66d787a443043e1c281637c2691517df9d73f08ed2a2209f57c
 
 
 build:

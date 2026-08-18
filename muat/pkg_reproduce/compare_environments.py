@@ -66,7 +66,7 @@ def sample_keys(path):
 
 
 def load(path):
-    y_true, y_pred, class_names, logits = load_logits_table(path)
+    y_true, y_pred, class_names, logits = load_logits_table(path, require_labels=False)
     keys = sample_keys(path)
     if len(keys) != len(y_true):
         raise ValueError('%s: %d sample ids for %d rows.' % (path, len(keys), len(y_true)))
@@ -121,8 +121,13 @@ def compare(ref, test, max_logit_delta):
             })
 
     n = len(shared)
-    ref_acc = sum(ref['y_pred'][k] == ref['y_true'][k] for k in shared) / n
-    test_acc = sum(test['y_pred'][k] == test['y_true'][k] for k in shared) / n
+    has_labels = ref['y_true'][shared[0]] is not None
+    if has_labels:
+        ref_acc = sum(ref['y_pred'][k] == ref['y_true'][k] for k in shared) / n
+        test_acc = sum(test['y_pred'][k] == test['y_true'][k] for k in shared) / n
+        delta_top1 = test_acc - ref_acc
+    else:
+        ref_acc = test_acc = delta_top1 = None
 
     return {
         'n': n,
@@ -132,7 +137,7 @@ def compare(ref, test, max_logit_delta):
         'agreement_pct': 100.0 * (n - len(disagreements)) / n,
         'ref_acc': ref_acc,
         'test_acc': test_acc,
-        'delta_top1': test_acc - ref_acc,
+        'delta_top1': delta_top1,
         'max_delta': max_delta,
         'mean_delta': float(delta.mean()),
         'bit_identical': max_delta == 0.0,
@@ -156,8 +161,11 @@ def report(res, ref_label, test_label, max_logit_delta):
     print('samples compared        %d' % res['n'])
     print('predictions agreeing    %d / %d  (%.4f%%)'
           % (res['agree'], res['n'], res['agreement_pct']))
-    print('Top-1 accuracy          reference %.6f   test %.6f   delta %+.6f'
-          % (res['ref_acc'], res['test_acc'], res['delta_top1']))
+    if res['ref_acc'] is None:
+        print('Top-1 accuracy          n/a (no ground-truth labels -- predict-mode input)')
+    else:
+        print('Top-1 accuracy          reference %.6f   test %.6f   delta %+.6f'
+              % (res['ref_acc'], res['test_acc'], res['delta_top1']))
     print('max |delta logit|       %.3e' % res['max_delta'])
     print('mean |delta logit|      %.3e' % res['mean_delta'])
     if res['bit_identical']:
@@ -209,9 +217,10 @@ def main(argv=None):
     if args.out:
         cols = ['ref', 'test', 'n', 'agree', 'agreement_pct', 'ref_acc', 'test_acc',
                 'delta_top1', 'max_delta', 'mean_delta', 'all_near_ties', 'tolerance_met']
+        acc_fmt = lambda v: 'n/a' if v is None else '%.6f' % v
         row = [args.ref_label or args.ref, args.test_label or args.test, res['n'], res['agree'],
-               '%.6f' % res['agreement_pct'], '%.6f' % res['ref_acc'], '%.6f' % res['test_acc'],
-               '%+.6f' % res['delta_top1'], '%.6e' % res['max_delta'],
+               '%.6f' % res['agreement_pct'], acc_fmt(res['ref_acc']), acc_fmt(res['test_acc']),
+               acc_fmt(res['delta_top1']), '%.6e' % res['max_delta'],
                '%.6e' % res['mean_delta'], res['all_near_ties'], ok]
         with open(args.out, 'w') as fh:
             fh.write('\t'.join(cols) + '\n')

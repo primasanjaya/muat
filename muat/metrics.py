@@ -39,7 +39,7 @@ _META_COLS = ("target_name", "sample", "prediction")
 DEFAULT_TOPK = (1, 3, 5)
 
 
-def load_logits_table(path):
+def load_logits_table(path, require_labels=True):
     """Read a ``*_first_logits.tsv`` and return ``(y_true, y_pred, class_names, logits)``.
 
     ``class_names`` are the logit-column headers in file order (= class-index
@@ -48,9 +48,14 @@ def load_logits_table(path):
     matrix, kept so top-k accuracy can be computed. Raises ``ValueError`` if
     there is no ``target_name`` column (e.g. a predict output, which carries no
     ground truth) or no class columns.
+
+    ``require_labels=False`` allows a predict-mode table (no ``target_name``,
+    e.g. inference on unlabeled data) to load anyway, with ``y_true`` filled
+    with ``None`` -- for callers that only need predictions/logits, not accuracy.
     """
     df = pd.read_csv(path, sep="\t")
-    if "target_name" not in df.columns:
+    has_labels = "target_name" in df.columns
+    if not has_labels and require_labels:
         raise ValueError(
             "{}: no 'target_name' column found -- cannot compute metrics without "
             "ground-truth labels (is this a predict output rather than a "
@@ -61,7 +66,7 @@ def load_logits_table(path):
         raise ValueError("{}: no class-logit columns found.".format(path))
     logits = df[class_names].to_numpy()
     y_pred = [class_names[i] for i in logits.argmax(axis=1)]
-    y_true = df["target_name"].astype(str).tolist()
+    y_true = df["target_name"].astype(str).tolist() if has_labels else [None] * len(df)
     return y_true, y_pred, class_names, logits
 
 

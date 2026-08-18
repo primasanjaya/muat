@@ -16,8 +16,10 @@ this can be re-run after each experiment finishes and the sheet fills itself in.
 
 import argparse
 import csv
+import datetime
 import glob as globmod
 import os
+import re
 import sys
 
 import openpyxl
@@ -94,7 +96,7 @@ TAGS = [
         'ckpt_in': 'None', 'ckpt_out': 'ckpt2 (d2.pthx) + ckpt2.zip',
         'spe': 'CSC Puhti CPU',
         'hardware': 'node a1, CPU only, 4 threads/repeat, MKL_CBWR=AVX2',
-        'install': 'docker image v0.1.22, executed by singularity',
+        'install': 'published BioContainers image muat:0.1.22--pyh106432d_0 (built by bioconda from the v0.1.22 release tarball), executed by apptainer',
         'muat_version': '0.1.22', 'torch': '',
         'results_glob': None,
         'determinism': '',
@@ -124,7 +126,7 @@ TAGS = [
         'ckpt_in': 'ckpt1', 'ckpt_out': 'None',
         'spe': 'CSC Puhti CPU',
         'hardware': 'node a1, CPU only, 4 threads/repeat, MKL_CBWR=AVX2',
-        'install': 'docker image v0.1.22, executed by singularity',
+        'install': 'published BioContainers image muat:0.1.22--pyh106432d_0 (built by bioconda from the v0.1.22 release tarball), executed by apptainer',
         'muat_version': '0.1.22', 'torch': '',
         'results_glob': None,
         'determinism': '',
@@ -181,8 +183,10 @@ NOTES = [
     '5. d0 vs d1 is the install axis (source vs bioconda) on the same hardware; d1 vs d2 changes '
     'device (GPU->CPU) and install (bioconda->docker) together. If a d1/d2 discrepancy needs '
     'attributing, add an intermediate Puhti GPU + docker run to separate container from device.',
-    '6. d1 and d2 use the SAME muat version (0.1.22), one installed via bioconda and one via the '
-    'docker image built from that release. If the versions differ the comparison is void.',
+    '6. d1 and d2 use the SAME muat version (0.1.22): one installed via bioconda, one from the '
+    'PUBLISHED BioContainers image for that same release - not an image we built, so the '
+    'artefact is one a reader can pull. Both arms assert the version at runtime; if the '
+    'versions differ the comparison is void.',
     '7. d3/d4/d6 evaluate on d1\'s own 363-sample test split. This is an environment fingerprint, '
     'NOT a held-out generalisation estimate, and must not be presented as one.',
     '8. Best epoch is selected on those same 363 samples (trainer.py:324), so the test set '
@@ -250,10 +254,118 @@ def read_best_epoch(path):
     return best_idx
 
 
-def collect(results_glob):
+# ---------------------------------------------------------------------------
+# Compute cost (answers reviewer 1 minor 8)
+#
+# Read from the job logs rather than typed into the tag table, for the same reason the metrics
+# are: a hand-entered runtime silently goes stale. Wall-clock is derived from the
+# "=== ... starting <date> ===" / "finished" markers instead of the "wall clock :" printf,
+# because the markers exist in EVERY log -- including d0's array 280085 and the two arrays
+# submitted before the cost instrumentation was added, whose scripts sbatch had already
+# snapshotted.
+# ---------------------------------------------------------------------------
+
+RESULTS_DIR = os.path.join(REPO, 'data', 'reproduce_results')
+
+_RE_RESULT_DIR = re.compile(r'^result dir\s*:\s*(\S+)', re.M)
+_RE_STAMP = re.compile(r'^=== reproduce \S+(?: repeat \d+)? (starting|finished) (.+?) ===', re.M)
+_RE_PEAK_GPU = re.compile(r'^peak GPU mem:\s*(\d+)\s*MiB', re.M)
+# sacct --units=M rows, e.g. "  280271_1.batch  d1_bioco  01:29:12  05:12.3  1234.56M  ...".
+# The JobID column is anchored to a real SLURM id, and only the text after the "slurm cost :"
+# marker is searched. Both guards are needed: a looser pattern matched the `ls -lh` line at the
+# end of each log ("... 5.4M Aug  6 ...") and silently reported a 0.0 GB peak.
+_RE_SACCT_MARKER = re.compile(r'^slurm cost\s*:', re.M)
+_RE_SACCT_RSS = re.compile(
+    r'^\s*\d+(?:_\d+)?(?:\.\S+)?\s+\S+\s+\S+\s+\S+\s+([\d.]+)M(?=\s|$)', re.M)
+
+
+def _parse_stamp(text):
+    """`Thu Aug  6 11:25:55 EEST 2026` -> datetime. The timezone NAME is dropped: %Z only
+    accepts the running process's own zone, so parsing it fails on a machine set elsewhere."""
+    parts = text.split()
+    if len(parts) == 6:
+        parts.pop(4)
+    try:
+        return datetime.datetime.strptime(' '.join(parts), '%a %b %d %H:%M:%S %Y')
+    except ValueError:
+        return None
+
+
+def read_costs():
+    """Map result-dir (repo-relative) -> {'wall_s', 'gpu_mib', 'rss_mb'}, from the job logs.
+
+    Every log names its own result dir, so the mapping needs no knowledge of job-name
+    conventions or array ids.
+    """
+    costs = {}
+    for log in sorted(globmod.glob(os.path.join(RESULTS_DIR, '*.out'))):
+        try:
+            with open(log, errors='replace') as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        m = _RE_RESULT_DIR.search(text)
+        if not m:
+            continue
+        key = os.path.relpath(m.group(1), REPO)
+        rec = costs.setdefault(key, {'wall_s': None, 'gpu_mib': None, 'rss_mb': None})
+
+        stamps = {}
+        for kind, raw in _RE_STAMP.findall(text):
+            stamp = _parse_stamp(raw)
+            if stamp:
+                stamps[kind] = stamp
+        if 'starting' in stamps and 'finished' in stamps:
+            delta = (stamps['finished'] - stamps['starting']).total_seconds()
+            if delta >= 0:
+                rec['wall_s'] = delta
+
+        gpu = _RE_PEAK_GPU.search(text)
+        if gpu:
+            rec['gpu_mib'] = int(gpu.group(1))
+        # Largest MaxRSS across the sacct rows (the .batch step carries the real value),
+        # searched only inside the "slurm cost :" section.
+        marker = _RE_SACCT_MARKER.search(text)
+        if marker:
+            rss = [float(v) for v in _RE_SACCT_RSS.findall(text[marker.end():])]
+            if rss:
+                rec['rss_mb'] = max(rss)
+    return costs
+
+
+def fmt_wall(seconds):
+    if not seconds:
+        return ''
+    seconds = int(round(seconds))
+    return '%d:%02d:%02d' % (seconds // 3600, seconds % 3600 // 60, seconds % 60)
+
+
+def summarise_cost(repeats):
+    """('wall-clock per repeat', 'peak memory') for one tag. Blank when unmeasured."""
+    walls = [r['_cost']['wall_s'] for r in repeats if r.get('_cost', {}).get('wall_s')]
+    gpus = [r['_cost']['gpu_mib'] for r in repeats if r.get('_cost', {}).get('gpu_mib')]
+    rss = [r['_cost']['rss_mb'] for r in repeats if r.get('_cost', {}).get('rss_mb')]
+
+    wall = ''
+    if walls:
+        wall = fmt_wall(sum(walls) / len(walls))
+        if len(walls) > 1:
+            # Spread matters: a wide range means the node was contended, which is worth
+            # seeing next to a determinism claim.
+            wall += ' (mean of %d; %s-%s)' % (len(walls), fmt_wall(min(walls)), fmt_wall(max(walls)))
+    mem = []
+    if gpus:
+        mem.append('%.1f GB GPU' % (max(gpus) / 1024.0))
+    if rss:
+        mem.append('%.1f GB RSS' % (max(rss) / 1024.0))
+    return wall, ' / '.join(mem)
+
+
+def collect(results_glob, costs=None):
     """Per-repeat metric dicts for one tag, in repeat order. Empty if nothing ran."""
     if not results_glob:
         return []
+    costs = costs or {}
     repeats = []
     for d in sorted(x for x in globmod.glob(os.path.join(REPO, results_glob)) if os.path.isdir(x)):
         summary = os.path.join(d, 'metrics_summary.tsv')
@@ -262,6 +374,7 @@ def collect(results_glob):
         rec = read_metrics_summary(summary)
         rec['_dir'] = os.path.relpath(d, REPO)
         rec['_best_epoch'] = read_best_epoch(os.path.join(d, 'evaluation.tsv'))
+        rec['_cost'] = costs.get(rec['_dir'], {'wall_s': None, 'gpu_mib': None, 'rss_mb': None})
         repeats.append(rec)
     return repeats
 
@@ -331,6 +444,7 @@ def write_sheet2(wb, data):
     row = 3
     for spec in TAGS:
         agg = data[spec['tag']]
+        measured_wall, measured_mem = summarise_cost(agg)
         vals = {
             'Tag': spec['tag'], 'Purpose': spec['purpose'], 'Cohort': spec['cohort'],
             'Mode': spec['mode'], 'Seed': spec['seed'], 'Repeats': spec['repeats'],
@@ -341,8 +455,10 @@ def write_sheet2(wb, data):
             'SPE': spec['spe'], 'Hardware': spec['hardware'], 'Installation': spec['install'],
             'muat version': spec['muat_version'], 'torch / CUDA': spec['torch'],
             'Checkpoint sha256': spec.get('ckpt_sha256', ''),
-            'Wall-clock / repeat': spec.get('wall_clock', ''),
-            'Peak memory': spec.get('peak_memory', ''),
+            # Measured from the logs where possible; the tag table is only a fallback for
+            # rows that have not run yet.
+            'Wall-clock / repeat': measured_wall or spec.get('wall_clock', ''),
+            'Peak memory': measured_mem or spec.get('peak_memory', ''),
             'Determinism (within tag)': spec['determinism'], 'Status': spec['status'],
         }
         for key, label in METRIC_KEYS:
@@ -510,15 +626,19 @@ def main():
     ap.add_argument('--check', action='store_true', help='report what was found, write nothing')
     args = ap.parse_args()
 
+    costs = read_costs()
     data = {}
     for spec in TAGS:
-        agg = collect(spec['results_glob'])
+        agg = collect(spec['results_glob'], costs)
         data[spec['tag']] = agg
         found = '%d repeat(s)' % len(agg) if agg else 'no runs yet'
         note = ''
         if agg:
             m, s = mean_sd([r.get('top1_accuracy') for r in agg])
             note = '  top1 mean %.6f sd %.6f' % (m, s)
+            wall, mem = summarise_cost(agg)
+            if wall or mem:
+                note += '  | %s %s' % (wall, mem)
         print('%-4s %-14s %s' % (spec['tag'], found, note))
         if agg and len(agg) != spec['repeats']:
             print('     WARNING: expected %d repeats, found %d' % (spec['repeats'], len(agg)))

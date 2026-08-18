@@ -485,8 +485,12 @@ def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,tmp_dir,pos_b
 
     The supplied dictionaries are treated as the BASELINE vocabulary. Every merge below is
     a LEFT join, so any key the data contains but the dictionary does not becomes a NaN
-    token -- silently carrying no information to the model. That is measured here and
-    reported once for the whole batch; see report_vocab_coverage().
+    token. Rows with ANY unmapped token (motif, position, or ges) are split out to
+    <sample>.preperror.tsv instead of staying in <sample>.muat.tsv: an unmapped motif would
+    otherwise be silently unusable (mut_type NaN never matches the dataloader's sampling
+    key) and an unmapped position/ges would otherwise crash the dataloader on a NaN cast,
+    possibly hours into a training run. Counts are measured here and reported once for the
+    whole batch; see report_vocab_coverage().
     '''
     tmp_dir = ensure_dirpath(resolve_path(tmp_dir))
     os.makedirs(tmp_dir, exist_ok=True)
@@ -514,19 +518,27 @@ def tokenizing(dict_motif, dict_pos, dict_ges,all_preprocessed_vcf,tmp_dir,pos_b
         df = df.merge(dict_ges, left_on='ges', right_on='ges', how='left')
 
         n_rows_total += len(df)
+        is_unmapped = pd.Series(False, index=df.index)
         for kind, keycol, tokcol in (('motif', 'seq', 'triplettoken'),
                                      ('position', 'chrompos', 'postoken'),
                                      ('ges', 'ges', 'gestoken')):
             if tokcol not in df.columns:
                 continue
-            miss = df.loc[df[tokcol].isna(), keycol].astype(str)
+            row_missing = df[tokcol].isna()
+            miss = df.loc[row_missing, keycol].astype(str)
             if len(miss):
                 n_rows_unmapped[kind] += len(miss)
                 for k, c in miss.value_counts().items():
                     unmapped[kind][k] = unmapped[kind].get(k, 0) + int(c)
+            is_unmapped |= row_missing
 
-        token_file = os.path.join(tmp_dir, get_sample_name(path) + '.muat.tsv')
-        df.to_csv(token_file, sep='\t', index=False)
+        sample_name = get_sample_name(path)
+        token_file = os.path.join(tmp_dir, sample_name + '.muat.tsv')
+        df.loc[~is_unmapped].to_csv(token_file, sep='\t', index=False)
+
+        if is_unmapped.any():
+            error_file = os.path.join(tmp_dir, sample_name + '.preperror.tsv')
+            df.loc[is_unmapped].to_csv(error_file, sep='\t', index=False)
 
     report_vocab_coverage(unmapped, n_rows_unmapped, n_rows_total, tmp_dir)
 
@@ -536,9 +548,9 @@ def report_vocab_coverage(unmapped, n_rows_unmapped, n_rows_total, tmp_dir):
     Report the data's vocabulary against the baseline dictionaries.
 
     Unmapped keys are not an error -- a cohort legitimately contains motifs or genomic bins
-    the reference dictionary never saw -- but they are silent, so they are surfaced with
-    counts and an actionable next step. Writes unmapped_vocab.tsv only when there is
-    something to write.
+    the reference dictionary never saw -- but they are now removed from training data (see
+    tokenizing()'s <sample>.preperror.tsv split), so they are surfaced here with counts and
+    an actionable next step. Writes unmapped_vocab.tsv only when there is something to write.
     '''
     if n_rows_total == 0:
         return
@@ -566,8 +578,10 @@ def report_vocab_coverage(unmapped, n_rows_unmapped, n_rows_total, tmp_dir):
             for k, c in sorted(unmapped.get(kind, {}).items(), key=lambda kv: -kv[1]):
                 f.write('{}\t{}\t{}\n'.format(kind, k, c))
     print('WARNING: the data contains vocabulary absent from the supplied dictionaries.')
-    print('         Those tokens are NaN and carry no information to the model.')
-    print('         Full list written to {}'.format(out))
+    print('         Those rows were removed from *.muat.tsv and written instead to')
+    print('         matching *.preperror.tsv files beside them, so they take no part in')
+    print('         training/prediction but are not silently lost.')
+    print('         Full list of unmapped keys written to {}'.format(out))
     print('         A different reference genome is the usual cause -- position bins are')
     print('         build-specific. Rebuild the vocabulary from your own corpus by adding')
     print('         --build-dictionary to the same preprocess command, e.g.')
