@@ -39,9 +39,9 @@ seed to be held fixed, and varying both would confound them.
 | Tag | Purpose | Mode | Cohort | Split | Input Type | Checkpoint in | Checkpoint produced | Environment | Performance metrics | Reference |
 |-----|---------|------|--------|-------|-----------|--------------|-------------------|-------------|--------------------:|-----------|
 | d1 | Training-run reproducibility, same environment | Train (10× same seed) | PCAWG-open access (hg19) | 80:20 — 1449 train / 363 test | SNV+MNV+pos+ges | None | ckpt1 | CSC Puhti GPU, bioconda | see report workbook | This work |
-| d2 | Training-run reproducibility, different environment | Train (10× same seed) | PCAWG-open access (hg19) | 80:20 — 1449 train / 363 test | SNV+MNV+pos+ges | None | ckpt2 | CSC Puhti CPU, docker | see report workbook | This work |
+| d2 | Training-run reproducibility, different environment | Train (10× same seed) | PCAWG-open access (hg19) | 80:20 — 1449 train / 363 test | SNV+MNV+pos+ges | None | ckpt2 | CSC Puhti CPU, BioContainers image (apptainer) | see report workbook | This work |
 | d3 | Inference-run reproducibility, same environment | Inference (10× same seed) | PCAWG-open access (hg19) | Test (363) | SNV+MNV+pos+ges | ckpt1 | None | CSC Puhti GPU, bioconda | see report workbook | This work |
-| d4 | Inference-run reproducibility, different environment | Inference (10× same seed) | PCAWG-open access (hg19) | Test (363) | SNV+MNV+pos+ges | ckpt1 | None | CSC Puhti CPU, docker | see report workbook | This work |
+| d4 | Inference-run reproducibility, different environment | Inference (10× same seed) | PCAWG-open access (hg19) | Test (363) | SNV+MNV+pos+ges | ckpt1 | None | CSC Puhti CPU, BioContainers image (apptainer) | see report workbook | This work |
 | d5 | Training with GRCh38 — *not runnable yet* | Train (10× same seed) | PCAWG-open access (hg19 calls lifted to hg38) | 80:20 — 1449 train / 363 test | SNV+MNV+pos+ges | None | ckpt3 | CSC Puhti GPU, bioconda | — | This work |
 | d6 | Inference with GRCh38 — *not runnable yet* | Inference (10× same seed) | PCAWG-open access (hg19 calls lifted to hg38) | Test (363) | SNV+MNV+pos+ges | ckpt3 | None | CSC Puhti GPU, bioconda | — | This work |
 
@@ -88,8 +88,11 @@ muat reproduce d3 --cache-dir /path/to/shared/cache --result-dir ./results/d3
 - By default Group D uses the **preprocessed** open-access bundle (fast, offline-clean).
   Pass `--from-raw` to download raw PCAWG data and run preprocessing in-node, which
   additionally exercises the preprocessing pipeline across environments.
-- The Docker image runs `muat fetch` at build time, so `muat reproduce` works offline
-  inside the container with no extra step.
+- **Container images carry no data.** Neither the published BioContainers image nor a locally
+  built one pre-fetches anything (the `Dockerfile` has no `muat fetch` step, and in 0.1.22
+  `fetch` cannot run at all because the asset URLs are still placeholders). So the container
+  arms stay offline the same way every other arm does: stage the cache once on a node with
+  internet, bind-mount it in, and pass `--cache-dir`. The container needs no network.
 - Groups A–C use controlled-access (PCAWG-controlled / GEL) data and are **not**
   externally downloadable; their recipes resolve to user-provided paths.
 

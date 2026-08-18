@@ -18,6 +18,11 @@ name: muat-env
 channels:
   - conda-forge
   - bioconda
+  # `nodefaults` stops conda appending Anaconda's `defaults` channel
+  # (repo.anaconda.com/pkgs/main + pkgs/r). Nothing here comes from it, it triggers an
+  # Anaconda Terms-of-Service notice on every solve, and on an offline compute node the
+  # unreachable host turns a solvable environment into a hard failure.
+  - nodefaults
 dependencies:
   - python=3.9.23
   - pandas=2.3.1
