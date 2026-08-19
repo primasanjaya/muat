@@ -16,7 +16,7 @@
       "mode": "train",
       "purpose": "Training-run reproducibility, SAME environment (CSC Puhti GPU / bioconda). Input type SNV+MNV+pos+ges on the 80:20 pcawg_orig partition (train 1449 / test 363); trained 10x under the same seed. Expected: all 10 repeats BIT-IDENTICAL. Reported metrics come from the BEST epoch (best_val_first_logits.tsv), and the published checkpoint is the matching best_ckpt.pthx. Produces ckpt1, which d3 and d4 load.",
       "_split_note": "The 'val' key is the mechanical name the training code expects; semantically these 363 samples are the TEST set. 'Best epoch' is the epoch scoring highest on these same 363 (trainer.py:324), so the test set informed epoch selection - report it as a best-epoch figure. Publish best_ckpt.pthx (NOT model.pthx, which is the final epoch) as the d1_checkpoint asset, so the inference tags reproduce exactly the reported numbers.",
-      "_result_note": "DONE 2026-08-07 (SLURM array 280085, 10/10 repeats). Best epoch 73. top1 0.851240 / top3 0.953168 / top5 0.986226 / weighted precision 0.860142 / weighted recall 0.851240 / weighted F1 0.847808 / macro F1 0.786709. sd = 0.000000 across all 10; logits, predictions AND the full 100-epoch evaluation.tsv curve are byte-identical. NOTE the run executed on the epitkane cluster (node a6, Tesla P100) from repo source, NOT on Puhti under bioconda - relabel this tag or re-run before publishing it as the Puhti/bioconda row.",
+      "_result_note": "DONE 2026-08-07 (SLURM array 280085, 10/10 repeats). Best epoch 73. top1 0.851240 / top3 0.953168 / top5 0.986226 / weighted precision 0.860142 / weighted recall 0.851240 / weighted F1 0.847808 / macro F1 0.786709. sd = 0.000000 across all 10; logits, predictions AND the full 100-epoch evaluation.tsv curve are byte-identical. NOTE the run executed on an internal GPU node (Tesla P100) from repo source, NOT on Puhti under bioconda - relabel this tag or re-run before publishing it as the Puhti/bioconda row.",
       "mutation_type": "snv+mnv",
       "repeat_runs": 10,
       "label": "ckpt1",
@@ -164,7 +164,7 @@
       "description": "Checkpoint produced by experiment d1 (PCAWG-open, snv+mnv+pos+ges). This is the BEST-EPOCH checkpoint: upload d1_rep01_<arrayid>/best_ckpt.pthx renamed to d1.pthx.",
       "source": "zenodo",
       "url": "TODO",
-      "sha256": "TODO",
+      "sha256": "af1b265c31d8a5daa328433dcdf427a8ec3bddb843bb419552adc10c097c8664",
       "filename": "d1.pthx"
     },
     "d2_checkpoint": {
@@ -172,7 +172,7 @@
       "description": "ckpt2 - checkpoint produced by experiment d2 (same recipe and seed as d1, trained in the CSC Puhti CPU / docker environment). Published as cross-environment evidence; no other tag loads it. Upload the BEST-EPOCH best_ckpt.pthx renamed to d2.pthx.",
       "source": "zenodo",
       "url": "TODO",
-      "sha256": "TODO",
+      "sha256": "c2951be2705163a8a5da90fa6738d8403fce6180c0638bd514f0a7f57da867ab",
       "filename": "d2.pthx"
     },
     "d5_checkpoint": {
@@ -189,7 +189,7 @@
       "description": "ckpt1.zip - all 10 best-epoch checkpoints from the 10 repeats of d1, plus MANIFEST.tsv (per-repeat sha256 of the container and of the inner weight.pth) and README.md. Determinism evidence for the manuscript.",
       "source": "zenodo",
       "url": "TODO",
-      "sha256": "TODO",
+      "sha256": "6c13c3c6e0480a86e445e44c82853708eb8be07e9410b33fb31a0dcc9e5c8a58",
       "filename": "ckpt1.zip"
     },
     "d2_all_repeats": {
@@ -197,7 +197,7 @@
       "description": "ckpt2.zip - all 10 best-epoch checkpoints from the 10 repeats of d2 (CPU / docker arm), same format as ckpt1.zip.",
       "source": "zenodo",
       "url": "TODO",
-      "sha256": "TODO",
+      "sha256": "2ee6eeeabbda5b2cef6cf8759b3107b4846b3444bbb10ac95b98a47336b1e747",
       "filename": "ckpt2.zip"
     },
     "d5_all_repeats": {

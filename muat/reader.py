@@ -30,6 +30,33 @@ def require_annotation_tools():
             .format(', '.join(missing)))
 
 
+# bedmap silently returns no overlap (not an error) when its input isn't sorted in BEDOPS'
+# canonical chromosome order (1,10,11,...,19,2,20,...) -- plain numeric order (1,2,...,10,11)
+# looks fine to the eye but desyncs bedmap's sweep. The pipeline then reads that as "not in a
+# gene" and drops the row (see the isna() filters below), so a misordered track causes silent,
+# unbounded mutation loss with no error anywhere. Found via a public-hg38-demo sample that
+# came out of annotation with zero rows despite having 5 valid, in-gene variants; see
+# documentation/README_public_hg38.md. Checked once per file per process (memoized) since
+# `sort-bed --check-sort` reads the whole file.
+_VERIFIED_SORTED_BEDS = set()
+
+
+def require_sorted_bed(path):
+    if path in _VERIFIED_SORTED_BEDS:
+        return
+    result = subprocess.run(
+        "gunzip -c {} | sort-bed --check-sort -".format(path),
+        shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            "genomic track is not in BEDOPS canonical sort order (or contains a malformed "
+            "interval), so bedmap would silently drop overlaps against it instead of "
+            "erroring: {}\n--- sort-bed says ---\n{}\n"
+            "Fix with: gunzip -c {} | sort-bed - | bgzip -c > tmp.gz && mv tmp.gz {}"
+            .format(path, (result.stderr or result.stdout or '').strip(), path, path))
+    _VERIFIED_SORTED_BEDS.add(path)
+
+
 def run_bed_annotation(cmd, output_file, label):
     """Run the BED annotation helper and fail loudly.
 
@@ -341,6 +368,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
 
     if hg38_native:
         genic_regions_file = pkg_path('pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.genic.genomic.bed.gz')
+        require_sorted_bed(genic_regions_file)
     else:
         genic_regions_file = pkg_path('pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.genic.genomic.bed.gz')
     annotate_with_bed_sh = pkg_path('pkg_shell/annotate_mutations_with_bed.sh')
@@ -374,6 +402,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     output_exon = tmp_dir + sample_name + '.gc.genic.exonic.tsv.gz'
     if hg38_native:
         exonic_regions_file = pkg_path('pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.exons.genomic.bed.gz')
+        require_sorted_bed(exonic_regions_file)
     else:
         exonic_regions_file = pkg_path('pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.exons.genomic.bed.gz')
 
@@ -396,6 +425,7 @@ def process_input(vr, sample_name, ref_genome,tmp_dir,genome_ref38=None,liftover
     output_cs = tmp_dir + sample_name + ANNOTATED_SUFFIX
     if hg38_native:
         annotation = pkg_path('pkg_data/genomic_tracks/h38/Homo_sapiens.GRCh38.87.transcript_directionality.bed.gz')
+        require_sorted_bed(annotation)
     else:
         annotation = pkg_path('pkg_data/genomic_tracks/h37/Homo_sapiens.GRCh37.87.transcript_directionality.bed.gz')
 

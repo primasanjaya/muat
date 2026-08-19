@@ -62,7 +62,7 @@ if __name__ == "__main__":
     model = model.to(device)
     model.load_state_dict(checkpoint['weight'])
 
-    result_dir = '/csc/epitkane/projects/github/muat/data/results/'
+    result_dir = 'data/results/'
     predict_config = PredictorConfig(max_epochs=1, batch_size=1,result_dir=result_dir,target_handler=target_handler)
     predictor = Predictor(model, test_dataloader, predict_config)
 
