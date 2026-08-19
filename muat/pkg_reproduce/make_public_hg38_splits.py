@@ -67,7 +67,10 @@ def _write_split(path, members, class_index, tokenized_dir):
         w = csv.writer(fh, delimiter="\t")
         w.writerow(["prep_path", "class_name", "class_index"])
         for r in members:
-            prep_path = os.path.join(tokenized_dir, r["sample_id"] + ".muat.tsv")
+            # Absolute regardless of --tokenized-dir: muat train/predict are typically
+            # invoked from a neutral directory (to avoid shadowing an installed package
+            # with repo source), so a relative path here would silently fail to resolve.
+            prep_path = os.path.abspath(os.path.join(tokenized_dir, r["sample_id"] + ".muat.tsv"))
             w.writerow([prep_path, r["project"], class_index[r["project"]]])
     return path
 

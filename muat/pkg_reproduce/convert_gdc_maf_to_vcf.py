@@ -98,7 +98,10 @@ def main():
     for m in manifest:
         maf_path = os.path.join(args.maf_dir, m["file_id"] + ".maf.gz")
         sample_id = m["submitter_id"].replace(":", "_")
-        out_path = os.path.join(args.out_dir, sample_id + ".vcf")
+        # Absolute, regardless of --out-dir: muat train/predict are typically invoked from a
+        # neutral directory (to avoid shadowing an installed package with repo source), so a
+        # relative path recorded here would silently fail to resolve at train/predict time.
+        out_path = os.path.abspath(os.path.join(args.out_dir, sample_id + ".vcf"))
         stats, n_rows = convert_one(maf_path, out_path)
         for i in range(4):
             totals[i] += stats[i]
