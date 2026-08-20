@@ -10,7 +10,21 @@ import numpy as np
 import math
 import pickle
 import random
+import zlib
 from sklearn.utils import shuffle
+
+
+def _sample_seed(*parts):
+    """A random_state for pandas .sample() derived only from `parts` (e.g. the
+    sample's own path and a mutation-type key), so a given sample+key always draws
+    the identical subsample regardless of when/how many other draws happened first
+    in this process. Plain ambient-RNG .sample() calls are call-order dependent --
+    that's why training's internal validation (deep into an epoch loop) and a fresh
+    `predict` call on the same checkpoint used to draw different 5000-mutation
+    subsamples for the same sample and disagree, even though both are individually
+    reproducible run-to-run."""
+    key = '|'.join(str(p) for p in parts)
+    return zlib.crc32(key.encode()) & 0xffffffff
 
 class DataloaderConfig:
     def __init__(
@@ -155,14 +169,16 @@ class MuAtDataloader(Dataset):
 
         for key, value in avail_count.items():
             if value > 0:
-                pd_samp = pd_row[pd_row['mut_type'] == key][grab_col].sample(n=value, replace=False)
+                pd_samp = pd_row[pd_row['mut_type'] == key][grab_col].sample(
+                    n=value, replace=False, random_state=_sample_seed(sample_path, key))
                 pd_sampling = pd.concat([pd_sampling, pd_samp], ignore_index=True)
-        
+
         # Handle padding
         if self.sampling_replacement:
             np_triplettoken = pd_sampling.to_numpy()
             mins = self.mutation_sampling_size - len(np_triplettoken)
-            pd_rest_sampling = pd_sampling.sample(n=mins, replace=True)
+            pd_rest_sampling = pd_sampling.sample(
+                n=mins, replace=True, random_state=_sample_seed(sample_path, 'pad'))
             pd_sampling = pd.concat([pd_sampling, pd_rest_sampling], ignore_index=True)
             datanumeric = torch.tensor(pd_sampling.to_numpy().T, dtype=torch.long)
         else:
