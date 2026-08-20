@@ -1,6 +1,7 @@
 import sys
 import os
 import re
+import json
 import tarfile
 import zipfile
 import glob
@@ -178,6 +179,19 @@ def _run_predict(args, device):
                 dict_pos=dict_pos,
                 dict_ges=dict_ges
             )
+        elif getattr(checkpoint.get('dataloader_config'), 'genome_build_mode', 'hg19') == 'hg38_native':
+            # Checkpoint's own position/GES dictionaries were built from native
+            # hg38 coordinates (no liftover) -- tokenize raw hg38 input the same
+            # way, or every position/GES lookup is against the wrong coordinate
+            # system.
+            preprocessing_vcf38_native_tokenizing(
+                vcf_file=vcf_files,
+                genome_reference_38_path=resolve_path(args.hg38),
+                tmp_dir=tmp_dir,
+                dict_motif=dict_motif,
+                dict_pos=dict_pos,
+                dict_ges=dict_ges
+            )
         else:
             preprocessing_vcf38_tokenizing(
                 vcf_file=vcf_files,
@@ -273,6 +287,17 @@ def _run_predict_ensemble(args, device):
                     preprocessing_vcf_tokenizing(
                         vcf_file=vcf_files,
                         genome_reference_path=resolve_path(args.hg19),
+                        tmp_dir=tmp_dir,
+                        dict_motif=dict_motif,
+                        dict_pos=dict_pos,
+                        dict_ges=dict_ges
+                    )
+                elif getattr(checkpoint.get('dataloader_config'), 'genome_build_mode', 'hg19') == 'hg38_native':
+                    # See _run_predict: checkpoints trained on native hg38
+                    # dictionaries must be tokenized without a liftover step.
+                    preprocessing_vcf38_native_tokenizing(
+                        vcf_file=vcf_files,
+                        genome_reference_38_path=resolve_path(args.hg38),
                         tmp_dir=tmp_dir,
                         dict_motif=dict_motif,
                         dict_pos=dict_pos,
@@ -517,6 +542,17 @@ def _run_train_from_scratch(args):
     pos_path = resolve_path(args.position_dictionary_filepath) or f"{extdir}/dictChpos.tsv"
     ges_path = resolve_path(args.ges_dictionary_filepath) or f"{extdir}/dictGES.tsv"
 
+    # `preprocess --build-dictionary` records how the position dictionary's coordinates
+    # were built (native hg38, or hg19/lifted-to-hg19) in a sidecar next to it -- read it
+    # here so the checkpoint carries it automatically, with no extra flag for the user to
+    # remember. Absent for the shipped default dictionary or any dictionary built before
+    # this sidecar existed, both of which are 'hg19' (today's only prior behaviour).
+    genome_build_mode = 'hg19'
+    pos_sidecar = pos_path[:-len('.tsv')] + '.genome_build_mode.json' if pos_path.endswith('.tsv') else None
+    if pos_sidecar and os.path.exists(pos_sidecar):
+        with open(pos_sidecar) as f:
+            genome_build_mode = json.load(f).get('genome_build_mode', 'hg19')
+
     save_dir = ensure_dirpath(resolve_path(args.save_dir))
     os.makedirs(save_dir, exist_ok=True)
 
@@ -626,13 +662,15 @@ def _run_train_from_scratch(args):
         model_input=model_config.model_input,
         mutation_type_ratio=model_config.mutation_type_ratio,
         mutation_sampling_size=args.mutation_sampling_size,
-        sampling_replacement=args.sampling_replacement
+        sampling_replacement=args.sampling_replacement,
+        genome_build_mode=genome_build_mode
     )
     test_dataloader_config = DataloaderConfig(
         model_input=model_config.model_input,
         mutation_type_ratio=model_config.mutation_type_ratio,
         mutation_sampling_size=args.mutation_sampling_size,
-        sampling_replacement=args.sampling_replacement
+        sampling_replacement=args.sampling_replacement,
+        genome_build_mode=genome_build_mode
     )
 
     train_dataloader = MuAtDataloader(train_split, train_dataloader_config)
@@ -940,6 +978,16 @@ def main():
         if build_dict:
             # The annotated corpus now exists in tmp_dir; derive the vocabulary from it and
             # tokenize in the same pass, so the tokens and the dictionaries cannot disagree.
+            # `--annotated` (the --preannotated resume route) has no --hg19/--hg38 of its own --
+            # the reference choice was made in a prior `annotate` run this invocation never
+            # sees -- so genome_build_mode can't be derived here and is left unset (train
+            # falls back to 'hg19', today's only prior behaviour, for that route).
+            if args.annotated:
+                genome_build_mode = None
+            elif args.hg38 is not None:
+                genome_build_mode = 'hg19' if args.liftover else 'hg38_native'
+            else:
+                genome_build_mode = 'hg19'
             from .dictionary import build_dictionaries
             built = build_dictionaries(
                 # --annotated: the inputs themselves are the corpus, and they may live in
@@ -954,6 +1002,7 @@ def main():
                 # `build-dictionary` as a standalone stage stops at the dictionaries; the
                 # tokenizing is then a separate (parallelisable) `tokenize` run.
                 tokenize_to=tmp_dir if tokenize_after_build else None,
+                genome_build_mode=genome_build_mode,
             )
             if not tokenize_after_build:
                 print('\nNow tokenize with them:')

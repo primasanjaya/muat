@@ -318,6 +318,11 @@ def _backfill_config_defaults(checkpoint):
     dc = checkpoint.get('dataloader_config')
     if dc is not None and not hasattr(dc, 'sampling_replacement'):
         dc.sampling_replacement = False
+    if dc is not None and not hasattr(dc, 'genome_build_mode'):
+        # Every checkpoint predating this field was trained on hg19-coordinate
+        # dictionaries, so `predict --hg38` must keep lifting to hg19 (the only
+        # behaviour that existed before hg38_native support was added).
+        dc.genome_build_mode = 'hg19'
     return checkpoint
 
 

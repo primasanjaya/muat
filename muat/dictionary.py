@@ -26,6 +26,7 @@ and fully sorted.
 
 import os
 import glob as _glob
+import json
 
 import pandas as pd
 
@@ -278,10 +279,18 @@ def _shipped(name):
 def build_dictionaries(data_dir=None, out_dir=None, pos_bin_size=DEFAULT_POS_BIN_SIZE,
                        which=('pos', 'motif', 'ges'), pattern=ANNOTATED_GLOB,
                        suffix='', mut_type_from=None, tokenize_to=None,
-                       motif_labels='inherit', files=None, verbose=True):
+                       motif_labels='inherit', files=None, verbose=True,
+                       genome_build_mode=None):
     """Build the requested dictionaries from the annotated files in data_dir.
 
     Writes dict{Chpos,Mutation,GES}<suffix>.tsv into out_dir; returns {kind: path}.
+
+    When a position dictionary is written and `genome_build_mode` is given ('hg19' or
+    'hg38_native'), it is also recorded in a `dictChpos<suffix>.genome_build_mode.json`
+    sidecar next to it. `train from-scratch` reads that sidecar (falling back to 'hg19'
+    when absent, e.g. for the shipped default dictionary) so it can stamp the checkpoint
+    with how its position tokens were built -- `predict --hg38` needs that to know
+    whether to lift raw hg38 input to hg19 first, or tokenize it natively.
 
     With tokenize_to set, the same corpus is then tokenized into that directory using the
     dictionaries just built (falling back to the shipped ones for any kind not rebuilt).
@@ -346,6 +355,12 @@ def build_dictionaries(data_dir=None, out_dir=None, pos_bin_size=DEFAULT_POS_BIN
         written['pos'] = p
         if verbose:
             print(f"  wrote {p}  ({len(rows)} tokens)")
+        if genome_build_mode is not None:
+            sidecar = p[:-len('.tsv')] + '.genome_build_mode.json'
+            with open(sidecar, 'w') as f:
+                json.dump({'genome_build_mode': genome_build_mode}, f)
+            if verbose:
+                print(f"  wrote {sidecar}  (genome_build_mode={genome_build_mode})")
     if 'motif' in which:
         p = os.path.join(out_dir, f'dictMutation{suffix}.tsv')
         rows, unlabelled, derived, conflicts = _write_motif(
