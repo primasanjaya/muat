@@ -658,19 +658,27 @@ def _run_train_from_scratch(args):
 
     model = get_model(arch, model_config)
 
+    # Reuses the same --seed already passed to TrainerConfig above (no new flag).
+    # None means unseeded -> the dataloader samples genuinely randomly; an int means
+    # every over-cap sample's subsample is deterministic for that seed, and since it's
+    # saved into the checkpoint's dataloader_config, a later `predict` against this
+    # checkpoint reproduces the identical draw automatically.
+    dataloader_seed = getattr(args, 'seed', None)
     train_dataloader_config = DataloaderConfig(
         model_input=model_config.model_input,
         mutation_type_ratio=model_config.mutation_type_ratio,
         mutation_sampling_size=args.mutation_sampling_size,
         sampling_replacement=args.sampling_replacement,
-        genome_build_mode=genome_build_mode
+        genome_build_mode=genome_build_mode,
+        seed=dataloader_seed
     )
     test_dataloader_config = DataloaderConfig(
         model_input=model_config.model_input,
         mutation_type_ratio=model_config.mutation_type_ratio,
         mutation_sampling_size=args.mutation_sampling_size,
         sampling_replacement=args.sampling_replacement,
-        genome_build_mode=genome_build_mode
+        genome_build_mode=genome_build_mode,
+        seed=dataloader_seed
     )
 
     train_dataloader = MuAtDataloader(train_split, train_dataloader_config)

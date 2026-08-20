@@ -323,6 +323,13 @@ def _backfill_config_defaults(checkpoint):
         # dictionaries, so `predict --hg38` must keep lifting to hg19 (the only
         # behaviour that existed before hg38_native support was added).
         dc.genome_build_mode = 'hg19'
+    if dc is not None and not hasattr(dc, 'seed'):
+        # Checkpoints predating deterministic per-sample subsampling never recorded a
+        # dataloader seed -- default to None (ambient-RNG sampling), matching the only
+        # behaviour that existed before this field was added. A None here means predict
+        # against an old checkpoint stays exactly as reproducible/unreproducible as it
+        # always was; it does not retroactively make anything MORE random.
+        dc.seed = None
     return checkpoint
 
 

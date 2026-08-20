@@ -15,14 +15,17 @@ from sklearn.utils import shuffle
 
 
 def _sample_seed(*parts):
-    """A random_state for pandas .sample() derived only from `parts` (e.g. the
-    sample's own path and a mutation-type key), so a given sample+key always draws
-    the identical subsample regardless of when/how many other draws happened first
-    in this process. Plain ambient-RNG .sample() calls are call-order dependent --
-    that's why training's internal validation (deep into an epoch loop) and a fresh
-    `predict` call on the same checkpoint used to draw different 5000-mutation
-    subsamples for the same sample and disagree, even though both are individually
-    reproducible run-to-run."""
+    """A random_state for pandas .sample() derived only from `parts` (typically the
+    run's seed, the sample's own path, and a mutation-type key), so a given
+    seed+sample+key always draws the identical subsample regardless of when/how many
+    other draws happened first in this process. Plain ambient-RNG .sample() calls are
+    call-order dependent -- that's why training's internal validation (deep into an
+    epoch loop) and a fresh `predict` call on the same checkpoint used to draw
+    different 5000-mutation subsamples for the same sample and disagree, even though
+    both are individually reproducible run-to-run. Folding the seed itself in (rather
+    than ignoring it) means different seeds genuinely draw different subsamples, so
+    an unseeded run and a seeded one -- or two different seeds -- are not silently
+    forced onto the same sampling."""
     key = '|'.join(str(p) for p in parts)
     return zlib.crc32(key.encode()) & 0xffffffff
 
@@ -167,18 +170,32 @@ class MuAtDataloader(Dataset):
         if self.model_input['ges']:
             grab_col.append('gestoken')
 
+        # A seed on the config makes sampling deterministic per (seed, sample, key) --
+        # reproducible across processes (e.g. predict matching training's own
+        # validation draw for the same checkpoint). No seed (unseeded runs) means
+        # genuinely random: draws from pandas' ambient RNG state as before, varying
+        # call to call, exactly like an unseeded run should.
+        run_seed = getattr(self.config, 'seed', None)
+
         for key, value in avail_count.items():
             if value > 0:
-                pd_samp = pd_row[pd_row['mut_type'] == key][grab_col].sample(
-                    n=value, replace=False, random_state=_sample_seed(sample_path, key))
+                subset = pd_row[pd_row['mut_type'] == key][grab_col]
+                if run_seed is not None:
+                    pd_samp = subset.sample(n=value, replace=False,
+                                             random_state=_sample_seed(run_seed, sample_path, key))
+                else:
+                    pd_samp = subset.sample(n=value, replace=False)
                 pd_sampling = pd.concat([pd_sampling, pd_samp], ignore_index=True)
 
         # Handle padding
         if self.sampling_replacement:
             np_triplettoken = pd_sampling.to_numpy()
             mins = self.mutation_sampling_size - len(np_triplettoken)
-            pd_rest_sampling = pd_sampling.sample(
-                n=mins, replace=True, random_state=_sample_seed(sample_path, 'pad'))
+            if run_seed is not None:
+                pd_rest_sampling = pd_sampling.sample(
+                    n=mins, replace=True, random_state=_sample_seed(run_seed, sample_path, 'pad'))
+            else:
+                pd_rest_sampling = pd_sampling.sample(n=mins, replace=True)
             pd_sampling = pd.concat([pd_sampling, pd_rest_sampling], ignore_index=True)
             datanumeric = torch.tensor(pd_sampling.to_numpy().T, dtype=torch.long)
         else:
