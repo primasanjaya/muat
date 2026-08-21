@@ -81,12 +81,18 @@ class MuAtDataloader(Dataset):
     def count_ratio(self,pd_row):
         row_count_init = {'SNV':0,'MNV':0,'indel':0,'SV/MEI':0,'Neg':0}
         count = pd_row.groupby('mut_type').size().to_dict()
+        # mut_type values are the literal strings 'SV'/'MEI' (see reader.py's
+        # Variant.SV_TYPES/MEI_TYPES), not 'SV/MEI' -- assigning row_count_init[key]
+        # unconditionally for those two would silently ADD stray extra dict keys
+        # ('SV', 'MEI') alongside the intended 'SV/MEI' bucket, growing this dict from
+        # 5 to 6 entries and breaking the array arithmetic below. Never triggered before
+        # because no preprocessed data had real SV/MEI mut_type values until the
+        # d1_snvmnvindelsv tag.
         for key,value in count.items():
-            row_count_init[key] = value
-            if key == 'SV':
+            if key in ('SV', 'MEI'):
                 row_count_init['SV/MEI'] += value
-            elif key == 'MEI':
-                row_count_init['SV/MEI'] += value
+            else:
+                row_count_init[key] = value
 
         mut_ratio = np.array(list(self.mutation_type_ratio.values()))
         avail_count = mut_ratio * self.mutation_sampling_size   
@@ -179,7 +185,17 @@ class MuAtDataloader(Dataset):
 
         for key, value in avail_count.items():
             if value > 0:
-                subset = pd_row[pd_row['mut_type'] == key][grab_col]
+                # 'SV/MEI' is a combined bucket (see count_ratio()) -- the mut_type
+                # column itself never contains that literal string, only 'SV'/'MEI'
+                # separately (reader.py's Variant.SV_TYPES/MEI_TYPES), so an exact-match
+                # filter here would silently select zero rows and crash .sample() below
+                # with "a must be greater than 0". Never triggered before because no
+                # preprocessed data had real SV/MEI mut_type values until this tag.
+                if key == 'SV/MEI':
+                    row_mask = pd_row['mut_type'].isin(['SV', 'MEI'])
+                else:
+                    row_mask = pd_row['mut_type'] == key
+                subset = pd_row[row_mask][grab_col]
                 if run_seed is not None:
                     pd_samp = subset.sample(n=value, replace=False,
                                              random_state=_sample_seed(run_seed, sample_path, key))
