@@ -1,0 +1,57 @@
+name: muat-cpu-v0.1.26
+# Exact CPU environment used to run the Group D reproducibility experiments (d2,
+# d2_snvmnvindelsv, d4, d4_snvmnvindelsv) against muat 0.1.26. This is the same
+# dependency solve packaged into the custom-built `muat_0.1.26_cpu.sif` singularity
+# container (built from this repo's Dockerfile/muat-env.yml on a machine with a
+# real Docker daemon, since this cluster has no working docker/fakeroot -- see
+# `muat-env.yml`'s own header for why the container route was needed at all), with
+# muat=0.1.26 installed on top exactly as verified here.
+#
+# Pairs with `muat-env-gpu-v0.1.26.yml`: identical muat/python/numpy/pandas/
+# scikit-learn versions, the ONLY difference is the pytorch build (cpu_mkl vs
+# cuda120) -- so any result difference between the two environments is
+# attributable to device/build alone, not to an incidental version drift.
+#
+# Verified two independent ways, same as the GPU file:
+#   1. Docker image built from muat-env.yml + `pip install --no-deps` from the
+#      v0.1.26 GitHub tag tarball -- this is what actually produced the
+#      packaged .sif container the CPU reproduce runs execute against.
+#   2. A plain conda env solved from muat-env.yml (CONDA_OVERRIDE_CUDA= to force
+#      the CPU build) with muat installed straight from the bioconda channel --
+#      resolved the exact same pytorch/numpy/pandas/scikit-learn build strings,
+#      confirming the container's pip-tarball install is not a hidden confound.
+#
+# Every dependency is pinned to the EXACT build string solved above, not just the
+# version number, so `mamba env create -f muat-env-cpu-v0.1.26.yml` reproduces the
+# tested environment bit-for-bit rather than whatever conda-forge/bioconda solve
+# to on a later date.
+#
+# To build this where the sandboxed glibc masks the true host version (verify
+# with `ldd --version`; this cluster's real host is CentOS 7 / glibc 2.17):
+#   CONDA_OVERRIDE_GLIBC=2.17 mamba env create -f muat-env-cpu-v0.1.26.yml
+# No CONDA_OVERRIDE_CUDA is needed here -- unlike the CUDA build, the CPU pytorch
+# build only requires glibc >=2.17, so it is not gated on the GPU virtual package.
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python=3.9.23=hc30ae73_0_cpython
+  - muat=0.1.26=pyh106432d_0
+  - pytorch=2.5.1=cpu_mkl_py39_h92ffbb0_117
+  - numpy=2.0.2=py39h9cb892a_1
+  - pandas=2.3.1=py39h1b6b32d_0
+  - scikit-learn=1.6.1=py39h4b7350c_0
+  - natsort=8.4.0=pyhcf101f3_2
+  - tqdm=4.67.1=pyhd8ed1ab_1
+  - requests=2.32.5=pyhd8ed1ab_0
+  - boto3=1.40.13=pyhd8ed1ab_0
+  - openpyxl=3.1.5=py39h79730dd_1
+  - pyliftover=0.4.1=pyh7e72e81_0
+  # Command-line tools needed by muat/pkg_shell/annotate_mutations_with_bed.sh
+  # (bedtools, bgzip) and the VCF/BED preprocessing path.
+  - bcftools=1.24=h118bc1c_2
+  - bedops=2.4.42=hd6d6fdc_1
+  - bedtools=2.31.1=h13024bc_3
+  - htslib=1.24=ha79157c_0
+  - swalign=0.3.7=pyhdfd78af_0

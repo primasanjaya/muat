@@ -1,0 +1,55 @@
+name: muat-gpu-v0.1.26
+# Exact GPU environment used to run the Group D reproducibility experiments (d1,
+# d1_snvmnvindelsv, d3, d3_snvmnvindelsv) against muat 0.1.26, verified two
+# independent ways:
+#   1. muat installed via `pip install --no-deps` from the v0.1.26 GitHub tag
+#      tarball (env `muat-d1c26`) -- this is what actually produced the reported
+#      checkpoints/numbers.
+#   2. muat installed straight from the bioconda channel (env `muat-bioconda026`,
+#      built AFTER the 0.1.26 bioconda recipe merged) -- every other package below
+#      resolved byte-for-byte identical, confirming the pip-tarball install was
+#      never a hidden confound.
+#
+# Every dependency is pinned to the EXACT build string solved above, not just the
+# version number, so `mamba env create -f muat-env-gpu-v0.1.26.yml` reproduces the
+# tested environment bit-for-bit rather than whatever conda-forge/bioconda solve
+# to on a later date. (Contrast with `muat-env.yml`, which pins versions only and
+# deliberately omits muat -- it backs the Dockerfile, which needs one recipe to
+# yield either a CUDA or CPU build via CONDA_OVERRIDE_CUDA.)
+#
+# torch 2.5.1 is a hard ceiling on this cluster's CentOS 7 / glibc 2.17 host: any
+# CUDA pytorch build newer than 2.5.1 requires glibc >=2.28 and will not solve.
+#
+# To build this on a login/head node with no GPU attached (conda otherwise refuses
+# every CUDA package with "requires __cuda, which is missing on the system"), and
+# if that node's real glibc is masked by a container runtime reporting something
+# newer than the true host (verify with `ldd --version`):
+#   CONDA_OVERRIDE_CUDA=12.0 CONDA_OVERRIDE_GLIBC=2.17 \
+#     mamba env create -f muat-env-gpu-v0.1.26.yml
+# On a node where conda can see the real driver/GPU, drop both overrides.
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python=3.9.23=hc30ae73_0_cpython
+  - muat=0.1.26=pyh106432d_0
+  - pytorch=2.5.1=cuda120_py39hfb32a81_303
+  - pytorch-gpu=2.5.1=cuda126hf7c78f0_303
+  - cuda-version=12.0
+  - numpy=2.0.2=py39h9cb892a_1
+  - pandas=2.3.1=py39h1b6b32d_0
+  - scikit-learn=1.6.1=py39h4b7350c_0
+  - natsort=8.4.0=pyhcf101f3_2
+  - tqdm=4.67.1=pyhd8ed1ab_1
+  - requests=2.32.5=pyhd8ed1ab_0
+  - boto3=1.40.13=pyhd8ed1ab_0
+  - openpyxl=3.1.5=py39h79730dd_1
+  - pyliftover=0.4.1=pyh7e72e81_0
+  # Command-line tools needed by muat/pkg_shell/annotate_mutations_with_bed.sh
+  # (bedtools, bgzip) and the VCF/BED preprocessing path.
+  - bcftools=1.24=h118bc1c_2
+  - bedops=2.4.42=hd6d6fdc_1
+  - bedtools=2.31.1=h13024bc_3
+  - htslib=1.24=ha79157c_0
+  - swalign=0.3.7=pyhdfd78af_0
