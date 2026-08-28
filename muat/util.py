@@ -223,6 +223,11 @@ def get_main_args():
         p.add_argument("--relu", action="store_true",
                        help='Apply ReLU to saved features. By default, features are '
                             'pre-ReLU (raw Linear output). Logits/predictions are unchanged.')
+        p.add_argument('--seed', type=int, default=None,
+                       help='Random seed (Python/NumPy/PyTorch + cuDNN deterministic). '
+                            'Needed for repeat-run determinism checks: predict resamples '
+                            'mutations the same way training does when a sample exceeds '
+                            'the checkpoint\'s mutation_sampling_size. Default: unseeded.')
 
     # predict: single-model prediction.
     # Two sources: 'pretrained' (downloads benchmark) and 'from-checkpoint' (user .pthx).

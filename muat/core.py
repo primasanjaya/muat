@@ -756,10 +756,14 @@ def main():
         return
 
     if args.command == 'predict':
+        if getattr(args, 'seed', None) is not None:
+            set_seed(args.seed)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         _run_predict(args, device)
 
     elif args.command == 'predict-ensemble':
+        if getattr(args, 'seed', None) is not None:
+            set_seed(args.seed)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         _run_predict_ensemble(args, device)
 
