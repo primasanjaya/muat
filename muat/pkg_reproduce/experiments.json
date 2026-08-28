@@ -43,6 +43,132 @@
       "environment": "CSC Puhti GPU bioconda"
     },
 
+    "d1_snvmnvindelsv": {
+      "group": "D",
+      "access": "local-only",
+      "mode": "train",
+      "purpose": "Same cohort/split/hyperparameters/seed as d1, but trained on SNV+MNV+indel+SV instead of d1's SNV+MNV-only -- d1's own bundle has zero indel/SV/MEI data (verified), so this is a NEW tag with real richer data, not a modification of d1. No MEI: no such data exists for this cohort (checked -- BEDPE svclass values are only DEL/DUP/TRA/INV variants, and no separate MEI/retrotransposon callset exists). Neg deliberately left out (a separate synthetic-sampling design, not derived from real variant files -- may be added as its own tag later).",
+      "_data_note": "SNV+MNV+indel are real PCAWG consensus calls (data/PCAWG/consensus_snv_indel/.../{snv_mnv,indel}). SV is synthesized from the consensus BEDPE files (data/PCAWG/consensus_sv/icgc/open) via muat/pkg_reproduce/make_snvmnvindelsv_vcfs.py -- each BEDPE row becomes two synthetic VCF SV-breakend records (one per breakpoint side), which the EXISTING, UNMODIFIED VCFReader already parses via its SVCLASS INFO tag (no muat code was changed). Tokenized with the shipped default dictionaries (NOT rebuilt) -- coverage verified: position/ges 100% mapped, motif 99.99% mapped (1300/21,678,396 rows, novel indel-context motifs).",
+      "_split_note": "Reuses d1's own class_name/class_index directly (NOT re-derived from the PCAWG histology file, which disagrees with d1's labels on 7 samples -- a pre-existing minor metadata inconsistency, not fixed here). Split is d1's own 1449/363 partition minus the 18 samples (15 train + 3 val) with no SV data -- see make_d1_snvmnvindelsv_split.py.",
+      "mutation_type": "snv+mnv+indel+svmei",
+      "repeat_runs": 10,
+      "label": "ckpt1",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "splits/pcawg_orig_snvmnvindelsv_train.tsv",
+        "val": "splits/pcawg_orig_snvmnvindelsv_val.tsv"
+      },
+      "data_bundle": "pcawg_full_mutations_preprocessed",
+      "reference": "hg19",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "d1_snvmnvindelsv_checkpoint",
+      "environment": "CSC Puhti GPU bioconda (same as d1 -- muat-d1c26)"
+    },
+
+    "d2_snvmnvindelsv": {
+      "group": "D",
+      "access": "local-only",
+      "mode": "train",
+      "purpose": "Same as d1_snvmnvindelsv (SNV+MNV+indel+SV, same cohort/split/hyperparameters/seed), DIFFERENT environment (CPU / custom-built container) -- mirrors how d2 relates to d1. Identical data_bundle/splits to d1_snvmnvindelsv; only device+install-mechanism differ.",
+      "mutation_type": "snv+mnv+indel+svmei",
+      "repeat_runs": 10,
+      "label": "ckpt2_snvmnvindelsv",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "splits/pcawg_orig_snvmnvindelsv_train.tsv",
+        "val": "splits/pcawg_orig_snvmnvindelsv_val.tsv"
+      },
+      "data_bundle": "pcawg_full_mutations_preprocessed",
+      "reference": "hg19",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "d2_snvmnvindelsv_checkpoint",
+      "environment": "CSC Puhti CPU docker (custom-built image, matching d2's own switch away from BioContainers -- see run_reproduce_d2_x10.sbatch)"
+    },
+
+    "d3_snvmnvindelsv": {
+      "group": "D",
+      "access": "local-only",
+      "mode": "predict",
+      "purpose": "Inference-run reproducibility for d1_snvmnvindelsv, SAME environment (GPU / bioconda-stack). Loads d1_snvmnvindelsv's checkpoint and predicts the snvmnvindelsv val split 10x under seed 1337. Mirrors d3's relationship to d1.",
+      "mutation_type": "snv+mnv+indel+svmei",
+      "checkpoint": "d1_snvmnvindelsv_checkpoint",
+      "splits": { "test": "splits/pcawg_orig_snvmnvindelsv_val.tsv" },
+      "data_bundle": "pcawg_full_mutations_preprocessed",
+      "reference": "hg19",
+      "repeat": 10,
+      "assert_identical": true,
+      "environment": "CSC Puhti GPU bioconda (same as d1_snvmnvindelsv -- muat-d1c26)"
+    },
+
+    "d4_snvmnvindelsv": {
+      "group": "D",
+      "access": "local-only",
+      "mode": "predict",
+      "purpose": "Inference-run reproducibility for d1_snvmnvindelsv, DIFFERENT environment (CPU / custom-built container). Same checkpoint, same seed, same split as d3_snvmnvindelsv; only the environment differs. Mirrors d4's relationship to d1/d3.",
+      "mutation_type": "snv+mnv+indel+svmei",
+      "checkpoint": "d1_snvmnvindelsv_checkpoint",
+      "splits": { "test": "splits/pcawg_orig_snvmnvindelsv_val.tsv" },
+      "data_bundle": "pcawg_full_mutations_preprocessed",
+      "reference": "hg19",
+      "repeat": 10,
+      "assert_identical": true,
+      "environment": "CSC Puhti CPU docker (custom-built image, same as d2_snvmnvindelsv)"
+    },
+
+    "d7_snvmnvindelsv": {
+      "group": "D",
+      "access": "local-only",
+      "mode": "predict",
+      "purpose": "Cross-OS/cross-architecture portability check for d1_snvmnvindelsv, answering R1-major-2/R2-5 (systematic reproducibility/portability evaluation across different computational architectures and operating environments -- every other tag in this matrix runs on the same HPC cluster, varying only device/install-method). Same checkpoint (d1_run1.pthx from ckpt1.zip) and same 360-sample val split as d3_snvmnvindelsv/d4_snvmnvindelsv, but executed on a genuinely different machine: a personal macOS laptop (Apple M4 Pro, arm64) via Docker, NOT the cluster.",
+      "_not_via_reproduce_note": "NOT runnable through `muat reproduce` or on this cluster at all -- must be run on the target machine directly with `docker build`/`docker run` (see run_d7_mac.sh, kept outside the repo since it references a local, machine-specific transfer layout). This entry documents the recipe/decision in the same ledger as every other tag.",
+      "_result_note": "NOT YET RUN. Plan: single run (no --seed, no 10x repeat -- this checks cross-platform AGREEMENT, not repeat-run determinism, so one execution suffices), --platform linux/amd64 (matches the already-built/tested image, runs via Rosetta 2 emulation on Apple Silicon) as the first pass; optionally also --platform linux/arm64 (native build) as a stronger, second data point if time allows. Compare the resulting prediction_first_logits.tsv against d3_snvmnvindelsv's known result (top1 accuracy 0.8638888888888889, data/results_d_same/d3/) -- expect close AGREEMENT, not necessarily bit-identity (different OS/BLAS/possible emulation).",
+      "mutation_type": "snv+mnv+indel+svmei",
+      "checkpoint": "d1_snvmnvindelsv_checkpoint",
+      "splits": { "test": "splits/pcawg_orig_snvmnvindelsv_val.tsv" },
+      "data_bundle": "pcawg_full_mutations_preprocessed",
+      "reference": "hg19",
+      "repeat": 1,
+      "assert_identical": false,
+      "environment": "Personal macOS (Apple M4 Pro) via Docker -- NOT the CSC cluster"
+    },
+
+    "d8_snvmnvindelsv": {
+      "group": "D",
+      "access": "local-only",
+      "mode": "predict",
+      "purpose": "Same portability check as d7_snvmnvindelsv, on Windows (via Docker Desktop / WSL2) instead of macOS -- the third operating environment in the matrix.",
+      "_not_via_reproduce_note": "Same as d7_snvmnvindelsv.",
+      "_result_note": "NOT YET RUN. Blocked on access to Windows hardware (none used yet this session). Same plan as d7_snvmnvindelsv otherwise: single run, --platform linux/amd64, compare against d3_snvmnvindelsv's known result.",
+      "mutation_type": "snv+mnv+indel+svmei",
+      "checkpoint": "d1_snvmnvindelsv_checkpoint",
+      "splits": { "test": "splits/pcawg_orig_snvmnvindelsv_val.tsv" },
+      "data_bundle": "pcawg_full_mutations_preprocessed",
+      "reference": "hg19",
+      "repeat": 1,
+      "assert_identical": false,
+      "environment": "Windows via Docker Desktop/WSL2 -- NOT the CSC cluster"
+    },
+
     "d2": {
       "group": "D",
       "access": "open",
@@ -155,17 +281,112 @@
       "repeat": 10,
       "assert_identical": true,
       "environment": "CSC Puhti GPU bioconda"
+    },
+
+    "d5_pubhg38": {
+      "group": "D",
+      "access": "local-only",
+      "mode": "train",
+      "_not_via_reproduce_note": "NOT runnable through `muat reproduce` -- this schema has no field for per-tag custom dictionaries, and this recipe needs its own (dictMutation_pubhg38.tsv / dictChpos_pubhg38.tsv / dictGES_pubhg38.tsv, not the shipped defaults). Run via run_reproduce_d5_pubhg38_x10.sbatch instead, which calls `muat train from-scratch` directly. This entry exists only so the recipe/decision is documented in the same ledger as every other tag.",
+      "purpose": "REPLACES the old (never-runnable) d5 idea of training on hg38-native PCAWG (see d5's own _hg38_note - that data was never re-preprocessed and would have been a much larger job than d1-d4 combined). Reuses the already-working public GDC hg38 demo cohort instead: 6 TCGA WES cancer types, 590 samples, native hg38, SNV+motif+position+ges. Same seed 1337, trained 10x. Produces the checkpoint d6_pubhg38 loads.",
+      "_result_note": "A single (unseeded-in-practice-but-default-1337) run of this exact recipe already completed once, BEFORE the mutation-sampling-determinism fix (v0.1.26) existed: data/hg38_public_demo/model/best_ckpt.pthx (job 280421), val top1 0.7753 / test top1 0.7386. Left untouched as a historical reference; d5_pubhg38's 10 repeats write to fresh data/reproduce_results/d5_pubhg38_repNN_<jobid>/ dirs and re-train with the fixed code.",
+      "mutation_type": "snv",
+      "repeat_runs": 10,
+      "label": "ckpt_pubhg38",
+      "genome_build_mode": "hg38_native",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "data/hg38_public_demo/train_split.tsv",
+        "val": "data/hg38_public_demo/val_split.tsv"
+      },
+      "dictionaries": {
+        "motif": "data/hg38_public_demo/dicts/dictMutation_pubhg38.tsv",
+        "position": "data/hg38_public_demo/dicts/dictChpos_pubhg38.tsv",
+        "ges": "data/hg38_public_demo/dicts/dictGES_pubhg38.tsv"
+      },
+      "data_bundle": "n/a (local demo cohort, not a reproduce_cache asset -- see documentation/README_public_hg38.md)",
+      "reference": "hg38",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 2,
+        "learning_rate": 0.0006,
+        "n_layer": 1,
+        "n_head": 8,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "d5_pubhg38_checkpoint",
+      "environment": "CSC Puhti GPU bioconda (muat-d1c26, same as d1/d3)"
+    },
+
+    "d6_pubhg38": {
+      "group": "D",
+      "access": "local-only",
+      "mode": "predict",
+      "_not_via_reproduce_note": "NOT runnable through `muat reproduce`, for the same reason as d5_pubhg38. Run via run_reproduce_d6_pubhg38.sbatch, which calls `muat predict from-checkpoint --seed 1337` directly in a 10x bash loop. --seed on `predict` was added to the repo specifically to make this check possible and is NOT in the installed muat-d1c26 (v0.1.26) -- the script runs against repo source via PYTHONPATH, not the installed package.",
+      "purpose": "Inference-run reproducibility for d5_pubhg38: loads its checkpoint and predicts the held-out 88-sample public-hg38 test set 10x under seed 1337, same environment as d5_pubhg38. Expected: all 10 runs bit-identical.",
+      "mutation_type": "snv",
+      "genome_build_mode": "hg38_native",
+      "checkpoint": "d5_pubhg38_checkpoint",
+      "splits": { "test": "data/hg38_public_demo/test_vcfs.txt" },
+      "data_bundle": "n/a (local demo cohort, see d5_pubhg38)",
+      "reference": "hg38",
+      "repeat": 10,
+      "assert_identical": true,
+      "environment": "CSC Puhti GPU bioconda (muat-d1c26, same as d5_pubhg38)"
     }
   },
 
   "assets": {
+    "d1_snvmnvindelsv_checkpoint": {
+      "kind": "checkpoint",
+      "description": "LOCAL-ONLY, not published/fetchable. Checkpoint produced by experiment d1_snvmnvindelsv (SNV+MNV+indel+SV). BEST-EPOCH checkpoint: rename d1_snvmnvindelsv_rep01_<arrayid>/best_ckpt.pthx to d1_snvmnvindelsv.pthx and stage at cache_dir/assets/.",
+      "source": "local",
+      "url": null,
+      "sha256": "fa0f0238d8255dec445c5e05923ecd4b07e846f2969d3937a59f1962450a29e9",
+      "filename": "d1_snvmnvindelsv.pthx"
+    },
+    "d2_snvmnvindelsv_checkpoint": {
+      "kind": "checkpoint",
+      "description": "LOCAL-ONLY, not published/fetchable. Checkpoint produced by experiment d2_snvmnvindelsv (same recipe/seed as d1_snvmnvindelsv, CPU/container environment). Published as cross-environment evidence only, same role as d2_checkpoint.",
+      "source": "local",
+      "url": null,
+      "sha256": "17e369e9ebb7c77a5da6b98cf7765786c770e6e53d988b6e1ec4a4b7bfabf19f",
+      "filename": "d2_snvmnvindelsv.pthx"
+    },
+    "d2_snvmnvindelsv_all_repeats": {
+      "kind": "archive",
+      "description": "ckpt2.zip - all 10 best-epoch checkpoints from the 10 repeats of d2_snvmnvindelsv (CPU/container arm, Debian base host CentOS 7), plus MANIFEST.tsv and README.md. Determinism evidence for the manuscript. Members named d2_run1.pthx..d2_run10.pthx (matching ckpt1.zip's d1_run*.pthx convention for d1_snvmnvindelsv).",
+      "source": "local",
+      "url": null,
+      "sha256": "3a08a82a2c3d8e7b144cebb59a15477657e450d7b2db30976232f4aa142a7c89",
+      "filename": "ckpt2.zip"
+    },
+    "d5_pubhg38_checkpoint": {
+      "kind": "checkpoint",
+      "description": "LOCAL-ONLY, not published/fetchable yet. Checkpoint produced by experiment d5_pubhg38 (public GDC hg38-native training). BEST-EPOCH checkpoint (epoch 67): repeat 1's best_ckpt.pthx, copied verbatim by package_checkpoints.py.",
+      "source": "local",
+      "url": null,
+      "sha256": "9f3ff912a0e92f616f548799bb2508ac7a1bb65e1ff9b733497f995f4115c919",
+      "filename": "d5_pubhg38.pthx"
+    },
+    "d5_pubhg38_all_repeats": {
+      "kind": "archive",
+      "description": "ckpt3.zip - all 10 best-epoch checkpoints from the 10 repeats of d5_pubhg38 (public GDC hg38-native training), plus MANIFEST.tsv and README.md. Determinism evidence for the manuscript. Members named d5_run1.pthx..d5_run10.pthx (matching ckpt1.zip's d1_run*.pthx convention for d1_snvmnvindelsv).",
+      "source": "local",
+      "url": null,
+      "sha256": "14310730e8c2e84b24f570bb19bdeac5a93a6ded48cb50fcb520e7f62f4cb476",
+      "filename": "ckpt3.zip"
+    },
     "d1_checkpoint": {
       "kind": "checkpoint",
-      "description": "Checkpoint produced by experiment d1 (PCAWG-open, snv+mnv+pos+ges). This is the BEST-EPOCH checkpoint: upload d1_rep01_<arrayid>/best_ckpt.pthx renamed to d1.pthx.",
+      "description": "Checkpoint produced by experiment d1 (PCAWG-open, snv+mnv+pos+ges). This is the BEST-EPOCH checkpoint: upload d1_rep01_<arrayid>/best_ckpt.pthx renamed to d1_canonical.pthx. Renamed 2026-08-24 from d1.pthx to free that name for the manuscript's newer, richer full-mutation-spectrum d1_snvmnvindelsv checkpoint, which the performance-report spreadsheet now reports as its 'd1' row.",
       "source": "zenodo",
       "url": "TODO",
       "sha256": "af1b265c31d8a5daa328433dcdf427a8ec3bddb843bb419552adc10c097c8664",
-      "filename": "d1.pthx"
+      "filename": "d1_canonical.pthx"
     },
     "d2_checkpoint": {
       "kind": "checkpoint",
@@ -177,20 +398,20 @@
     },
     "d5_checkpoint": {
       "kind": "checkpoint",
-      "description": "ckpt3 - checkpoint produced by experiment d5 (GRCh38 training). Loaded by d6. Upload the BEST-EPOCH best_ckpt.pthx renamed to d5.pthx. Does not exist yet - see the _hg38_note on tag d5.",
+      "description": "ckpt3_canonical - checkpoint produced by experiment d5 (blocked PCAWG hg38-native training, see d5's own _hg38_note -- never built, does not exist). Renamed 2026-08-24 from d5.pthx/ckpt3.zip to free those names for d5_pubhg38's real checkpoint (the manuscript's 'd5' row) -- see d5_pubhg38_checkpoint.",
       "source": "zenodo",
       "url": "TODO",
       "sha256": "TODO",
-      "filename": "d5.pthx"
+      "filename": "d5_canonical.pthx"
     },
     "_repeat_archive_note": "The *_all_repeats archives below are EVIDENCE, not run-time dependencies: no tag references them, so 'muat fetch' never downloads them and a reproduce run does not need them. They are published so a reader can verify the determinism claim independently, by checking that the inner weight.pth of every repeat has the same sha256. Build them with muat/pkg_reproduce/package_checkpoints.py, which writes a byte-reproducible archive (fixed member timestamps) so the sha256 recorded here is itself reproducible.",
     "d1_all_repeats": {
       "kind": "archive",
-      "description": "ckpt1.zip - all 10 best-epoch checkpoints from the 10 repeats of d1, plus MANIFEST.tsv (per-repeat sha256 of the container and of the inner weight.pth) and README.md. Determinism evidence for the manuscript.",
+      "description": "ckpt1_canonical.zip - all 10 best-epoch checkpoints from the 10 repeats of d1, plus MANIFEST.tsv (per-repeat sha256 of the container and of the inner weight.pth) and README.md. Determinism evidence for the manuscript. Renamed 2026-08-24 from ckpt1.zip -- see d1_checkpoint's note; 'ckpt1.zip' now refers to d1_snvmnvindelsv's archive instead.",
       "source": "zenodo",
       "url": "TODO",
       "sha256": "6c13c3c6e0480a86e445e44c82853708eb8be07e9410b33fb31a0dcc9e5c8a58",
-      "filename": "ckpt1.zip"
+      "filename": "ckpt1_canonical.zip"
     },
     "d2_all_repeats": {
       "kind": "archive",
@@ -202,11 +423,11 @@
     },
     "d5_all_repeats": {
       "kind": "archive",
-      "description": "ckpt3.zip - all 10 best-epoch checkpoints from the 10 repeats of d5 (GRCh38 arm), same format as ckpt1.zip. Does not exist yet - see the _hg38_note on tag d5.",
+      "description": "ckpt3_canonical.zip - all 10 best-epoch checkpoints from the 10 repeats of d5 (blocked PCAWG hg38-native training). Does not exist and never will -- see the _hg38_note on tag d5. Renamed 2026-08-24, see d5_checkpoint.",
       "source": "zenodo",
       "url": "TODO",
       "sha256": "TODO",
-      "filename": "ckpt3.zip"
+      "filename": "ckpt3_canonical.zip"
     },
     "hg19": {
       "kind": "reference",
@@ -234,6 +455,16 @@
       "extract": true,
       "extract_subdir": "pcawg_open_hg38_muat"
     },
+    "pcawg_full_mutations_preprocessed": {
+      "kind": "data_bundle",
+      "description": "LOCAL-ONLY, not published/fetchable. Preprocessed SNV+MNV+indel+SV tokenized files (<sample>.muat.tsv) for the same d1 cohort, built by merging real PCAWG consensus snv_mnv/indel VCFs with synthetic VCF records derived from the consensus SV BEDPE files (muat/pkg_reproduce/make_snvmnvindelsv_vcfs.py), then tokenized with the shipped default dictionaries (100% position/ges coverage, 99.99% motif coverage). No MEI data exists for this cohort. Backs the d1_snvmnvindelsv tag only.",
+      "source": "local",
+      "url": null,
+      "sha256": null,
+      "extract": true,
+      "extract_subdir": "pcawg_full_mutations_preprocessed"
+    },
+
     "pcawg_open_preprocessed": {
       "kind": "data_bundle",
       "description": "Preprocessed open-access PCAWG samples, one friendly <sample>.muat.tsv (plain TSV) per aliquot (1812 samples, 17 tumour types), built by make_bundle.py from the internal *.token.gc.genic.exonic.cs.tsv.gz files. Default input for Group D; the split files' prep_path basenames resolve against extract_subdir.",
