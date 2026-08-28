@@ -20,7 +20,7 @@
 # your fleet (override with CUDA_VERSION=...).
 set -euo pipefail
 
-TAG="${TAG:-muat:v0.1.26}"
+TAG="${TAG:-muat:v0.1.27}"
 PLATFORM="${PLATFORM:-linux/amd64}"
 
 # PyTorch CUDA builds available on conda-forge, highest first.
