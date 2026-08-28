@@ -103,11 +103,11 @@ def compare(paths):
     return all(per_member.values()), per_member, ref
 
 
-def build_readme(tag, label, paths, identical, ref, source_note):
+def build_readme(tag, label, paths, identical, ref, source_note, member_pattern):
     lines = [
         '# %s -- checkpoints from the %d-repeat %s reproducibility run' % (label, len(paths), tag),
         '',
-        'Each `%s_repNN.pthx` is the best-epoch checkpoint of one independent repeat of' % label,
+        'Each `%s` is the best-epoch checkpoint of one independent repeat of' % member_pattern,
         'experiment `%s`. All repeats used the same seed, the same data split and the same' % tag,
         'hyperparameters, and were executed in the same environment; they differ only in',
         'being separate executions.',
@@ -164,6 +164,15 @@ def main():
                     help='free-text provenance line recorded in the README (environment, node, install)')
     ap.add_argument('--allow-divergent', action='store_true',
                     help='package even if the repeats are not identical (default: refuse)')
+    ap.add_argument('--member-prefix', default=None,
+                    help="prefix for each archive member's filename (default: --label, "
+                         "the original '<label>_repNN.pthx' convention)")
+    ap.add_argument('--member-word', default='rep',
+                    help="word between prefix and index, e.g. 'rep' (default) or 'run' "
+                         "for '<prefix>_run3.pthx'-style naming")
+    ap.add_argument('--no-zero-pad', action='store_true',
+                    help="don't zero-pad the repeat index (run1, run2, ... instead of "
+                         "run01, run02, ...)")
     args = ap.parse_args()
 
     paths = discover(args.glob, args.ckpt_name)
@@ -187,17 +196,21 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
 
     # MANIFEST rows are computed before writing so the manifest can go inside the archive.
+    member_prefix = args.member_prefix if args.member_prefix is not None else args.label
+    idx_fmt = '%d' if args.no_zero_pad else '%02d'
+    arcname_fmt = '%s_' + args.member_word + idx_fmt + '.pthx'
     rows = [('repeat', 'source_dir', 'member_in_archive', 'pthx_sha256', 'weight_pth_sha256')]
     members = []
     for idx, p in enumerate(paths, start=1):
-        arcname = '%s_rep%02d.pthx' % (args.label, idx)
+        arcname = arcname_fmt % (member_prefix, idx)
         rows.append((str(idx), os.path.dirname(p), arcname,
                      sha256_file(p), inner_hashes(p).get('weight.pth', '')))
         members.append((arcname, p))
     manifest = '\n'.join('\t'.join(r) for r in rows) + '\n'
 
     source_note = args.source_note or 'Source result directories are listed in MANIFEST.tsv.'
-    readme = build_readme(args.tag, args.label, paths, identical, ref, source_note)
+    member_pattern = arcname_fmt.replace('%s', member_prefix).replace('%02d', 'NN').replace('%d', 'N')
+    readme = build_readme(args.tag, args.label, paths, identical, ref, source_note, member_pattern)
 
     zip_path = os.path.join(args.out_dir, '%s.zip' % args.label)
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as z:
