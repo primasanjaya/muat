@@ -139,9 +139,9 @@
       "group": "D",
       "access": "local-only",
       "mode": "predict",
-      "purpose": "Cross-OS/cross-architecture portability check for d1_snvmnvindelsv, answering R1-major-2/R2-5 (systematic reproducibility/portability evaluation across different computational architectures and operating environments -- every other tag in this matrix runs on the same HPC cluster, varying only device/install-method). Same checkpoint (d1_run1.pthx from ckpt1.zip) and same 360-sample val split as d3_snvmnvindelsv/d4_snvmnvindelsv, but executed on a genuinely different machine: a personal macOS laptop (Apple M4 Pro, arm64) via Docker, NOT the cluster.",
+      "purpose": "Cross-OS/cross-architecture portability check for d1_snvmnvindelsv, answering R1-major-2/R2-5 (systematic reproducibility/portability evaluation across different computational architectures and operating environments -- every other tag in this matrix runs on the same HPC cluster, varying only device/install-method). Same checkpoint (d1_run1.pthx from ckpt1.zip) and same 360-sample val split as d3_snvmnvindelsv/d4_snvmnvindelsv, but executed on a genuinely different machine: a personal macOS laptop (Apple M4 Pro) via Docker, image built/run as linux/amd64 (Rosetta2/QEMU-emulated), NOT the cluster.",
       "_not_via_reproduce_note": "NOT runnable through `muat reproduce` or on this cluster at all -- must be run on the target machine directly with `docker build`/`docker run` (see run_d7_mac.sh, kept outside the repo since it references a local, machine-specific transfer layout). This entry documents the recipe/decision in the same ledger as every other tag.",
-      "_result_note": "NOT YET RUN. Plan: single run (no --seed, no 10x repeat -- this checks cross-platform AGREEMENT, not repeat-run determinism, so one execution suffices), --platform linux/amd64 (matches the already-built/tested image, runs via Rosetta 2 emulation on Apple Silicon) as the first pass; optionally also --platform linux/arm64 (native build) as a stronger, second data point if time allows. Compare the resulting prediction_first_logits.tsv against d3_snvmnvindelsv's known result (top1 accuracy 0.8638888888888889, data/results_d_same/d3/) -- expect close AGREEMENT, not necessarily bit-identity (different OS/BLAS/possible emulation).",
+      "_result_note": "RUN 2026-08-28. Single run (no --seed, no 10x repeat -- this checks cross-platform AGREEMENT, not repeat-run determinism), --platform linux/amd64. Result: top1 0.8611111111111112 (vs d3_snvmnvindelsv's 0.8638888888888889 on the same 360 samples) -- 359/360 samples agree exactly; the 1 divergent sample was already a near-tie on the cluster reference. Written to data/results_d_same/d7/. See d8_snvmnvindelsv for the arm64-native rerun of the SAME checkpoint on the SAME machine -- identical to this result (0/360 mismatches between d7 and d8), confirming the divergence traces to Apple Silicon vs. the cluster's x86_64 CPU, not the amd64-emulated-vs-native choice.",
       "mutation_type": "snv+mnv+indel+svmei",
       "checkpoint": "d1_snvmnvindelsv_checkpoint",
       "splits": { "test": "splits/pcawg_orig_snvmnvindelsv_val.tsv" },
@@ -149,16 +149,33 @@
       "reference": "hg19",
       "repeat": 1,
       "assert_identical": false,
-      "environment": "Personal macOS (Apple M4 Pro) via Docker -- NOT the CSC cluster"
+      "environment": "Personal macOS (Apple M4 Pro) via Docker, linux/amd64 image (Rosetta2/QEMU-emulated) -- NOT the CSC cluster"
     },
 
     "d8_snvmnvindelsv": {
       "group": "D",
       "access": "local-only",
       "mode": "predict",
-      "purpose": "Same portability check as d7_snvmnvindelsv, on Windows (via Docker Desktop / WSL2) instead of macOS -- the third operating environment in the matrix.",
+      "purpose": "Same portability check as d7_snvmnvindelsv, on the SAME macOS machine (Apple M4 Pro) and SAME checkpoint/split, but with the Docker image built/run NATIVELY as linux/arm64 instead of the emulated linux/amd64 -- isolates whether Rosetta2/QEMU emulation itself was a source of divergence, as distinct from the underlying Apple Silicon CPU.",
       "_not_via_reproduce_note": "Same as d7_snvmnvindelsv.",
-      "_result_note": "NOT YET RUN. Blocked on access to Windows hardware (none used yet this session). Same plan as d7_snvmnvindelsv otherwise: single run, --platform linux/amd64, compare against d3_snvmnvindelsv's known result.",
+      "_result_note": "RUN 2026-08-28 (same session as d7_snvmnvindelsv, via `PLATFORM=linux/arm64 run_d7_mac.sh`). Result: IDENTICAL to d7_snvmnvindelsv -- 0/360 mismatches between the two Mac runs, every class probability matching to the file's full displayed precision; both differ from d3_snvmnvindelsv by the same 8/360 samples (top1 0.8611111111111112). Conclusion: emulated-vs-native makes no difference; the small divergence from the cluster is attributable specifically to Apple Silicon vs. x86_64 CPU silicon. Written to data/results_d_same/d8/. Two real bugs found+fixed getting this run to actually complete (see run_d7_mac.sh comments): (1) input_list.txt was generated with host-absolute paths, unreachable inside the container's /data mount -- caused deterministic 0-samples-tokenized failures, not a mount-timing flake as first suspected; (2) the 'Error decompressing hg19.fa.gz...exit status 2' message is cosmetic (gzip's 'trailing garbage ignored' warning, inherent to the official Sanger download, not corruption) -- muat/util.py's gunzip_file() already only prints on this, never raises.",
+      "mutation_type": "snv+mnv+indel+svmei",
+      "checkpoint": "d1_snvmnvindelsv_checkpoint",
+      "splits": { "test": "splits/pcawg_orig_snvmnvindelsv_val.tsv" },
+      "data_bundle": "pcawg_full_mutations_preprocessed",
+      "reference": "hg19",
+      "repeat": 1,
+      "assert_identical": false,
+      "environment": "Personal macOS (Apple M4 Pro) via Docker, linux/arm64 image (native) -- NOT the CSC cluster"
+    },
+
+    "d9_snvmnvindelsv": {
+      "group": "D",
+      "access": "local-only",
+      "mode": "predict",
+      "purpose": "Same portability check as d7_snvmnvindelsv/d8_snvmnvindelsv, on Windows (via Docker Desktop / WSL2) instead of macOS -- a genuinely different OS (unlike d7/d8, which both run a Linux container regardless of amd64-vs-arm64), and typically Intel/AMD x86_64 hardware -- expected to land bit-identical to d3_snvmnvindelsv/d4_snvmnvindelsv given the d3-vs-d4 finding that OS alone (on the same CPU family) makes no difference.",
+      "_not_via_reproduce_note": "Same as d7_snvmnvindelsv.",
+      "_result_note": "NOT YET RUN. Blocked on access to Windows hardware (none used yet this session). Same plan as d7_snvmnvindelsv otherwise: single run, --platform linux/amd64, compare against d3_snvmnvindelsv's known result. (Renumbered from d8 to d9 2026-08-28 when d8 was reassigned to the Mac arm64-native rerun.)",
       "mutation_type": "snv+mnv+indel+svmei",
       "checkpoint": "d1_snvmnvindelsv_checkpoint",
       "splits": { "test": "splits/pcawg_orig_snvmnvindelsv_val.tsv" },
@@ -306,7 +323,7 @@
         "position": "data/hg38_public_demo/dicts/dictChpos_pubhg38.tsv",
         "ges": "data/hg38_public_demo/dicts/dictGES_pubhg38.tsv"
       },
-      "data_bundle": "n/a (local demo cohort, not a reproduce_cache asset -- see documentation/README_public_hg38.md)",
+      "data_bundle": "pubhg38_tcga_preprocessed",
       "reference": "hg38",
       "hyperparams": {
         "epoch": 100,
@@ -326,12 +343,12 @@
       "access": "local-only",
       "mode": "predict",
       "_not_via_reproduce_note": "NOT runnable through `muat reproduce`, for the same reason as d5_pubhg38. Run via run_reproduce_d6_pubhg38.sbatch, which calls `muat predict from-checkpoint --seed 1337` directly in a 10x bash loop. --seed on `predict` was added to the repo specifically to make this check possible and is NOT in the installed muat-d1c26 (v0.1.26) -- the script runs against repo source via PYTHONPATH, not the installed package.",
-      "purpose": "Inference-run reproducibility for d5_pubhg38: loads its checkpoint and predicts the held-out 88-sample public-hg38 test set 10x under seed 1337, same environment as d5_pubhg38. Expected: all 10 runs bit-identical.",
+      "purpose": "Inference-run reproducibility for d5_pubhg38: loads its checkpoint and predicts the 89-sample public-hg38 validation set 10x under seed 1337, same environment as d5_pubhg38. Expected: all 10 runs bit-identical. d5/d6 use only the train and validation cohorts; the held-out test split is not used anywhere in this reproducibility experiment.",
       "mutation_type": "snv",
       "genome_build_mode": "hg38_native",
       "checkpoint": "d5_pubhg38_checkpoint",
-      "splits": { "test": "data/hg38_public_demo/test_vcfs.txt" },
-      "data_bundle": "n/a (local demo cohort, see d5_pubhg38)",
+      "splits": { "test": "data/hg38_public_demo/val_vcfs.txt" },
+      "data_bundle": "pubhg38_tcga_preprocessed",
       "reference": "hg38",
       "repeat": 10,
       "assert_identical": true,
@@ -356,11 +373,19 @@
       "sha256": "17e369e9ebb7c77a5da6b98cf7765786c770e6e53d988b6e1ec4a4b7bfabf19f",
       "filename": "d2_snvmnvindelsv.pthx"
     },
+    "d1_snvmnvindelsv_all_repeats": {
+      "kind": "archive",
+      "description": "ckpt1.zip - all 10 best-epoch checkpoints from the 10 repeats of d1_snvmnvindelsv (GPU/bioconda, SNV+MNV+indel+SV), plus MANIFEST.tsv and README.md. Determinism evidence for the manuscript. Members named d1_run1.pthx..d1_run10.pthx.",
+      "source": "zenodo",
+      "url": "https://zenodo.org/records/22281678/files/ckpt1.zip?download=1",
+      "sha256": "7e9ba0827af28d9ecfbf21acb3e935069a6e21050bef6c9773997c9820fd5d00",
+      "filename": "ckpt1.zip"
+    },
     "d2_snvmnvindelsv_all_repeats": {
       "kind": "archive",
       "description": "ckpt2.zip - all 10 best-epoch checkpoints from the 10 repeats of d2_snvmnvindelsv (CPU/container arm, Debian base host CentOS 7), plus MANIFEST.tsv and README.md. Determinism evidence for the manuscript. Members named d2_run1.pthx..d2_run10.pthx (matching ckpt1.zip's d1_run*.pthx convention for d1_snvmnvindelsv).",
-      "source": "local",
-      "url": null,
+      "source": "zenodo",
+      "url": "https://zenodo.org/records/22281678/files/ckpt2.zip?download=1",
       "sha256": "3a08a82a2c3d8e7b144cebb59a15477657e450d7b2db30976232f4aa142a7c89",
       "filename": "ckpt2.zip"
     },
@@ -375,10 +400,21 @@
     "d5_pubhg38_all_repeats": {
       "kind": "archive",
       "description": "ckpt3.zip - all 10 best-epoch checkpoints from the 10 repeats of d5_pubhg38 (public GDC hg38-native training), plus MANIFEST.tsv and README.md. Determinism evidence for the manuscript. Members named d5_run1.pthx..d5_run10.pthx (matching ckpt1.zip's d1_run*.pthx convention for d1_snvmnvindelsv).",
-      "source": "local",
-      "url": null,
+      "source": "zenodo",
+      "url": "https://zenodo.org/records/22281678/files/ckpt3.zip?download=1",
       "sha256": "14310730e8c2e84b24f570bb19bdeac5a93a6ded48cb50fcb520e7f62f4cb476",
       "filename": "ckpt3.zip"
+    },
+    "pubhg38_tcga_preprocessed": {
+      "kind": "data_bundle",
+      "description": "Preprocessed public GDC TCGA hg38-native samples backing d5_pubhg38/d6_pubhg38: one <sample>.muat.tsv per aliquot for the 502 train+validation samples (413 train / 89 val), plus the corpus-level dictionaries (dicts/) and the exact train_split.tsv/val_split.tsv used. Pins the exact cohort since the original cohort-selection step queries the live GDC API and is not itself byte-reproducible (see documentation/README_public_hg38.md). Deliberately excludes the held-out test split, matching pcawg_open_preprocessed's train+val-only convention.",
+      "source": "zenodo",
+      "url": "https://zenodo.org/records/22281678/files/pubhg38_tcga_muat.tar.gz?download=1",
+      "sha256": "69db89ecd7ba7b4c99679b7c9f704dede1d65a1f5feac6e2cc4fa73c274e8dcd",
+      "filename": "pubhg38_tcga_muat.tar.gz",
+      "_sha256_note": "Verified 2026-09-03 against data/reproduce_release/pubhg38_tcga_muat.tar.gz (2.0 MB, 502 samples). Archive is byte-reproducible: sorted file list, fixed mtime/ownership, gzip -n -9 (rebuild reproduces the identical sha256).",
+      "extract": true,
+      "extract_subdir": "pubhg38_tcga_muat"
     },
     "d1_checkpoint": {
       "kind": "checkpoint",
@@ -415,11 +451,11 @@
     },
     "d2_all_repeats": {
       "kind": "archive",
-      "description": "ckpt2.zip - all 10 best-epoch checkpoints from the 10 repeats of d2 (CPU / docker arm), same format as ckpt1.zip.",
+      "description": "ckpt2_canonical.zip - all 10 best-epoch checkpoints from the 10 repeats of d2 (CPU / docker arm), same format as ckpt1_canonical.zip. Renamed 2026-09-03 from ckpt2.zip -- see d2_checkpoint's note; 'ckpt2.zip' now refers to d2_snvmnvindelsv's archive instead. This rename was missed during the 2026-08-24 d1/d5 renames (this exact mismatch -- a stale sha256 under the reused 'ckpt2.zip' name -- was caught and fixed by cross-checking against the real uploaded file).",
       "source": "zenodo",
       "url": "TODO",
       "sha256": "2ee6eeeabbda5b2cef6cf8759b3107b4846b3444bbb10ac95b98a47336b1e747",
-      "filename": "ckpt2.zip"
+      "filename": "ckpt2_canonical.zip"
     },
     "d5_all_repeats": {
       "kind": "archive",
@@ -457,22 +493,24 @@
     },
     "pcawg_full_mutations_preprocessed": {
       "kind": "data_bundle",
-      "description": "LOCAL-ONLY, not published/fetchable. Preprocessed SNV+MNV+indel+SV tokenized files (<sample>.muat.tsv) for the same d1 cohort, built by merging real PCAWG consensus snv_mnv/indel VCFs with synthetic VCF records derived from the consensus SV BEDPE files (muat/pkg_reproduce/make_snvmnvindelsv_vcfs.py), then tokenized with the shipped default dictionaries (100% position/ges coverage, 99.99% motif coverage). No MEI data exists for this cohort. Backs the d1_snvmnvindelsv tag only.",
-      "source": "local",
-      "url": null,
-      "sha256": null,
+      "description": "Preprocessed SNV+MNV+indel+SV tokenized files (<sample>.muat.tsv) for the 1794-sample d1_snvmnvindelsv cohort (1,434 train / 360 val), built by merging real PCAWG consensus snv_mnv/indel VCFs with synthetic VCF records derived from the consensus SV BEDPE files (muat/pkg_reproduce/make_snvmnvindelsv_vcfs.py), then tokenized with the shipped default dictionaries (100% position/ges coverage, 99.99% motif coverage). No MEI data exists for this cohort. Backs d1_snvmnvindelsv/d2_snvmnvindelsv/d3_snvmnvindelsv/d4_snvmnvindelsv/d7-d9_snvmnvindelsv -- i.e. this is the bundle the manuscript's actual reported classification results (top-1 86.39%/85.83%) trace to, NOT pcawg_open_preprocessed.",
+      "source": "zenodo",
+      "url": "https://zenodo.org/records/22281678/files/pcawg_snvmnvindelsv_muat.tar.gz?download=1",
+      "sha256": "34f9c7cde8a98c268efb78d29da9fcfbe5fc39f9c360314ceb69fc03373f4322",
+      "filename": "pcawg_snvmnvindelsv_muat.tar.gz",
+      "_sha256_note": "Verified 2026-09-03 against data/reproduce_release/pcawg_snvmnvindelsv_muat.tar.gz (237 MB, 1794 entries, sample IDs cross-checked exactly against splits/pcawg_orig_snvmnvindelsv_{train,val}.tsv). Byte-reproducible: sorted file list, fixed mtime/ownership, gzip -n -9 (rebuild reproduces the identical sha256).",
       "extract": true,
       "extract_subdir": "pcawg_full_mutations_preprocessed"
     },
 
     "pcawg_open_preprocessed": {
       "kind": "data_bundle",
-      "description": "Preprocessed open-access PCAWG samples, one friendly <sample>.muat.tsv (plain TSV) per aliquot (1812 samples, 17 tumour types), built by make_bundle.py from the internal *.token.gc.genic.exonic.cs.tsv.gz files. Default input for Group D; the split files' prep_path basenames resolve against extract_subdir.",
-      "source": "zenodo",
-      "url": "TODO",
+      "description": "Preprocessed open-access PCAWG samples, one friendly <sample>.muat.tsv (plain TSV) per aliquot (1812 samples, 17 tumour types), built by make_bundle.py from the internal *.token.gc.genic.exonic.cs.tsv.gz files. Backs ONLY the superseded plain d1/d2/d3/d4 tags (their checkpoints were never published either) -- the manuscript's actual reported d1-d4 results are d1_snvmnvindelsv etc., which use pcawg_full_mutations_preprocessed instead. Deliberately NOT on Zenodo: publishing it alongside ckpt1.zip/ckpt2.zip (which need the 1794-sample bundle) would mislead readers into pairing the wrong data with those checkpoints.",
+      "source": "local",
+      "url": null,
       "sha256": "f7c8fdcb9cb17af25df255d48392b3c162c21e43094b0a3bc3c49288f8ced536",
       "filename": "pcawg_open_muat.tar.gz",
-      "_sha256_note": "Verified 2026-08-10 against data/reproduce_release/pcawg_open_muat.tar.gz (222 MB, 1812 entries). Archive is byte-reproducible: sorted file list, fixed mtime/ownership, gzip -n, so make_bundle.py output re-hashes to this value.",
+      "_sha256_note": "Value kept for provenance only (matches data/reproduce_release/pcawg_open_muat.tar.gz on disk, 222 MB, 1812 entries) -- this file was REMOVED from the Zenodo record 2026-09-03, do not re-fill url.",
       "extract": true,
       "extract_subdir": "pcawg_open_muat"
     },
