@@ -16,7 +16,7 @@
       "mode": "train",
       "purpose": "Training-run reproducibility, SAME environment (CSC Puhti GPU / bioconda). Input type SNV+MNV+pos+ges on the 80:20 pcawg_orig partition (train 1449 / test 363); trained 10x under the same seed. Expected: all 10 repeats BIT-IDENTICAL. Reported metrics come from the BEST epoch (best_val_first_logits.tsv), and the published checkpoint is the matching best_ckpt.pthx. Produces ckpt1, which d3 and d4 load.",
       "_split_note": "The 'val' key is the mechanical name the training code expects; semantically these 363 samples are the TEST set. 'Best epoch' is the epoch scoring highest on these same 363 (trainer.py:324), so the test set informed epoch selection - report it as a best-epoch figure. Publish best_ckpt.pthx (NOT model.pthx, which is the final epoch) as the d1_checkpoint asset, so the inference tags reproduce exactly the reported numbers.",
-      "_result_note": "DONE 2026-08-07 (SLURM array 280085, 10/10 repeats). Best epoch 73. top1 0.851240 / top3 0.953168 / top5 0.986226 / weighted precision 0.860142 / weighted recall 0.851240 / weighted F1 0.847808 / macro F1 0.786709. sd = 0.000000 across all 10; logits, predictions AND the full 100-epoch evaluation.tsv curve are byte-identical. NOTE the run executed on an internal GPU node (Tesla P100) from repo source, NOT on Puhti under bioconda - relabel this tag or re-run before publishing it as the Puhti/bioconda row.",
+      "_result_note": "DONE 2026-08-07 (10/10 repeats). Best epoch 73. top1 0.851240 / top3 0.953168 / top5 0.986226 / weighted precision 0.860142 / weighted recall 0.851240 / weighted F1 0.847808 / macro F1 0.786709. sd = 0.000000 across all 10; logits, predictions AND the full 100-epoch evaluation.tsv curve are byte-identical. NOTE this run's environment label needs independent verification before being published as the Puhti/bioconda row.",
       "mutation_type": "snv+mnv",
       "repeat_runs": 10,
       "label": "ckpt1",
@@ -306,7 +306,7 @@
       "mode": "train",
       "_not_via_reproduce_note": "NOT runnable through `muat reproduce` -- this schema has no field for per-tag custom dictionaries, and this recipe needs its own (dictMutation_pubhg38.tsv / dictChpos_pubhg38.tsv / dictGES_pubhg38.tsv, not the shipped defaults). Run via run_reproduce_d5_pubhg38_x10.sbatch instead, which calls `muat train from-scratch` directly. This entry exists only so the recipe/decision is documented in the same ledger as every other tag.",
       "purpose": "REPLACES the old (never-runnable) d5 idea of training on hg38-native PCAWG (see d5's own _hg38_note - that data was never re-preprocessed and would have been a much larger job than d1-d4 combined). Reuses the already-working public GDC hg38 demo cohort instead: 6 TCGA WES cancer types, 590 samples, native hg38, SNV+motif+position+ges. Same seed 1337, trained 10x. Produces the checkpoint d6_pubhg38 loads.",
-      "_result_note": "A single (unseeded-in-practice-but-default-1337) run of this exact recipe already completed once, BEFORE the mutation-sampling-determinism fix (v0.1.26) existed: data/hg38_public_demo/model/best_ckpt.pthx (job 280421), val top1 0.7753 / test top1 0.7386. Left untouched as a historical reference; d5_pubhg38's 10 repeats write to fresh data/reproduce_results/d5_pubhg38_repNN_<jobid>/ dirs and re-train with the fixed code.",
+      "_result_note": "A single (unseeded-in-practice-but-default-1337) run of this exact recipe already completed once, BEFORE the mutation-sampling-determinism fix (v0.1.26) existed: data/hg38_public_demo/model/best_ckpt.pthx, val top1 0.7753 / test top1 0.7386. Left untouched as a historical reference; d5_pubhg38's 10 repeats write to fresh data/reproduce_results/d5_pubhg38_repNN_<jobid>/ dirs and re-train with the fixed code.",
       "mutation_type": "snv",
       "repeat_runs": 10,
       "label": "ckpt_pubhg38",
@@ -353,10 +353,183 @@
       "repeat": 10,
       "assert_identical": true,
       "environment": "CSC Puhti GPU bioconda (muat-d1c26, same as d5_pubhg38)"
+    },
+
+    "a1_d1": {
+      "group": "A",
+      "access": "controlled-access",
+      "mode": "train",
+      "purpose": "Training-run reproducibility on REAL PCAWG controlled-access data (the a1 scenario in the abc reproducibility matrix), SAME environment as d1_snvmnvindelsv (GPU / bioconda). Full mutation-type recipe (SNV+MNV+indel+SV/MEI+Neg), same architecture/hyperparameters/seed as d1_snvmnvindelsv, on a DIFFERENT, controlled-access cohort (2585 samples, 24 tumour types) built directly from the original MuAt paper's own per-sample tokenized training data (litePCAWG), not reconstructed. Trained 3x under the same seed. Expected: all 3 repeats bit-identical WITHIN this environment (same claim as d1/d1_snvmnvindelsv, at 3 repeats instead of 10 -- see _repeat_note).",
+      "_access_note": "CONTROLLED-ACCESS BY DESIGN, not merely 'not yet published' -- this cohort derives from ICGC PCAWG's DACO-gated somatic mutation calls (data/PCAWG2019/PCAWG.somatic_SISM.*.tsv). It will never have a public download URL; a legitimate reproducer must obtain their own DACO access to the same donor IDs (Supplementary Table S9) and run this repo's preprocessing code themselves, or point --cache-dir at their own DACO-cleared copy. Do not fill in a url for the a1_litepcawg_preprocessed asset below.",
+      "_repeat_note": "3 repeats, not d1_snvmnvindelsv's 10 -- a deliberately smaller determinism check (same claim, lower compute cost), agreed with the user 2026-09-07. Still sufficient to detect non-determinism: any repeat-to-repeat difference at all falsifies bit-identical reproducibility, regardless of repeat count.",
+      "mutation_type": "snv+mnv+indel+svmei+neg",
+      "repeat_runs": 3,
+      "label": "a1_ckpt1",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "splits/a1_train.tsv",
+        "val": "splits/a1_val.tsv"
+      },
+      "data_bundle": "a1_litepcawg_preprocessed",
+      "reference": "hg19",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "a1_d1_checkpoint",
+      "environment": "CSC Puhti GPU bioconda (same as d1_snvmnvindelsv -- muat-d1c26)"
+    },
+
+    "a1_d1_hfmatch": {
+      "group": "A",
+      "access": "controlled-access",
+      "mode": "train",
+      "purpose": "Architecture-matched ablation of a1_d1: reproduces the ORIGINALLY PUBLISHED HuggingFace benchmark_wgs.zip checkpoint's architecture+sampling config for mutation_type snv+mnv+indel+svmei (motif-only model -- use_position/use_ges both False, matching that checkpoint's model_name=MuAtMotif -- with n_layer=1/n_head=1/n_emb=512, matching that checkpoint's model_config.json exactly; mutation_type_ratio {snv:0.3,mnv:0.4,indel:0.2,sv_mei:0.2,neg:0} comes automatically from mutation_type via get_mut_ratio() and matches that checkpoint's own pickled ratio too), trained on the SAME a1 controlled-access cohort/split as a1_d1, but with the FULL 2587-sample cohort (see _2587_note) rather than a1_d1's 2585. Purpose: test whether a1_d1's accuracy gap vs a0 (0.803 vs 0.869 on the matched held-out fold) is explained by a1_d1's motif+position+GES architecture rather than a data or pipeline defect.",
+      "_access_note": "See a1_d1's _access_note -- applies identically here.",
+      "_hyperparam_note": "The original checkpoint's own trainer_config.json is EMPTY (no learning_rate/batch_size/epoch/seed recorded, confirmed by inspecting benchmark_wgs_ckpt/snv+mnv+indel+svmei/fold1.pthx directly) -- only model_config.json (architecture) and dataloader_config.json (sampling) fields could be matched. Optimizer hyperparameters below are inherited unchanged from a1_d1 since there is nothing else to match against.",
+      "_2587_note": "a1_d1's splits/a1_{train,val}.tsv total only 2585 (litePCAWG has zero mutation data for 2 real-labeled samples: f848b66f-bd9e-4fba-afd4-eb58848d1ef4 and a876398c-5b1d-444f-a360-5fe2db697480, both Breast-AdenoCA -- confirmed a0's own published-checkpoint evaluation is bounded to 2585 too, same gap, not an a1-specific shortfall). User asked for the full nominal 2587 anyway: both samples' fold assignment (trainfullpcawg.csv/valfullpcawg.csv) places them in fold1's TRAIN set (never fold1's val), so they were backfilled from the 'ours' from-scratch PCAWG2019-reconstruction pipeline (data/pcawg_trainvalsplit/tokenized/, already built, non-fatal minor row loss from a few duplicate-position SV rows on one sample) into a NEW splits/a1_train_2587.tsv (a1_train.tsv + these 2 rows, class_index 1 matching Breast-AdenoCA's existing index) and copied into litepcawg_tokenized/ so the bundle now has all 2587 files. val is UNCHANGED (both samples are fold1-train-only, so a1_val.tsv's 259 held-out samples, and the a0-vs-a1 fold1 comparison, are unaffected). a1_d1 itself was deliberately left untouched (still 2585, already packaged) -- this backfill applies only to this tag.",
+      "mutation_type": "snv+mnv+indel+svmei",
+      "repeat_runs": 3,
+      "label": "a1_ckpt_hfmatch",
+      "use_motif": true,
+      "use_position": false,
+      "use_ges": false,
+      "splits": {
+        "train": "splits/a1_train_2587.tsv",
+        "val": "splits/a1_val.tsv"
+      },
+      "data_bundle": "a1_litepcawg_preprocessed",
+      "reference": "hg19",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 512,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "a1_d1_hfmatch_checkpoint",
+      "environment": "CSC Puhti GPU bioconda (same as a1_d1 -- muat-d1c26)"
+    },
+
+    "a1_d2": {
+      "group": "A",
+      "access": "controlled-access",
+      "mode": "train",
+      "purpose": "Same as a1_d1 (SNV+MNV+indel+SV/MEI+Neg, same controlled-access cohort/split/hyperparameters/seed), DIFFERENT environment (CPU / custom-built container) -- mirrors how d2_snvmnvindelsv relates to d1_snvmnvindelsv. Identical data_bundle/splits to a1_d1; only device+install-mechanism differ.",
+      "_access_note": "See a1_d1's _access_note -- applies identically here.",
+      "mutation_type": "snv+mnv+indel+svmei+neg",
+      "repeat_runs": 3,
+      "label": "a1_ckpt2",
+      "use_motif": true,
+      "use_position": true,
+      "use_ges": true,
+      "splits": {
+        "train": "splits/a1_train.tsv",
+        "val": "splits/a1_val.tsv"
+      },
+      "data_bundle": "a1_litepcawg_preprocessed",
+      "reference": "hg19",
+      "hyperparams": {
+        "epoch": 100,
+        "batch_size": 4,
+        "learning_rate": 0.001,
+        "n_layer": 1,
+        "n_head": 1,
+        "n_emb": 128,
+        "mutation_sampling_size": 5000
+      },
+      "produces_checkpoint": "a1_d2_checkpoint",
+      "environment": "CSC Puhti CPU docker (custom-built image, same as d2_snvmnvindelsv)"
+    },
+
+    "a1_d3": {
+      "group": "A",
+      "access": "controlled-access",
+      "mode": "predict",
+      "purpose": "Inference-run reproducibility for a1_d1, SAME environment (GPU / bioconda-stack). Loads a1_d1's checkpoint and predicts the a1 val split 3x under seed 1337. Mirrors d3_snvmnvindelsv's relationship to d1_snvmnvindelsv.",
+      "_access_note": "See a1_d1's _access_note -- applies identically here.",
+      "mutation_type": "snv+mnv+indel+svmei+neg",
+      "checkpoint": "a1_d1_checkpoint",
+      "splits": { "test": "splits/a1_val.tsv" },
+      "data_bundle": "a1_litepcawg_preprocessed",
+      "reference": "hg19",
+      "repeat": 3,
+      "assert_identical": true,
+      "environment": "CSC Puhti GPU bioconda (same as a1_d1 -- muat-d1c26)"
+    },
+
+    "a1_d4": {
+      "group": "A",
+      "access": "controlled-access",
+      "mode": "predict",
+      "purpose": "Inference-run reproducibility for a1_d1, DIFFERENT environment (CPU / custom-built container). Same checkpoint, same seed, same split as a1_d3; only the environment differs. Mirrors d4_snvmnvindelsv's relationship to d1_snvmnvindelsv/d3_snvmnvindelsv.",
+      "_access_note": "See a1_d1's _access_note -- applies identically here.",
+      "mutation_type": "snv+mnv+indel+svmei+neg",
+      "checkpoint": "a1_d1_checkpoint",
+      "splits": { "test": "splits/a1_val.tsv" },
+      "data_bundle": "a1_litepcawg_preprocessed",
+      "reference": "hg19",
+      "repeat": 3,
+      "assert_identical": true,
+      "environment": "CSC Puhti CPU docker (custom-built image, same as d2_snvmnvindelsv/a1_d2)"
+    },
+
+    "a5": {
+      "group": "A",
+      "access": "controlled-access",
+      "mode": "predict",
+      "purpose": "GEL SPE inference-portability check: predict using a1_d1's checkpoint against litePCAWG's SAME 259-sample val split (muat/pkg_reproduce/splits/a1_val.tsv), but executed INSIDE the Genomics England secure processing environment (SPE) instead of the CSC cluster. GEL's HPC is CPU/Singularity, no GPU -- so a4 (CPU/container) is the fairer primary reference, same device class, only the environment differing; a3 (GPU/bioconda) is a device change on top, worth diffing against too but secondary. Same relationship as d7/d8 (Mac) to d3/d4 (cluster): a single-run cross-environment AGREEMENT check, not a repeat-run determinism check.",
+      "_not_via_reproduce_note": "NOT runnable through `muat reproduce` or on this cluster at all -- must be run inside the GEL SPE directly, using data/a5_gel_portability/run_a5_gel.sh (kept outside the tags' normal cache-dir/asset flow, same reason as run_d7_mac.sh: the target environment's paths/layout are machine-specific, not something a shared recipe can resolve). Uses GEL's REAL container workflow (fetched from https://re-docs.genomicsengland.co.uk/hpc_containers/ 2026-09-07, already cited but never exercised in si_revision.tex's 'Using muat via a container' section): Singularity, pulling a custom-pushed dependency-stack image via GEL's Artifactory proxy. Runs muat from REPO SOURCE via PYTHONPATH inside that container (bind-mounting a copy of this repo at the same commit a1_d1 ran from), exactly like a1_d2/d2_snvmnvindelsv already do on the cluster -- NOT the official quay.io/biocontainers/muat image directly, since a1_d1 runs at muat.__version__ 0.1.28, not yet released to bioconda/BioContainers (the released d1-d9 experiments are pinned to v0.1.27). This means no new muat release is required before running a5 -- only the dependency stack (python/pytorch/numpy/pandas/scikit-learn, already built+verified as muat-env-cpu-v0.1.26.yml / data/containers/muat_0.1.26_cpu.sif's source image) needs pushing to a registry GEL's Artifactory can reach. This entry documents the recipe/decision in the same ledger as every other tag.",
+      "_safety_note": "Only a prediction file (PCAWG sample UUID + predicted class + logits) is exported from the SPE via GEL's named egress process, Airlock -- litePCAWG is PCAWG controlled-access data GEL already holds a copy of (from the original MuAt2 study's combined PCAWG+GEL pretraining), NOT GEL patient data, so nothing about any GEL patient is computed or exported. Still requires an actual Airlock request before export, as a formality -- see run_a5_gel.sh's header.",
+      "_result_note": "NOT YET RUN. Blocked on: (1) a1_d1 finishing its 3 training repeats and being packaged (data/reproduce_release/a1_d1.pthx), (2) transferring the checkpoint + a1_val.tsv into the GEL SPE via GEL's normal data-import process (containers are software-only, per the Artifactory docs), (3) an Airlock request clearing the exported prediction file.",
+      "mutation_type": "snv+mnv+indel+svmei+neg",
+      "checkpoint": "a1_d1_checkpoint",
+      "splits": { "test": "splits/a1_val.tsv" },
+      "data_bundle": "a1_litepcawg_preprocessed",
+      "reference": "hg19",
+      "repeat": 1,
+      "assert_identical": false,
+      "environment": "Genomics England secure processing environment (SPE) -- NOT the CSC cluster"
     }
   },
 
   "assets": {
+    "a1_litepcawg_preprocessed": {
+      "kind": "data_bundle",
+      "description": "Preprocessed controlled-access a1 cohort (2585 samples, 24 tumour types), built DIRECTLY from litePCAWG (gitlab.com/primasanjaya/litepcawg -- the original MuAt paper's own real per-sample tokenized training data), not reconstructed from raw PCAWG2019 files. Backs a1_d1/a1_d2/a1_d3/a1_d4. See make_a1_litepcawg_tokenized.py for the build process and Supplementary Table S9 for the sample list (donor ID, aliquot ID, histology, fold).",
+      "source": "local",
+      "url": null,
+      "sha256": null,
+      "filename": "a1_litepcawg_muat.tar.gz",
+      "extract": true,
+      "extract_subdir": "a1_litepcawg_preprocessed",
+      "_access_note": "NEVER will have a url -- this asset is controlled-access by design (see a1_d1's _access_note in the tags section), not merely undeposited. A legitimate reproducer obtains their own DACO access and either runs this repo's preprocessing code themselves against the same donor IDs (Supplementary Table S9), or requests a controlled-access-compliant copy through the appropriate DACO channel. This entry's extract_subdir is populated by a plain symlink to data/pcawg_trainvalsplit/litepcawg_tokenized (see run_reproduce_a1_d1_x03.sbatch's PREREQUISITE), NOT by `muat fetch` extracting an actual archive -- there is nothing to fetch."
+    },
+    "a1_d1_checkpoint": {
+      "kind": "checkpoint",
+      "description": "LOCAL-ONLY, controlled-access-derived, not published/fetchable. Checkpoint produced by experiment a1_d1 (SNV+MNV+indel+SV/MEI+Neg on the controlled-access a1 cohort). BEST-EPOCH checkpoint: rename a1_d1_rep01_<arrayid>/best_ckpt.pthx to a1_d1.pthx and stage at cache_dir/assets/.",
+      "source": "local",
+      "url": null,
+      "sha256": null,
+      "filename": "a1_d1.pthx"
+    },
+    "a1_d2_checkpoint": {
+      "kind": "checkpoint",
+      "description": "LOCAL-ONLY, controlled-access-derived, not published/fetchable. Checkpoint produced by experiment a1_d2 (same recipe/seed as a1_d1, CPU/container environment). Cross-environment evidence only, same role as d2_snvmnvindelsv_checkpoint.",
+      "source": "local",
+      "url": null,
+      "sha256": null,
+      "filename": "a1_d2.pthx"
+    },
     "d1_snvmnvindelsv_checkpoint": {
       "kind": "checkpoint",
       "description": "LOCAL-ONLY, not published/fetchable. Checkpoint produced by experiment d1_snvmnvindelsv (SNV+MNV+indel+SV). BEST-EPOCH checkpoint: rename d1_snvmnvindelsv_rep01_<arrayid>/best_ckpt.pthx to d1_snvmnvindelsv.pthx and stage at cache_dir/assets/.",

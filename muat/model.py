@@ -85,7 +85,7 @@ class ModelConfig:
         }
 
     def compute_motif_size(self, pd_motif, mutatation_type_ratio):
-        required_mut_types = {'SNV', 'MNV', 'indel', 'MEI', 'SV', 'Normal'}
+        required_mut_types = {'SNV', 'MNV', 'indel', 'MEI', 'SV', 'Neg'}
         found_mut_types = set(pd_motif['mut_type'].unique())
         missing = required_mut_types - found_mut_types
         if missing:
@@ -99,7 +99,7 @@ class ModelConfig:
         vocabMNV = len(pd_motif.loc[pd_motif['mut_type'] == 'MNV'])
         vocabindel = len(pd_motif.loc[pd_motif['mut_type'] == 'indel'])
         vocabSVMEI = len(pd_motif.loc[pd_motif['mut_type'].isin(['MEI', 'SV'])])
-        vocabNormal = len(pd_motif.loc[pd_motif['mut_type'] == 'Normal'])
+        vocabNormal = len(pd_motif.loc[pd_motif['mut_type'] == 'Neg'])
 
         snv, mnv, indel, sv_mei, neg = mutatation_type_ratio.values()
         if snv > 0:
@@ -142,7 +142,7 @@ class ModelConfig:
         vocabMNV = len(pd_motif.loc[pd_motif['mut_type']=='MNV'])
         vocabindel = len(pd_motif.loc[pd_motif['mut_type']=='indel']) 
         vocabSVMEI = len(pd_motif.loc[pd_motif['mut_type'].isin(['MEI','SV'])])
-        vocabNormal = len(pd_motif.loc[pd_motif['mut_type']=='Normal'])
+        vocabNormal = len(pd_motif.loc[pd_motif['mut_type']=='Neg'])
 
         snv,mnv,indel,sv_mei,neg = mutatation_type_ratio.values()
         if snv>0:
@@ -287,7 +287,9 @@ class MuAtMotifF(nn.Module):
         if targets is not None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
-        return logits, loss
+        logits_feats = {'first_logits': logits}
+
+        return logits_feats, loss
 
 class MuAtMotifF_2Labels(nn.Module):
     """
