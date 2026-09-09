@@ -210,7 +210,20 @@ def _run_predict(args, device):
     test_dataloader = MuAtDataloader(pd_predict, dataloader_config)
 
     model_name = checkpoint['model_name']
-    model = get_model(model_name, checkpoint['model_config'])
+    model_config = checkpoint['model_config']
+    # Recompute motif_size fresh from THIS checkpoint's own dict_motif rather than
+    # trusting whatever value is pickled inside model_config: some published
+    # checkpoints (e.g. benchmark_wgs.zip) were packaged with a buggy
+    # compute_motif_size() that looked for mut_type=='Normal' instead of the real
+    # 'Neg' label, silently undercounting the Neg vocab block -- the pickled
+    # motif_size then disagrees with the checkpoint's own trained weight tensor
+    # shape (confirmed: token_embedding.weight has 4831 rows, but the stale pickled
+    # config sized the model to 3693). Recomputing here (compute_motif_size is fixed
+    # now) makes loading correct regardless of what shipped inside any given file.
+    if hasattr(model_config, 'mutation_type_ratio'):
+        model_config.motif_size = model_config.compute_motif_size(
+            dict_motif, model_config.mutation_type_ratio) + 1
+    model = get_model(model_name, model_config)
     model = model.to(device)
     model.load_state_dict(checkpoint['weight'])
 
@@ -267,11 +280,12 @@ def _run_predict_ensemble(args, device):
     tmp_dir = check_tmp_dir(args) if args.needs_preprocessing else None
 
     for i_fold, pth_file in enumerate(check_pth):
-        if args.source == 'from-checkpoint':
-            fold = str(i_fold)
-        else:
-            m = re.search(r'fold(\d+)', os.path.basename(pth_file))
-            fold = m.group(1) if m else str(i_fold)
+        # Label outputs by the checkpoint's own fold number (from its filename),
+        # not loop position -- needed so a partial re-run (e.g. only the folds
+        # missing from an earlier cancelled run) can't relabel/overwrite a
+        # different fold's already-written prediction file under the same name.
+        m = re.search(r'fold(\d+)', os.path.basename(pth_file))
+        fold = m.group(1) if m else str(i_fold)
         print('prediction from {}'.format(pth_file))
 
         checkpoint = load_and_check_checkpoint(pth_file)
@@ -321,7 +335,15 @@ def _run_predict_ensemble(args, device):
         test_dataloader = MuAtDataloader(pd_predict, dataloader_config)
 
         model_name = checkpoint['model_name']
-        model = get_model(model_name, checkpoint['model_config'])
+        model_config = checkpoint['model_config']
+        # See _run_predict's identical fix: recompute motif_size fresh from this
+        # checkpoint's own dict_motif rather than trusting a possibly-stale pickled
+        # value (some published checkpoints were packaged with a buggy
+        # compute_motif_size() looking for 'Normal' instead of 'Neg').
+        if hasattr(model_config, 'mutation_type_ratio'):
+            model_config.motif_size = model_config.compute_motif_size(
+                dict_motif, model_config.mutation_type_ratio) + 1
+        model = get_model(model_name, model_config)
         model = model.to(device)
         model.load_state_dict(checkpoint['weight'])
 
