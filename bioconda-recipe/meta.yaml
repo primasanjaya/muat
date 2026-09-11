@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://github.com/primasanjaya/muat/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: TODO-fill-in-after-tagging-and-pushing-v0.1.31-then-sha256sum-the-real-github-tarball
+  sha256: c29b7989d8a0ae4d99cfb58362caccc0ca00bbfab4d72971049247c57a3b0754
 
 
 build:
