@@ -1,6 +1,6 @@
 [project]
 name = "muat"  # replace with your actual project name
-version = "0.1.30"
+version = "0.1.31"
 requires-python = ">=3.8"
 
 [build-system]
