@@ -544,9 +544,25 @@
       "kind": "archive",
       "description": "a1_ckpt_hfmatch.zip - all 3 best-epoch checkpoints from the 3 repeats of a1_d1_hfmatch (GPU/bioconda, PCAWG controlled-access cohort, motif-only architecture matched to the original published benchmark_wgs.zip configuration), plus MANIFEST.tsv and README.md. Trained model weights only, no controlled-access mutation/genomic data. Determinism evidence for the manuscript (all 3 repeats bit-identical). Members named a1_ckpt_hfmatch_rep01.pthx..a1_ckpt_hfmatch_rep03.pthx.",
       "source": "zenodo",
-      "url": "TODO-fill-in-after-zenodo-v5-publish",
+      "url": "https://zenodo.org/records/22703149/files/a1_ckpt_hfmatch.zip?download=1",
       "sha256": "9356b905c2f78cf2c45fc36cf425319fc4264bb591d64b6fb818a1eb172ce1e0",
       "filename": "a1_ckpt_hfmatch.zip"
+    },
+    "a0_benchmark_wgs_checkpoints": {
+      "kind": "reference",
+      "description": "DOCUMENTATION-ONLY, not fetched by any `muat reproduce` recipe. Original MuAt whole-genome (PCAWG) pretrained checkpoints from Sanjaya et al. 2023 -- 10-fold cross-validation ensembles across five mutation-type configurations, used as experiment a0's baseline checkpoint (see a1_d1_hfmatch's purpose note). Canonical source is huggingface.co/primasanjaya/muat-checkpoint (benchmark_wgs.zip); mirrored to this Zenodo record for a persistent, checksummed DOI. Verified byte-identical to the live Hugging Face file at time of mirroring.",
+      "source": "zenodo",
+      "url": "https://zenodo.org/records/22703149/files/benchmark_wgs.zip?download=1",
+      "sha256": "ab7bb5e881f2fe530ee7f690ed84b41d757c828183c6de239598d7fb95045895",
+      "filename": "benchmark_wgs.zip"
+    },
+    "a0_benchmark_wes_checkpoints": {
+      "kind": "reference",
+      "description": "DOCUMENTATION-ONLY, not fetched by any `muat reproduce` recipe. Original MuAt whole-exome (TCGA) pretrained checkpoints from Sanjaya et al. 2023 -- 10-fold cross-validation ensembles. Canonical source is huggingface.co/primasanjaya/muat-checkpoint (benchmark_wes.zip); mirrored to this Zenodo record for the same reason as a0_benchmark_wgs_checkpoints. Verified byte-identical to the live Hugging Face file at time of mirroring.",
+      "source": "zenodo",
+      "url": "https://zenodo.org/records/22703149/files/benchmark_wes.zip?download=1",
+      "sha256": "ff490771891b88261c46e182a5b5c959fedaf01744da5940c24db168cbc38519",
+      "filename": "benchmark_wes.zip"
     },
     "d1_snvmnvindelsv_checkpoint": {
       "kind": "checkpoint",
@@ -568,7 +584,7 @@
       "kind": "archive",
       "description": "ckpt1.zip - all 10 best-epoch checkpoints from the 10 repeats of d1_snvmnvindelsv (GPU/bioconda, SNV+MNV+indel+SV), plus MANIFEST.tsv and README.md. Determinism evidence for the manuscript. Members named d1_run1.pthx..d1_run10.pthx.",
       "source": "zenodo",
-      "url": "https://zenodo.org/records/22281678/files/ckpt1.zip?download=1",
+      "url": "https://zenodo.org/records/22703149/files/ckpt1.zip?download=1",
       "sha256": "7e9ba0827af28d9ecfbf21acb3e935069a6e21050bef6c9773997c9820fd5d00",
       "filename": "ckpt1.zip"
     },
@@ -576,7 +592,7 @@
       "kind": "archive",
       "description": "ckpt2.zip - all 10 best-epoch checkpoints from the 10 repeats of d2_snvmnvindelsv (CPU/container arm, Debian base host CentOS 7), plus MANIFEST.tsv and README.md. Determinism evidence for the manuscript. Members named d2_run1.pthx..d2_run10.pthx (matching ckpt1.zip's d1_run*.pthx convention for d1_snvmnvindelsv).",
       "source": "zenodo",
-      "url": "https://zenodo.org/records/22281678/files/ckpt2.zip?download=1",
+      "url": "https://zenodo.org/records/22703149/files/ckpt2.zip?download=1",
       "sha256": "3a08a82a2c3d8e7b144cebb59a15477657e450d7b2db30976232f4aa142a7c89",
       "filename": "ckpt2.zip"
     },
@@ -592,7 +608,7 @@
       "kind": "archive",
       "description": "ckpt3.zip - all 10 best-epoch checkpoints from the 10 repeats of d5_pubhg38 (public GDC hg38-native training), plus MANIFEST.tsv and README.md. Determinism evidence for the manuscript. Members named d5_run1.pthx..d5_run10.pthx (matching ckpt1.zip's d1_run*.pthx convention for d1_snvmnvindelsv).",
       "source": "zenodo",
-      "url": "https://zenodo.org/records/22281678/files/ckpt3.zip?download=1",
+      "url": "https://zenodo.org/records/22703149/files/ckpt3.zip?download=1",
       "sha256": "14310730e8c2e84b24f570bb19bdeac5a93a6ded48cb50fcb520e7f62f4cb476",
       "filename": "ckpt3.zip"
     },
@@ -600,7 +616,7 @@
       "kind": "data_bundle",
       "description": "Preprocessed public GDC TCGA hg38-native samples backing d5_pubhg38/d6_pubhg38: one <sample>.muat.tsv per aliquot for the 502 train+validation samples (413 train / 89 val), plus the corpus-level dictionaries (dicts/) and the exact train_split.tsv/val_split.tsv used. Pins the exact cohort since the original cohort-selection step queries the live GDC API and is not itself byte-reproducible (see documentation/README_public_hg38.md). Deliberately excludes the held-out test split, matching pcawg_open_preprocessed's train+val-only convention.",
       "source": "zenodo",
-      "url": "https://zenodo.org/records/22281678/files/pubhg38_tcga_muat.tar.gz?download=1",
+      "url": "https://zenodo.org/records/22703149/files/pubhg38_tcga_muat.tar.gz?download=1",
       "sha256": "69db89ecd7ba7b4c99679b7c9f704dede1d65a1f5feac6e2cc4fa73c274e8dcd",
       "filename": "pubhg38_tcga_muat.tar.gz",
       "_sha256_note": "Verified 2026-09-03 against data/reproduce_release/pubhg38_tcga_muat.tar.gz (2.0 MB, 502 samples). Archive is byte-reproducible: sorted file list, fixed mtime/ownership, gzip -n -9 (rebuild reproduces the identical sha256).",
@@ -686,7 +702,7 @@
       "kind": "data_bundle",
       "description": "Preprocessed SNV+MNV+indel+SV tokenized files (<sample>.muat.tsv) for the 1794-sample d1_snvmnvindelsv cohort (1,434 train / 360 val), built by merging real PCAWG consensus snv_mnv/indel VCFs with synthetic VCF records derived from the consensus SV BEDPE files (muat/pkg_reproduce/make_snvmnvindelsv_vcfs.py), then tokenized with the shipped default dictionaries (100% position/ges coverage, 99.99% motif coverage). No MEI data exists for this cohort. Backs d1_snvmnvindelsv/d2_snvmnvindelsv/d3_snvmnvindelsv/d4_snvmnvindelsv/d7-d9_snvmnvindelsv -- i.e. this is the bundle the manuscript's actual reported classification results (top-1 86.39%/85.83%) trace to, NOT pcawg_open_preprocessed.",
       "source": "zenodo",
-      "url": "https://zenodo.org/records/22281678/files/pcawg_snvmnvindelsv_muat.tar.gz?download=1",
+      "url": "https://zenodo.org/records/22703149/files/pcawg_snvmnvindelsv_muat.tar.gz?download=1",
       "sha256": "34f9c7cde8a98c268efb78d29da9fcfbe5fc39f9c360314ceb69fc03373f4322",
       "filename": "pcawg_snvmnvindelsv_muat.tar.gz",
       "_sha256_note": "Verified 2026-09-03 against data/reproduce_release/pcawg_snvmnvindelsv_muat.tar.gz (237 MB, 1794 entries, sample IDs cross-checked exactly against splits/pcawg_orig_snvmnvindelsv_{train,val}.tsv). Byte-reproducible: sorted file list, fixed mtime/ownership, gzip -n -9 (rebuild reproduces the identical sha256).",
